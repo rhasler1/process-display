@@ -33,8 +33,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         // draw to terminal
         terminal.draw(|f| {
             match app.draw(f) {
-                Ok(_state) => {}
-                Err(_err) => {}
+                Ok(_state) => {} //TODO
+                Err(_err) => {} //TODO
             }
         })?;
 
@@ -52,7 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
                     // if error occurred when procesing app, then restart app
                     Err(_err) => {
-                        app.reset()?;
+                        app.reset();
                     }
                 }
             }

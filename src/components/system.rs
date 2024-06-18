@@ -10,33 +10,53 @@ use sysinfo::{System, Pid};
 use super::StatefulDrawableComponent;
 use super::Component;
 
+pub enum ProcessFocus {
+    Unfiltered,
+    Filtered,
+}
+
 pub struct SystemWrapper {
-    focus: usize, // index of pid_in_focus
+    focus: ProcessFocus,
+    scroll_position: usize, // I would like to move scroll_position and scroll_height somewhere else
+    window_height: usize,
+    pid_in_focus_idx: usize, // index of pid_in_focus
     pid_in_focus: u32, // u32 value of pid in focus
-    system: System, // system
     process_list: Vec<(u32, String)>, // main data structure list of processes
+    filtered_process_list: Option<Vec<(u32, String)>>, // implement for search function
+    system: System, // system
 }
 
 impl SystemWrapper {
     pub fn new() -> Self  {
         Self {
-            focus: 0,
+            focus: ProcessFocus::Unfiltered,
+            scroll_position: 0,
+            window_height: 0,
+            pid_in_focus_idx: 0,
             pid_in_focus: 0,
-            system: System::new_all(),
             process_list: Vec::new(),
+            filtered_process_list: None,
+            system: System::new_all(),
         }
     }
 
+    fn move_focus_filtered(&mut self) {
+        self.focus = ProcessFocus::Filtered;
+    }
+
+    fn move_focus_unfiltered(&mut self) {
+        self.focus = ProcessFocus::Unfiltered;
+    }
+
     // method reset can also be used to `set` the system
-    pub fn reset(&mut self) -> io::Result<bool> {
+    pub fn reset(&mut self) {
         self.process_list.clear(); // 1. clear process list
         self.system.refresh_all(); // 2. refresh system
         self.set_process_list(); // 3. set the process list
-        self.init_focus()?; // 4. init focus -> must only be called when process list is set(populated)
-        return Ok(true)
+        self.init_pid_in_focus(); // 4. init focus -> must only be called when process list is set(populated)
     }
 
-    pub fn terminate_process(&mut self) -> io::Result<bool> {
+    fn terminate_process(&mut self) -> io::Result<bool> {
         //TODO: implement
         if let Some(process) = self.system.process(Pid::from_u32(self.pid_in_focus)) {
             process.kill();
@@ -45,7 +65,7 @@ impl SystemWrapper {
     }
 
     // pub fn sort() // TODO: write generic sort using enums (ie: PidInc, PidDec, NameInc, NameDec, ...)
-    pub fn sort_by_pid(&mut self) {
+    fn sort_by_pid(&mut self) {
         self.process_list.sort_by_key(|k| k.0);
     }   
 
@@ -64,13 +84,12 @@ impl SystemWrapper {
     }
 
     // init pid in focus
-    fn init_focus(&mut self) -> io::Result<bool> {
-        self.focus = 0;
+    fn init_pid_in_focus(&mut self) {
+        self.pid_in_focus_idx = 0;
         if self.process_list.is_empty() {
-            return Ok(false);
+            return;
         }
-        self.pid_in_focus = self.process_list[self.focus].0;
-        return Ok(true);
+        self.pid_in_focus = self.process_list[self.pid_in_focus_idx].0;
     }
 
     // increment focus and set pid in focus
@@ -79,8 +98,8 @@ impl SystemWrapper {
         if self.process_list.is_empty() {
             return Ok(false);
         }
-        self.focus = (self.focus + 1) % self.process_list.len();
-        self.pid_in_focus = self.process_list[self.focus].0;
+        self.pid_in_focus_idx = (self.pid_in_focus_idx + 1) % self.process_list.len();
+        self.pid_in_focus = self.process_list[self.pid_in_focus_idx].0;
         return Ok(true);
     }
 
@@ -90,32 +109,48 @@ impl SystemWrapper {
         if self.process_list.is_empty() {
             return Ok(false);
         }
-        self.focus = (self.focus - 1) % self.process_list.len();
-        self.pid_in_focus = self.process_list[self.focus].0;
+        if self.pid_in_focus_idx == 0 {
+            return Ok(true)
+        }
+        self.pid_in_focus_idx = (self.pid_in_focus_idx - 1) % self.process_list.len();
+        self.pid_in_focus = self.process_list[self.pid_in_focus_idx].0;
         return Ok(true);
     }
 }
 
 impl Component for SystemWrapper {
-    fn event(&mut self, key: KeyEvent) -> io::Result<bool> {
+    fn event(&mut self, key: KeyEvent, filter: Option<String>) -> io::Result<bool> {
+        // update focus::begin
+        if filter.is_some() {
+            self.move_focus_filtered();
+            filter.unwrap();
+        }
+        else {
+            self.move_focus_unfiltered();
+        }
+        // update focus::end
+
         if key.code == KeyCode::Char('r') {
-            self.reset()?;
+            self.reset();
             return Ok(true)
         }
         if key.code == KeyCode::Down {
             // moving down the list means focus must be incremented
             self.inc_focus()?;
+            return Ok(true)
         }
         if key.code == KeyCode::Up {
             // moving up the list means focus must be decremented
             self.dec_focus()?;
+            return Ok(true)
         }
         if key.code == KeyCode::Char('t') {
             // terminate the current process in focus
             self.terminate_process()?;
             // for now, resetting the system after terminating a process, this is
             // very inefficient -- will improve later.
-            self.reset()?;
+            self.reset();
+            return Ok(true)
         }
         return Ok(false)
     }
@@ -123,9 +158,20 @@ impl Component for SystemWrapper {
 
 impl StatefulDrawableComponent for SystemWrapper {
     fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<bool> {
+        self.window_height = area.height as usize;
+
         let items: Vec<ListItem> = self.process_list.iter()
+            .skip(self.scroll_position)
+            .take(self.window_height)
             .map(|(pid, name)| {
+                let style = if *pid == self.pid_in_focus {
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                }
+                else {
+                    Style::default().fg(Color::White)
+                };
                 ListItem::new(format!("PID: {}, Name: {}", pid, name))
+                    .style(style)
             })
             .collect();
 
