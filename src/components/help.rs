@@ -8,6 +8,7 @@ use ratatui::{
 
 use crate::app::Focus;
 
+use super::EventState;
 use super::StatefulDrawableComponent;
 use super::Component;
 
@@ -41,16 +42,16 @@ impl Help {
 }
 
 impl Component for Help {
-    fn event(&mut self, _key: KeyEvent) -> io::Result<bool> {
-        return Ok(false);
+    fn event(&mut self, _key: KeyEvent) -> io::Result<EventState> {
+        return Ok(EventState::NotConsumed);
     }
 }
 
 impl StatefulDrawableComponent for Help {
-    fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<bool> {
+    fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<()> {
         let widget: Paragraph = Paragraph::new(self.help_text.as_str())
             .style(Style::default().fg(Color::Green));
         f.render_widget(widget, area);
-        return Ok(true)
+        return Ok(())
     }
 }

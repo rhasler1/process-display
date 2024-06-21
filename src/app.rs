@@ -2,13 +2,15 @@ use std::io::{self};
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::prelude::*;
 
+use crate::config::Config;
 use crate::components::{
-    system::SystemWrapper,
-    process_list::ProcessList,
-    process_filter::ProcessFilter,
     help::Help,
-    StatefulDrawableComponent,
+    process_filter::ProcessFilter,
+    process_list::ProcessList,
+    system::SystemWrapper,
     Component,
+    EventState,
+    StatefulDrawableComponent
 };
 
 #[derive(Clone, Copy)]
@@ -24,6 +26,7 @@ pub struct App {
     pub process_list: ProcessList,
     pub process_filter: ProcessFilter, // application component
     pub help: Help, // observer of Focus
+    pub config: Config, // key configuration
 }
 
 impl App {
@@ -35,6 +38,7 @@ impl App {
             process_list: ProcessList::new(),
             process_filter: ProcessFilter::new(),
             help: Help::new(),
+            config: Config::default(),
         }
     }
 
@@ -47,25 +51,25 @@ impl App {
         self.help.update(self.focus); // observer of app.focus (app state)
     }
 
-    pub fn event(&mut self, key: KeyEvent) -> io::Result<bool> {
-        if self.components_event(key)? {
-            return Ok(true);
+    pub fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
+        if self.components_event(key)?.is_consumed() {
+            return Ok(EventState::Consumed);
         }
-        if self.move_focus(key)? {
-            return Ok(true);
+        if self.move_focus(key)?.is_consumed() {
+            return Ok(EventState::Consumed);
         }
-        Ok(false) // eventkey was not consumed
+        Ok(EventState::NotConsumed) // eventkey was not consumed
     }
 
-    fn components_event(&mut self, key: KeyEvent) -> io::Result<bool> {
+    fn components_event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         if key.code == KeyCode::Esc {
             self.reset();
-            return Ok(true)
+            return Ok(EventState::Consumed)
         }
         match self.focus {
             Focus::ProcessList => {
-                if self.process_list.event(key)? {
-                    return Ok(true)
+                if self.process_list.event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
                 }
                 if key.code == KeyCode::Char('t') {
                     // terminate process
@@ -76,27 +80,27 @@ impl App {
                         self.reset();
 
                     }
-                    return Ok(true)
+                    return Ok(EventState::Consumed)
                 }
             }
             Focus::ProcessFilter => {
-                if self.process_filter.event(key)? {
-                    return Ok(true); // keyevent was consumed
+                if self.process_filter.event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed); // keyevent was consumed
                 }
                 if key.code == KeyCode::Enter {
                     // set process_list.filter_name
                     self.process_list.set_filter_name(self.process_filter.get_filter_name());
                     // set process_list.filtered_list
                     self.process_list.set_filtered_list();
-                    return Ok(true);
+                    return Ok(EventState::Consumed);
                 }
             }
         }
-        return Ok(false) // keyevent was not consumed
+        return Ok(EventState::NotConsumed) // keyevent was not consumed
     }
 
     // TAB -> used to change focus b/w System and SearchBar
-    fn move_focus(&mut self, key: KeyEvent) -> io::Result<bool> {
+    fn move_focus(&mut self, key: KeyEvent) -> io::Result<EventState> {
         if key.code == KeyCode::Tab {
             match self.focus {
                 Focus::ProcessList => {
@@ -106,12 +110,12 @@ impl App {
                     self.focus = Focus::ProcessList;
                 }
             }
-            return Ok(true); // eventkey was consumed
+            return Ok(EventState::Consumed); // eventkey was consumed
         }
-        return Ok(false); // eventkey was not consumed
+        return Ok(EventState::NotConsumed); // eventkey was not consumed
     }
 
-    pub fn draw(&mut self, f: &mut Frame) -> io::Result<bool> {
+    pub fn draw(&mut self, f: &mut Frame) -> io::Result<()> {
         // update help component (observer) before drawing
         self.help.update(self.focus);
 
@@ -128,6 +132,6 @@ impl App {
         self.process_list.draw(f, chunks[1])?;
         self.help.draw(f, chunks[2])?;
 
-        return Ok(true)
+        return Ok(())
     }
 }

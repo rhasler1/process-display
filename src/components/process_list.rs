@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{block::*, *},
 };
 
-use super::StatefulDrawableComponent;
+use super::{EventState, StatefulDrawableComponent};
 use super::Component;
 
 pub enum FilterState {
@@ -161,27 +161,29 @@ impl ProcessList {
 }
 
 impl Component for ProcessList {
-    fn event(&mut self, key: KeyEvent) -> io::Result<bool> {
+    fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         match key.code {
             KeyCode::Up => {
                 self.dec_idx();
-                return Ok(true);
+                return Ok(EventState::Consumed);
             }
             KeyCode::Down => {
                 self.inc_idx();
-                return Ok(true);
+                return Ok(EventState::Consumed);
             }
             KeyCode::Enter => {
                 self.swap_filter();
-                return Ok(true);
+                return Ok(EventState::Consumed);
             }
-            _=> { return Ok(false) }
+            _=> {
+                return Ok(EventState::NotConsumed)
+            }
         }
     }
 }
 
 impl StatefulDrawableComponent for ProcessList {
-    fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<bool> {
+    fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<()> {
         let window_height = area.height as usize;
         let list = self.get_process_list();
         let idx = self.get_idx();
@@ -212,6 +214,6 @@ impl StatefulDrawableComponent for ProcessList {
             .style(Style::default().fg(Color::White));
 
         f.render_widget(list, area);
-        Ok(true)
+        Ok(())
     }
 }

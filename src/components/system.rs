@@ -2,7 +2,7 @@ use std::io;
 use crossterm::event::{KeyEvent, KeyCode};
 use sysinfo::{System, Pid};
 
-use super::Component;
+use super::{Component, EventState};
 
 pub struct SystemWrapper {
     process_list: Vec<(u32, String)>, // main data structure list of processes
@@ -56,11 +56,11 @@ impl SystemWrapper {
 }
 
 impl Component for SystemWrapper {
-    fn event(&mut self, key: KeyEvent) -> io::Result<bool> {
+    fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         if key.code == KeyCode::Char('r') {
             self.reset();
-            return Ok(true)
+            return Ok(EventState::Consumed)
         }
-        return Ok(false)
+        return Ok(EventState::NotConsumed)
     }
 }

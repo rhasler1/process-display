@@ -1,5 +1,6 @@
 use std::io::{self};
 use std::error::Error;
+use config::Config;
 use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
@@ -12,6 +13,7 @@ use ratatui::{
 };
 
 pub mod app;
+pub mod config;
 pub mod components;
 use crate::app::App;
 
@@ -26,7 +28,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     // set up app
     let mut app = App::new();
     app.reset();
-
     terminal.clear()?;
 
     loop {
@@ -34,23 +35,19 @@ fn main() -> Result<(), Box<dyn Error>> {
         terminal.draw(|f| {
             match app.draw(f) {
                 Ok(_state) => {} //TODO
-                Err(_err) => {} //TODO
+                Err(_err) => {} //TODO (exit program)
             }
         })?;
 
         // process next event
         if let Event::Key(key) = event::read()? {
-            // app.event(key) should return Ok(true) if keyevent has been consumed and
-            // Ok(false) if keyevent has not been consumed
             if key.kind == event::KeyEventKind::Press {
                 match app.event(key) {
                     Ok(state) => {
-                        // if keyevent has not been consumed and keycode is 'q' break loop and exit app
-                        if state && key.code == KeyCode::Char('q') {
+                        if !state.is_consumed() && key.code == app.config.key_config.quit {
                             break;
                         }
                     }
-                    // if error occurred when procesing app, then restart app
                     Err(_err) => {
                         app.reset();
                     }
@@ -58,7 +55,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
         }
     }
-    // exit app gracefully
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
