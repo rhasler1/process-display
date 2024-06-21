@@ -5,7 +5,6 @@ use ratatui::{
     prelude::*,
     widgets::{block::*, *},
 };
-use sysinfo::{System, Pid};
 
 use super::StatefulDrawableComponent;
 use super::Component;
@@ -81,13 +80,24 @@ impl ProcessList {
         }
     }
 
-    pub fn get_pid(&mut self) -> u32 {
+    // function is not safe! will panic if list length is 0.
+    pub fn get_pid(&mut self) -> Option<u32> {
         match self.filter_state {
             FilterState::NotFiltering => {
-                return self.unfiltered_list[self.unfiltered_idx].0;
+                if self.unfiltered_list.len() < 1 {
+                    return None
+                }
+                else {
+                    return Some(self.unfiltered_list[self.unfiltered_idx].0);
+                }
             }
             FilterState::Filtering => {
-                return self.filtered_list[self.filtered_idx].0;
+                if self.filtered_list.len() < 1 {
+                    return None
+                }
+                else {
+                    return Some(self.filtered_list[self.filtered_idx].0);
+                }
             }
         }
     }
@@ -177,11 +187,12 @@ impl StatefulDrawableComponent for ProcessList {
         let idx = self.get_idx();
         let pid = self.get_pid();
 
-        let items: Vec<ListItem> = list.iter()
+        let items:Vec<ListItem> = if pid.is_some() {
+            list.iter()
             .skip(idx)
             .take(window_height)
             .map(|(p, n)| {
-                let style = if *p == pid {
+                let style = if *p == pid.unwrap() {
                     Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
                 }
                 else {
@@ -190,7 +201,11 @@ impl StatefulDrawableComponent for ProcessList {
                 ListItem::new(format!("PID: {}, Name: {}", p, n))
                     .style(style)
             })
-            .collect();
+            .collect::<Vec<_>>()
+        }
+        else {
+            Vec::new()
+        };
 
         let list = List::new(items)
             .block(Block::default().borders(Borders::ALL).title("Process List"))

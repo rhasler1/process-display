@@ -1,15 +1,6 @@
 use std::io::{self};
-use crossterm::{
-    execute,
-    terminal::{enable_raw_mode, EnterAlternateScreen},
-    terminal::{disable_raw_mode, LeaveAlternateScreen},
-    event::{self, EnableMouseCapture, Event, KeyEvent, DisableMouseCapture, KeyCode}
-};
-use ratatui::{
-    backend::CrosstermBackend,
-    Terminal,
-    prelude::*
-};
+use crossterm::event::{KeyEvent, KeyCode};
+use ratatui::prelude::*;
 
 use crate::components::{
     system::SystemWrapper,
@@ -78,11 +69,14 @@ impl App {
                 }
                 if key.code == KeyCode::Char('t') {
                     // terminate process
-                    self.system_wrapper.terminate_process(self.process_list.get_pid())?;
-                    // update process_list in system_wrapper.
-                    self.system_wrapper.reset();
-                    // update unfiltered_list in process_list.
-                    self.process_list.set_unfiltered_list(self.system_wrapper.get_process_list());
+                    if self.process_list.get_pid().is_some() {
+                        // pass the pid in focus in process_list to system_wrapper.terminate_process().
+                        self.system_wrapper.terminate_process(self.process_list.get_pid().unwrap())?;
+                        // reset app
+                        self.reset();
+
+                    }
+                    return Ok(true)
                 }
             }
             Focus::ProcessFilter => {

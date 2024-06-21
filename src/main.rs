@@ -4,13 +4,13 @@ use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
     terminal::{disable_raw_mode, LeaveAlternateScreen},
-    event::{self, EnableMouseCapture, Event, KeyEvent, DisableMouseCapture, KeyCode}
+    event::{self, EnableMouseCapture, Event, DisableMouseCapture, KeyCode}
 };
 use ratatui::{
     backend::CrosstermBackend,
     Terminal,
-    prelude::*
 };
+
 pub mod app;
 pub mod components;
 use crate::app::App;

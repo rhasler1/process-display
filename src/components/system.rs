@@ -1,13 +1,7 @@
 use std::io;
 use crossterm::event::{KeyEvent, KeyCode};
-use ratatui::{
-    Frame,
-    prelude::*,
-    widgets::{block::*, *},
-};
 use sysinfo::{System, Pid};
 
-use super::StatefulDrawableComponent;
 use super::Component;
 
 pub struct SystemWrapper {
