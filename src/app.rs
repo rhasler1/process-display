@@ -13,7 +13,8 @@ use ratatui::{
 
 use crate::components::{
     system::SystemWrapper,
-    search_bar::SearchBar,
+    process_list::ProcessList,
+    process_filter::ProcessFilter,
     help::Help,
     StatefulDrawableComponent,
     Component,
@@ -22,14 +23,15 @@ use crate::components::{
 #[derive(Clone, Copy)]
 pub enum Focus {
     //TODO: implement
-    System,
-    SearchBar,
+    ProcessList,
+    ProcessFilter,
 }
 
 pub struct App {
     pub focus: Focus, // the component the user is interacting with
     pub system_wrapper: SystemWrapper, // application component
-    pub search_bar: SearchBar, // application component
+    pub process_list: ProcessList,
+    pub process_filter: ProcessFilter, // application component
     pub help: Help, // observer of Focus
 }
 
@@ -37,17 +39,20 @@ impl App {
     // default
     pub fn new() -> Self {
         Self {
-            focus: Focus::System,
+            focus: Focus::ProcessList,
             system_wrapper: SystemWrapper::new(),
-            search_bar: SearchBar::new(),
+            process_list: ProcessList::new(),
+            process_filter: ProcessFilter::new(),
             help: Help::new(),
         }
     }
 
     pub fn reset(&mut self) {
-        self.focus = Focus::System;
+        self.focus = Focus::ProcessList;
         self.system_wrapper.reset();
-        self.search_bar.reset();
+        self.process_list.reset();
+        self.process_list.set_unfiltered_list(self.system_wrapper.get_process_list());
+        self.process_filter.reset();
         self.help.update(self.focus); // observer of app.focus (app state)
     }
 
@@ -62,18 +67,35 @@ impl App {
     }
 
     fn components_event(&mut self, key: KeyEvent) -> io::Result<bool> {
-        //TODO: implement
+        if key.code == KeyCode::Esc {
+            self.reset();
+            return Ok(true)
+        }
         match self.focus {
-            Focus::System => {
-                if self.search_bar.is_empty() && self.system_wrapper.event(key, None)? {
-                    return Ok(true) // keyevent was consumed
+            Focus::ProcessList => {
+                if self.process_list.event(key)? {
+                    return Ok(true)
                 }
-                else if !self.search_bar.is_empty() && self.system_wrapper.event(key, Some(self.search_bar.get_process_name()))? {
-                    return Ok(true) // keyevent was consumed
+                if key.code == KeyCode::Char('t') {
+                    // terminate process
+                    self.system_wrapper.terminate_process(self.process_list.get_pid())?;
+                    // update process_list in system_wrapper.
+                    self.system_wrapper.reset();
+                    // update unfiltered_list in process_list.
+                    self.process_list.set_unfiltered_list(self.system_wrapper.get_process_list());
                 }
             }
-            Focus::SearchBar => {
-                if self.search_bar.event(key, None)? {return Ok(true) } // keyevent was consumed
+            Focus::ProcessFilter => {
+                if self.process_filter.event(key)? {
+                    return Ok(true); // keyevent was consumed
+                }
+                if key.code == KeyCode::Enter {
+                    // set process_list.filter_name
+                    self.process_list.set_filter_name(self.process_filter.get_filter_name());
+                    // set process_list.filtered_list
+                    self.process_list.set_filtered_list();
+                    return Ok(true);
+                }
             }
         }
         return Ok(false) // keyevent was not consumed
@@ -83,11 +105,11 @@ impl App {
     fn move_focus(&mut self, key: KeyEvent) -> io::Result<bool> {
         if key.code == KeyCode::Tab {
             match self.focus {
-                Focus::System => {
-                    self.focus = Focus::SearchBar;
+                Focus::ProcessList => {
+                    self.focus = Focus::ProcessFilter;
                 }
-                Focus::SearchBar => {
-                    self.focus = Focus::System;
+                Focus::ProcessFilter => {
+                    self.focus = Focus::ProcessList;
                 }
             }
             return Ok(true); // eventkey was consumed
@@ -108,8 +130,8 @@ impl App {
         ])
         .split(f.size());
 
-        self.search_bar.draw(f, chunks[0])?;
-        self.system_wrapper.draw(f, chunks[1])?;
+        self.process_filter.draw(f, chunks[0])?;
+        self.process_list.draw(f, chunks[1])?;
         self.help.draw(f, chunks[2])?;
 
         return Ok(true)

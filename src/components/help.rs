@@ -30,10 +30,10 @@ impl Help {
     pub fn update(&mut self, focus: Focus) {
         self.reset();
         match focus {
-            Focus::System => {
+            Focus::ProcessList => {
                 self.help_text = String::from("Press <Tab> to Search, <Down Arrow Key> to move focus down, <Up Arrow Key> to move focus up, <Q> to quit");
             }
-            Focus::SearchBar => {
+            Focus::ProcessFilter => {
                 self.help_text = String::from("Press <Tab> to navigate List, <Char(s)> to input name, <Enter> to filter, <Q> to quit");
             }
         }
@@ -41,7 +41,7 @@ impl Help {
 }
 
 impl Component for Help {
-    fn event(&mut self, _key: KeyEvent, _filter: Option<String>) -> io::Result<bool> {
+    fn event(&mut self, _key: KeyEvent) -> io::Result<bool> {
         return Ok(false);
     }
 }
