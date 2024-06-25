@@ -12,12 +12,13 @@ use super::EventState;
 use super::StatefulDrawableComponent;
 use super::Component;
 
-// Help acts as an observer of App.focus.
-pub struct Help {
+//TODO: improve, currently not very helpful.
+//
+pub struct HelpComponent {
     help_text: String,
 }
 
-impl Help {
+impl HelpComponent {
     pub fn new() -> Self {
         Self {
             help_text: String::new(),
@@ -32,22 +33,22 @@ impl Help {
         self.reset();
         match focus {
             Focus::ProcessList => {
-                self.help_text = String::from("Press <Tab> to Search, <Down Arrow Key> to move focus down, <Up Arrow Key> to move focus up, <Q> to quit");
+                self.help_text = String::from("Press <Tab> Filter, <Down Arrow Key> and <Up Arrow Key> navigate list, <T> terminate process, <ESC> reset System, <Q> quit application");
             }
             Focus::ProcessFilter => {
-                self.help_text = String::from("Press <Tab> to navigate List, <Char(s)> to input name, <Enter> to filter, <Q> to quit");
+                self.help_text = String::from("Press <Tab> navigate List");
             }
         }
     }
 }
 
-impl Component for Help {
+impl Component for HelpComponent {
     fn event(&mut self, _key: KeyEvent) -> io::Result<EventState> {
         return Ok(EventState::NotConsumed);
     }
 }
 
-impl StatefulDrawableComponent for Help {
+impl StatefulDrawableComponent for HelpComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<()> {
         let widget: Paragraph = Paragraph::new(self.help_text.as_str())
             .style(Style::default().fg(Color::Green));

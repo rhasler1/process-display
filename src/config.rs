@@ -1,4 +1,4 @@
-use crossterm::event::{KeyEvent, KeyCode};
+use crossterm::event::KeyCode;
 
 pub struct Config {
     pub key_config: KeyConfig,
@@ -19,6 +19,11 @@ pub struct KeyConfig {
     pub tab: KeyCode,
     pub filter: KeyCode,
     pub quit: KeyCode,
+    pub terminate: KeyCode,
+    pub suspend: KeyCode,
+    pub resume: KeyCode,
+    pub reset: KeyCode,
+    pub tab_right: KeyCode,
 }
 
 impl Default for KeyConfig {
@@ -30,6 +35,11 @@ impl Default for KeyConfig {
             tab: KeyCode::Tab,
             filter: KeyCode::Char('/'),
             quit: KeyCode::Char('q'),
+            terminate: KeyCode::Delete,
+            suspend: KeyCode::Char('s'),
+            resume: KeyCode::Char('r'),
+            reset: KeyCode::Esc,
+            tab_right: KeyCode::Right,
         }
     }
 }

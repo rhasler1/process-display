@@ -1,11 +1,11 @@
 use std::io::{self};
 use std::error::Error;
-use config::Config;
+
 use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
     terminal::{disable_raw_mode, LeaveAlternateScreen},
-    event::{self, EnableMouseCapture, Event, DisableMouseCapture, KeyCode}
+    event::{self, EnableMouseCapture, Event, DisableMouseCapture}
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -54,6 +54,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+
+        // update structs
+        app.update()?;
     }
     disable_raw_mode()?;
     execute!(
