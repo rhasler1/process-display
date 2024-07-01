@@ -51,24 +51,37 @@ impl App {
     pub fn reset(&mut self) {
         self.action = None;
         self.focus = Focus::ProcessList;
-        self.system_wrapper.reset();
+        self.system_wrapper.refresh_all();
         self.cpu.reset();
-        self.cpu.set_unfiltered_list(self.system_wrapper.get_process_list());
+        self.cpu.set_unfiltered_list(self.system_wrapper.get_cpu_process_list());
         self.process_filter.reset();
         self.help.update(self.focus); // observer of app.focus (app state)
     }
 
-    pub fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
-        if self.components_event(key)?.is_consumed() {
+    pub async fn event_tick(&mut self) -> io::Result<EventState> {
+        if self.system_wrapper.refresh_all()?.is_consumed() {
+            // system process list is updated in refresh_cpu()
+            // testing -- update cpu process_list
+            self.cpu.refresh_all(self.system_wrapper.get_cpu_process_list());
+            //self.memory.refresh_all(); //uncomment when memory struct is implemented
             return Ok(EventState::Consumed);
         }
-        if self.move_focus(key)?.is_consumed() {
+        return Ok(EventState::NotConsumed)
+    }
+
+    // pub async func
+    pub async fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
+        if self.components_event(key).await?.is_consumed() {
+            return Ok(EventState::Consumed);
+        }
+        if self.move_focus(key).await?.is_consumed() {
             return Ok(EventState::Consumed);
         }
         Ok(EventState::NotConsumed) // eventkey was not consumed
     }
 
-    fn components_event(&mut self, key: KeyEvent) -> io::Result<EventState> {
+    // async func
+    async fn components_event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         // handle reset event-- full app reset
         if key.code == self.config.key_config.reset {
             self.reset();
@@ -125,7 +138,7 @@ impl App {
     }
 
     // move focus between the process list and filter
-    fn move_focus(&mut self, key: KeyEvent) -> io::Result<EventState> {
+    async fn move_focus(&mut self, key: KeyEvent) -> io::Result<EventState> {
         if key.code == self.config.key_config.tab {
             match self.focus {
                 Focus::ProcessList => {
@@ -140,7 +153,7 @@ impl App {
         return Ok(EventState::NotConsumed); // eventkey was not consumed
     }
 
-    pub fn update(&mut self) -> io::Result<()> {
+    pub async fn update(&mut self) -> io::Result<()> {
         // update all components w/ action
         if self.action.is_some() {
             let action = self.action.unwrap();

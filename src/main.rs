@@ -1,11 +1,14 @@
-use std::io::{self};
+use std::io;
 use std::error::Error;
 
+//use anyhow::Result;
+//use anyhow::Ok;
+use crossterm::ExecutableCommand;
 use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
     terminal::{disable_raw_mode, LeaveAlternateScreen},
-    event::{self, EnableMouseCapture, Event, DisableMouseCapture}
+    event::{self, EnableMouseCapture, DisableMouseCapture}
 };
 use ratatui::{
     backend::CrosstermBackend,
@@ -15,17 +18,26 @@ use ratatui::{
 pub mod app;
 pub mod config;
 pub mod components;
+pub mod events;
+
+use crate::events::event::{Event, Events};
 use crate::app::App;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    // set up terminal
-    enable_raw_mode()?;
+// TODO:
+// 1. Read more on async programming
+// 2. determine which methods need to be labeled as async
+// 3. draw diagram of async tasks/execution
+
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+    setup_terminal()?;
+
     let mut stderr = io::stderr();
-    execute!(stderr, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stderr);
+    let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    // set up app
+    let events = Events::new(5000); // tick rate-- system refreshes every `argument` ms
     let mut app = App::new();
     app.reset();
     terminal.clear()?;
@@ -34,30 +46,33 @@ fn main() -> Result<(), Box<dyn Error>> {
         // draw to terminal
         terminal.draw(|f| {
             match app.draw(f) {
-                Ok(_state) => {} //TODO
-                Err(_err) => {} //TODO (exit program)
+                Ok(_state) => {}
+                Err(_err) => {}
             }
         })?;
-
         // process next event
-        if let Event::Key(key) = event::read()? {
-            if key.kind == event::KeyEventKind::Press {
-                match app.event(key) {
-                    Ok(state) => {
-                        if !state.is_consumed() && key.code == app.config.key_config.quit {
-                            break;
-                        }
-                    }
-                    Err(_err) => {
-                        app.reset();
+        match events.next()? {
+            // match key event and process
+            Event::Input(key) => match app.event(key).await {
+                Ok(state) => {
+                    if !state.is_consumed() && key.code == app.config.key_config.quit {
+                        break;
                     }
                 }
+                Err(_err) => {
+                    app.reset();
+                }
+            }
+            // match tick event and process
+            Event::Tick => match app.event_tick().await {
+                Ok(_state) => {}
+                Err(_err) => {} 
             }
         }
-
-        // update structs
-        app.update()?;
+        // update structures
+        app.update().await?;
     }
+    // tear down terminal
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -65,5 +80,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
-    return Ok(());
+    return Ok(())
+}
+
+fn setup_terminal() -> Result<(), Box<dyn Error>> {
+    enable_raw_mode()?;
+    io::stdout().execute(EnterAlternateScreen)?;
+    Ok(())
 }

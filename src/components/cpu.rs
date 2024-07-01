@@ -25,8 +25,8 @@ pub enum FilterState {
 pub struct CPUComponent {
     filter_state: FilterState,
     filter_name: String, // filtering is done by process name
-    filtered_list: Vec<(u32, String)>,
-    unfiltered_list: Vec<(u32, String)>,
+    filtered_list: Vec<(u32, String, f32)>,
+    unfiltered_list: Vec<(u32, String, f32)>,
     filtered_idx: usize,
     unfiltered_idx: usize,
     key_config: KeyConfig,
@@ -58,11 +58,24 @@ impl CPUComponent {
         self.unfiltered_idx = 0;        
     }
 
+    pub fn refresh_all(&mut self, list: Vec<(u32, String, f32)>) {
+        // self.filter_state stays unchanged
+        // self.filter_name stays unchanged
+        //
+        // clearing filtered and unfiltered lists
+        self.filtered_list.clear();
+        self.unfiltered_list.clear();
+        // setting filtered and unfiltered with argument list
+        self.set_unfiltered_list(list);
+        self.set_filtered_list(self.filter_name.clone());
+
+    }
+
     // public method to set CPUComponent.unfiltered_list
     // inputs:
     //   list: Vec<()> -- A list of PID's and process information having to do with the CPU.
     //
-    pub fn set_unfiltered_list(&mut self, list: Vec<(u32, String)>) {
+    pub fn set_unfiltered_list(&mut self, list: Vec<(u32, String, f32)>) {
         self.unfiltered_list = list.clone();
     }
 
@@ -74,7 +87,7 @@ impl CPUComponent {
         self.filter_name.clear();
         self.filter_name = n.clone();
         let temp_list = self.unfiltered_list.clone();
-        self.filtered_list = temp_list.into_iter().filter(|(_, name)| &self.filter_name == name).collect();
+        self.filtered_list = temp_list.into_iter().filter(|(_, name, _)| &self.filter_name == name).collect();
     }
 
     // public method to get the current pid of either the unfiltered_list or filtered_list
@@ -119,7 +132,7 @@ impl CPUComponent {
     // returns:
     //   list: Vec<()> -- The value of filter_state determined which list to return.
     //
-    fn get_process_list(&mut self) -> Vec<(u32, String)> {
+    fn get_process_list(&mut self) -> Vec<(u32, String, f32)> {
         match self.filter_state {
             FilterState::NotFiltering => {
                 return self.unfiltered_list.clone();
@@ -229,14 +242,14 @@ impl StatefulDrawableComponent for CPUComponent {
             list.iter()
             .skip(idx)
             .take(window_height)
-            .map(|(p, n)| {
+            .map(|(p, n, c)| {
                 let style = if *p == pid.unwrap() {
                     Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
                 }
                 else {
                     Style::default().fg(Color::White)
                 };
-                ListItem::new(format!("PID: {}, Name: {}", p, n))
+                ListItem::new(format!("PID: {}, Name: {}, CPU Usage: {}", p, n, c))
                 .style(style)
             })
             .collect::<Vec<_>>()
