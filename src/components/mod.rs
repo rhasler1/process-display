@@ -7,6 +7,10 @@ pub mod filter;
 pub mod help;
 pub mod cpu;
 pub mod tab;
+pub mod process_list_items;
+pub mod list_items_iter;
+pub mod process_list;
+pub mod list_iter;
 
 pub trait StatefulDrawableComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<()>;

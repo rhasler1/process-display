@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    let events = Events::new(5000); // tick rate-- system refreshes every `argument` ms
+    let events = Events::new(250, 5000); // tick rate-- system refreshes every `argument` ms
     let mut app = App::new();
     app.reset();
     terminal.clear()?;
@@ -64,7 +64,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
             // match tick event and process
-            Event::Tick => match app.event_tick().await {
+            Event::Tick => {}
+            Event::Refresh => match app.event_tick().await {
                 Ok(_state) => {}
                 Err(_err) => {} 
             }
