@@ -1,6 +1,9 @@
 use std::io;
 use crossterm::event::KeyEvent;
+use process_list::MoveSelection;
 use ratatui::prelude::*;
+
+use crate::config::KeyConfig;
 
 pub mod system;
 pub mod filter;
@@ -37,5 +40,23 @@ pub enum EventState {
 impl EventState {
     pub fn is_consumed(&self) -> bool {
         *self == Self::Consumed
+    }
+}
+
+pub fn common_nav(key: KeyEvent, key_config: &KeyConfig) -> Option<MoveSelection> {
+    if key.code == key_config.move_down {
+        Some(MoveSelection::Down)
+    }
+    else if key.code == key_config.move_bottom {
+        Some(MoveSelection::End)
+    }
+    else if key.code == key_config.move_up {
+        Some(MoveSelection::Up)
+    }
+    else if key.code == key_config.move_top {
+        Some(MoveSelection::Top)
+    }
+    else {
+        None
     }
 }

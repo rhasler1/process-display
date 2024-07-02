@@ -14,7 +14,9 @@ impl Default for Config {
 
 pub struct KeyConfig {
     pub move_up: KeyCode,
+    pub move_top: KeyCode,
     pub move_down: KeyCode,
+    pub move_bottom: KeyCode,
     pub enter: KeyCode,
     pub tab: KeyCode,
     pub filter: KeyCode,
@@ -30,7 +32,9 @@ impl Default for KeyConfig {
     fn default() -> Self {
         Self {
             move_up: KeyCode::Up,
+            move_top: KeyCode::PageUp,
             move_down: KeyCode::Down,
+            move_bottom: KeyCode::PageDown,
             enter: KeyCode::Enter,
             tab: KeyCode::Tab,
             filter: KeyCode::Char('/'),

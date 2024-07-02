@@ -22,6 +22,12 @@ pub struct ProcessList {
 }
 
 impl ProcessList {
+    // new Constructor
+    // inputs:
+    //   list: &Vec<ProcessListItem> -- Reference to a Vector of ProcessListItem
+    // outputs:
+    //   new ProcessList
+    //
     pub fn new(list: &Vec<ProcessListItem>) -> Self {
         Self {
             items: ProcessListItems::new(list),
@@ -29,6 +35,12 @@ impl ProcessList {
         }
     }
 
+    // pub fn filter
+    // inputs:
+    //   filter_text: String -- text to filter processes by name
+    // outputs:
+    //    new ProcessList
+    //
     pub fn filter(&self, filter_text: String) -> Self {
         let mut new_self = Self {
             items: self.items.filter(filter_text),
@@ -37,13 +49,13 @@ impl ProcessList {
         new_self
     }
 
-    // fn selected_item -- change self.selected_item given a direction
+    // pub fn move_selection -- change self.selected_item given a direction
     // inputs:
     //   dir: MoveSelection
     // outputs:
     //   If selection was moved, then True, else False.
     //
-    pub fn selected_item(&mut self, dir: MoveSelection) -> bool {
+    pub fn move_selection(&mut self, dir: MoveSelection) -> bool {
         self.selection.map_or(false, |selection| {
             let new_index = match dir {
                 MoveSelection::Down => self.selection_down(selection, 1),
