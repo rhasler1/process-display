@@ -1,18 +1,18 @@
 use std::io;
 use crossterm::event::KeyEvent;
-use crossterm::event::KeyCode;
 use ratatui::{
     Frame,
     prelude::*,
     widgets::{block::*, *},
 };
 
-use super::{filter::FilterComponent, process_list::MoveSelection, Component, EventState, StatefulDrawableComponent};
-use super::process_list_items::ProcessListItems;
-use super::process_list::ProcessList;
-use super::process_list_items::ProcessListItem;
+use super::{filter::FilterComponent, Component, EventState, StatefulDrawableComponent};
+use super::utils::vertical_scroll::VerticalScroll;
+
+use crate::process::common_nav;
+use crate::process::process_list_items::ProcessListItem;
+use crate::process::process_list::ProcessList;
 use crate::config::KeyConfig;
-use super::common_nav;
 
 // can either focus on filter or unfiltered list
 #[derive(PartialEq)]
@@ -26,29 +26,41 @@ pub struct CPUComponent {
     list: ProcessList,
     filter: FilterComponent,
     filtered_list: Option<ProcessList>,
-    //TODO: scroll: VerticalScroll
+    scroll: VerticalScroll,
     key_config: KeyConfig,
 }
 
 impl CPUComponent {
-    // pub method to construct CPUComponent
+    // default constructor
     //
-    pub fn new() -> Self {
+    pub fn default() -> Self {
         Self {
             focus: Focus::List,
             list: ProcessList::default(),
             filter: FilterComponent::new(),
             filtered_list: None,
+            scroll: VerticalScroll::new(false, false),
+            key_config: KeyConfig::default(),
+        }
+    }
+    
+    // new custom constructor
+    //
+    pub fn new(list: &Vec<ProcessListItem>) -> Self {
+        Self {
+            focus: Focus::List,
+            list: ProcessList::new(list),
+            filter: FilterComponent::new(),
+            filtered_list: None,
+            scroll: VerticalScroll::new(false, false),
             key_config: KeyConfig::default(),
         }
     }
 
     // pub function to update the process list
     //
-    pub async fn update(&mut self, processes: &Vec<ProcessListItem>) {
-        self.list = ProcessList::new(processes);
-        self.filtered_list = None;
-        self.filter.reset();
+    pub async fn update(&mut self, new_processes: &Vec<ProcessListItem>) {
+        self.list.update(new_processes);
     }
 
     //  pub fn list -- getter
@@ -107,17 +119,19 @@ impl Component for CPUComponent {
 
         //  if the filtered_list is Some pass it as argument, else pass list (unfiltered_list)
         //
-        if list_nav(
-            if let Some(list) = self.filtered_list.as_mut() {
-                list
+        if matches!(self.focus, Focus::List) {
+            if list_nav(
+                if let Some(list) = self.filtered_list.as_mut() {
+                    list
+                }
+                else {
+                    &mut self.list
+                },
+                key,
+                &self.key_config
+            ) {
+                return Ok(EventState::Consumed);
             }
-            else {
-                &mut self.list
-            },
-            key,
-            &self.key_config
-        ) {
-            return Ok(EventState::Consumed);
         }
 
         // catch-all
@@ -127,8 +141,8 @@ impl Component for CPUComponent {
 }
 
 fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bool {
-    if let Some(common_nav) = common_nav(key, key_config) {
-        list.move_selection(common_nav)
+    if let Some(move_dir) = common_nav(key, key_config) {
+        list.move_selection(move_dir)
     }
     else {
         false
@@ -143,35 +157,58 @@ impl StatefulDrawableComponent for CPUComponent {
     //
     // TODO: Move process_list_items.rs, process_list.rs, list_items_iter.rs, and list_iter.rs to Process Directory (add library).
     //
-    fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<()> {
-        let window_height = area.height as usize;
-        let list = self.get_process_list();
-        let idx = self.get_idx();
-        let pid = self.get_pid();
-        let items:Vec<ListItem> =
-        if pid.is_some() {
-            list.iter()
-            .skip(idx)
-            .take(window_height)
-            .map(|(p, n, c)| {
-                let style = if *p == pid.unwrap() {
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> io::Result<()> {
+        // make chunks for list & filter
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // filter chunk
+                Constraint::Min(1) // list chunk
+            ].as_ref())
+            .split(area);
+
+        // draw filter
+        self.filter.draw(f, chunks[0], matches!(self.focus, Focus::Filter))?;
+
+        let list_height = chunks[1].height as usize;
+        let list = if let Some(list) = self.filtered_list.as_ref() {
+            list
+        }
+        else {
+            &self.list
+        };
+
+        list.selection().map_or_else(
+            { ||
+                self.scroll.reset()
+            }, |selection| {
+                self.scroll.update(
+                    selection, list_height
+                );
+            },
+        );
+
+        let items = list
+            .iterate(self.scroll.get_top(), list_height)
+            .map(|(item, selected)| {
+                let style =
+                if selected {
                     Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
                 }
                 else {
                     Style::default().fg(Color::White)
                 };
-                ListItem::new(format!("PID: {:<10} Name: {:<50} CPU Usage: {:<15}", p, n, c))
-                .style(style)
+                ListItem::new(format!("PID: {}, Name: {}, Selected: {:?}", item.pid(), item.name(), self.list.selection))
+                    .style(style)
             })
-            .collect::<Vec<_>>()
-        }
-        else {
-            Vec::new()
-        };
-        let list = List::new(items)
+            .collect::<Vec<_>>();
+
+        let drawable_list = List::new(items)
             .block(Block::default().borders(Borders::ALL).title("Process List"))
             .style(Style::default().fg(Color::White));
-        f.render_widget(list, area);
+
+        f.render_widget(drawable_list, chunks[1]);
+
         Ok(())
     }
 }

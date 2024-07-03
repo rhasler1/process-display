@@ -1,58 +1,65 @@
+pub mod app;
+pub mod config;
+pub mod components;
+pub mod events;
+pub mod process;
+
 use std::io;
 use std::error::Error;
 
-//use anyhow::Result;
-//use anyhow::Ok;
 use crossterm::ExecutableCommand;
 use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
     terminal::{disable_raw_mode, LeaveAlternateScreen},
-    event::{self, EnableMouseCapture, DisableMouseCapture}
+    event::DisableMouseCapture
 };
+
 use ratatui::{
     backend::CrosstermBackend,
     Terminal,
 };
 
-pub mod app;
-pub mod config;
-pub mod components;
-pub mod events;
 
 use crate::events::event::{Event, Events};
 use crate::app::App;
 
-// TODO:
-// 1. Read more on async programming
-// 2. determine which methods need to be labeled as async
-// 3. draw diagram of async tasks/execution
-
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    setup_terminal()?;
 
-    let mut stderr = io::stderr();
+    // terminal setup::begin
+    setup_terminal()?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
+    // terminal setup::end
+    
+    // event handler setup::begin
+    let events = Events::new(250, 5000); // argument 1: tick_rate , argument 2: system refresh_rate
+    // event handler setup::end
 
-    let events = Events::new(250, 5000); // tick rate-- system refreshes every `argument` ms
+    // app creation and initialization::begin
     let mut app = App::new();
-    app.reset();
-    terminal.clear()?;
+    app.init().await?;
+    // app creation and initialization::end
 
+    terminal.clear()?; // clear terminal
+
+    // main event loop::begin
     loop {
-        // draw to terminal
+
+        // draw to terminal::begin
         terminal.draw(|f| {
             match app.draw(f) {
                 Ok(_state) => {}
                 Err(_err) => {}
             }
         })?;
-        // process next event
+        // draw to terminal::end
+
+        // process next event::begin
         match events.next()? {
-            // match key event and process
+
+            // Input Key Event
             Event::Input(key) => match app.event(key).await {
                 Ok(state) => {
                     if !state.is_consumed() && key.code == app.config.key_config.quit {
@@ -60,20 +67,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     }
                 }
                 Err(_err) => {
-                    app.reset();
+                    //app.reset();
                 }
             }
-            // match tick event and process
-            Event::Tick => {}
-            Event::Refresh => match app.event_tick().await {
+
+            // Refresh Event
+            Event::Refresh => match app.refresh().await {
                 Ok(_state) => {}
                 Err(_err) => {} 
             }
+
+            // Tick Event
+            Event::Tick => {}
         }
-        // update structures
-        app.update().await?;
+        // process next event::end
     }
-    // tear down terminal
+    // main event loop:: end
+
+    // tear down terminal::begin
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -81,6 +92,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
+    // tear down terminal::end
+
     return Ok(())
 }
 

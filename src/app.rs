@@ -19,54 +19,55 @@ use crate::components::{
 #[derive(Clone, Copy)]
 pub enum Focus {
     ProcessList,
-    ProcessFilter,
 }
 
 pub struct App {
-    pub action: Option<Action>,
     pub focus: Focus, // the component the user is interacting with
     pub system_wrapper: SystemWrapper, // application component
     pub cpu: CPUComponent,
-    pub process_filter: FilterComponent, // application component
-    pub help: HelpComponent, // observer of Focus
     pub config: Config, // key configuration
     pub tab: TabComponent,
 }
 
 impl App {
-    // default
+    // new constructor
+    //
     pub fn new() -> Self {
         Self {
-            action: None,
             focus: Focus::ProcessList,
             system_wrapper: SystemWrapper::new(),
-            cpu: CPUComponent::new(),
-            process_filter: FilterComponent::new(),
-            help: HelpComponent::new(),
+            cpu: CPUComponent::default(),
             config: Config::default(),
             tab: TabComponent::new(),
         }
     }
 
-    pub fn reset(&mut self) {
-        self.action = None;
-        self.focus = Focus::ProcessList;
-        self.system_wrapper.refresh_all();
-        self.cpu.reset();
-        self.cpu.set_unfiltered_list(self.system_wrapper.get_cpu_process_list());
-        self.process_filter.reset();
-        self.help.update(self.focus); // observer of app.focus (app state)
+    // pub async fn init -- initialize process
+    //
+    pub async fn init(&mut self) -> io::Result<()> {
+        self.system_wrapper.refresh_all()?;
+        let new_processes = self.system_wrapper.get_cpu_process_list();
+        self.cpu.update(new_processes).await;
+        Ok(())
     }
 
-    pub async fn event_tick(&mut self) -> io::Result<EventState> {
-        if self.system_wrapper.refresh_all()?.is_consumed() {
-            // system process list is updated in refresh_cpu()
-            // testing -- update cpu process_list
-            self.cpu.refresh_all(self.system_wrapper.get_cpu_process_list());
-            //self.memory.refresh_all(); //uncomment when memory struct is implemented
-            return Ok(EventState::Consumed);
+    // pub async fn update_process_list -- update on refresh events
+    //
+    pub async fn refresh(&mut self) -> io::Result<()> {
+        // refresh the system_wrapper
+        //
+        self.system_wrapper.refresh_all()?;
+        let new_processes = self.system_wrapper.get_cpu_process_list();
+
+        // update the process list of selected tab
+        match self.tab.selected_tab {
+            Tab::CPU => {
+                // refresh cpu list
+                self.cpu.update(new_processes.as_ref()).await;
+            }
+            Tab::Memory => {}
         }
-        return Ok(EventState::NotConsumed)
+        Ok(())
     }
 
     // pub async func
@@ -82,11 +83,7 @@ impl App {
 
     // async func
     async fn components_event(&mut self, key: KeyEvent) -> io::Result<EventState> {
-        // handle reset event-- full app reset
-        if key.code == self.config.key_config.reset {
-            self.reset();
-            return Ok(EventState::Consumed);
-        }
+        // TODO: Implement error component for handling resetting the application on error
 
         // handle change tab (this is not affected by Focus variant)
         if self.tab.event(key)?.is_consumed() {
@@ -96,21 +93,6 @@ impl App {
         // match focus variants ProcessList and ProcessFilter
         match self.focus {
             Focus::ProcessList => {
-                // On events terminate, suspend, and resume the SystemWrapper and observers, ie: CPU and memory need to be updated,
-                // this is handled in the app.update() method, which executes in the main event loop after
-                // app.event(key).
-                if key.code == self.config.key_config.terminate {
-                    self.action = Some(Action::Terminate);
-                    return Ok(EventState::Consumed);
-                }
-                if key.code == self.config.key_config.suspend {
-                    self.action = Some(Action::Suspend);
-                    return Ok(EventState::Consumed);
-                }
-                if key.code == self.config.key_config.resume {
-                    self.action = Some(Action::Resume);
-                    return Ok(EventState::Consumed);
-                }
                 // match tab variants CPU and Memory
                 match self.tab.selected_tab {
                     Tab::CPU => {
@@ -120,20 +102,10 @@ impl App {
                     }
                     Tab::Memory => {
                         //TODO: implement MemoryComponent
-                        //if self.memory.event(key)?.is_consumed() { // TODO: implement memory struct
-                        //    return Ok(EventState::Consumed);
-                        //}
                     }
                 }
             }
-            Focus::ProcessFilter => {
-                if self.process_filter.event(key)?.is_consumed() {
-                    self.action = Some(Action::Filtering);
-                    return Ok(EventState::Consumed); // keyevent was consumed
-                }
-            }
         }
-        self.action = None; // if keyevent was not consumed, set action to None
         return Ok(EventState::NotConsumed) // keyevent was not consumed
     }
 
@@ -142,9 +114,6 @@ impl App {
         if key.code == self.config.key_config.tab {
             match self.focus {
                 Focus::ProcessList => {
-                    self.focus = Focus::ProcessFilter;
-                }
-                Focus::ProcessFilter => {
                     self.focus = Focus::ProcessList;
                 }
             }
@@ -153,72 +122,29 @@ impl App {
         return Ok(EventState::NotConsumed); // eventkey was not consumed
     }
 
-    pub async fn update(&mut self) -> io::Result<()> {
-        // update all components w/ action
-        if self.action.is_some() {
-            let action = self.action.unwrap();
-            match action {
-                // set the filtered list in cpu/memory with filter information
-                Action::Filtering => {
-                    match self.tab.selected_tab {
-                        Tab::CPU => {
-                            self.cpu.set_filtered_list(self.process_filter.get_filter());
-                        }
-                        Tab::Memory => {
-                            //self.memory.set_filter_name(self.process_filter.get_filter()); //TODO: IMPLEMENT
-                        }
-                    }
-                }
-                // terminate the pid in focus and reset application
-                Action::Terminate => {
-                    match self.tab.selected_tab {
-                        Tab::CPU => {
-                            if self.cpu.get_pid().is_some() {
-                                let pid = self.cpu.get_pid().unwrap();
-                                self.system_wrapper.terminate_process(pid)?;
-                                self.reset(); // resetting the entire app to deal with termination, TODO: improve.
-                            }
-                        }
-                        Tab::Memory => {
-                            //TODO: implement MemoryComponent
-                        }
-                    }
-                }
-                Action::Resume => {}//TODO
-                Action::Suspend => {}//TODO
-            }
-        }
-        // updating the help component before drawing
-        self.help.update(self.focus);
-        return Ok(())
-    }
-
     pub fn draw(&mut self, f: &mut Frame) -> io::Result<()> {
         let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // tab bar
-            Constraint::Length(3), // filter bar
-            Constraint::Min(1), // process list
+            Constraint::Min(1), // process list & filter
             Constraint::Length(3), // help bar
         ])
         .split(f.size());
 
         // draw tab component at top of frame
-        self.tab.draw(f, chunks[0])?;
+        self.tab.draw(f, chunks[0], false)?;
         // draw filter component below tab component
-        self.process_filter.draw(f, chunks[1])?;
         // draw process list in the largest area
         match self.tab.selected_tab {
             Tab::CPU => {
-                self.cpu.draw(f, chunks[2])?;
+                self.cpu.draw(f, chunks[1], false)?;
             }
             Tab::Memory => {
                 //self.memory.draw(f, chunks[1])?;
             }
         }
         // draw help bar at the bottom of the frame
-        self.help.draw(f, chunks[3])?;
         return Ok(())
     }
 }

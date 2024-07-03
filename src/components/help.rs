@@ -35,9 +35,9 @@ impl HelpComponent {
             Focus::ProcessList => {
                 self.help_text = String::from("Press <Tab> Filter, <Down Arrow Key> and <Up Arrow Key> navigate list, <T> terminate process, <ESC> reset System, <Q> quit application");
             }
-            Focus::ProcessFilter => {
-                self.help_text = String::from("Press <Tab> navigate List");
-            }
+            //Focus::ProcessFilter => {
+            //    self.help_text = String::from("Press <Tab> navigate List");
+            //}
         }
     }
 }
@@ -49,7 +49,7 @@ impl Component for HelpComponent {
 }
 
 impl StatefulDrawableComponent for HelpComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> io::Result<()> {
         let widget: Paragraph = Paragraph::new(self.help_text.as_str())
             .style(Style::default().fg(Color::Green));
         f.render_widget(widget, area);

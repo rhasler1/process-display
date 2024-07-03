@@ -2,8 +2,6 @@ use crossterm::event::{self, KeyEvent, KeyCode};
 use std::sync::mpsc;
 use std::{thread, time::Duration};
 
-// largely inspired from: https://github.com/TaKO8Ki/gobang/blob/7b1b5f7eba3ea98a5d254a12ea31f383ee7737d1/src/event/events.rs
-
 #[derive(Clone, Copy)]
 pub struct EventConfig {
     pub exit_key: KeyCode,

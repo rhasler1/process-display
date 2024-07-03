@@ -69,7 +69,7 @@ impl Component for TabComponent {
 
 impl StatefulDrawableComponent for TabComponent {
     //match selected tab for highlighting
-    fn draw(&mut self, f: &mut Frame, area: Rect) -> std::io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> std::io::Result<()> {
         let names: Vec<String> = self.names();
         let titles: Vec<Line> = names.iter().map(|name| Line::from(Span::raw(name.clone()))).collect();
         let tabs = Tabs::new(titles)

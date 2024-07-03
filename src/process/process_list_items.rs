@@ -11,6 +11,16 @@ pub struct CpuInfo {
     pub cpu_usage: f32,
 }
 
+impl CpuInfo {
+    pub fn new(pid: u32, name: String, cpu_usage: f32) -> Self {
+        Self {
+            pid,
+            name,
+            cpu_usage,
+        }
+    }
+}
+
 // information pertinent to system memory
 //
 #[derive(Clone)]

@@ -1,4 +1,6 @@
 
+use std::io;
+
 use super::process_list_items::ProcessListItems;
 use super::process_list_items::ProcessListItem;
 use super::list_iter::ListIterator;
@@ -35,6 +37,20 @@ impl ProcessList {
         }
     }
 
+    // pub fn update
+    // inputs:
+    // new_list: &Vec<ProcessListItem> -- Reference to a Vector of new ProcessListItem's
+    //
+    pub fn update(&mut self, new_list: &Vec<ProcessListItem>) -> io::Result<()> {
+        self.items.update_items(new_list)?;
+
+        //if !new_list.is_empty() && self.selection.is_none() {
+        //    self.selection = Some(0);
+        //}
+
+        Ok(())
+    }
+
     // pub fn filter
     // inputs:
     //   filter_text: String -- text to filter processes by name
@@ -49,6 +65,12 @@ impl ProcessList {
         new_self
     }
 
+    // pub fn selection -- getter
+    //
+    pub fn selection(&self) -> Option<usize> {
+        self.selection
+    }
+
     // pub fn move_selection -- change self.selected_item given a direction
     // inputs:
     //   dir: MoveSelection
@@ -56,6 +78,11 @@ impl ProcessList {
     //   If selection was moved, then True, else False.
     //
     pub fn move_selection(&mut self, dir: MoveSelection) -> bool {
+        // update selection
+        //
+        if self.items.list_items.len() == 0 { self.selection = None }
+        if self.selection.is_none() && self.items.list_items.len() > 0 { self.selection = Some(0) }
+
         self.selection.map_or(false, |selection| {
             let new_index = match dir {
                 MoveSelection::Down => self.selection_down(selection, 1),
@@ -74,6 +101,7 @@ impl ProcessList {
             }
 
             // "if changed index is true then new_index should always be some"
+            //panic!();
             changed_index || new_index.is_some()
         })
     }
@@ -88,19 +116,19 @@ impl ProcessList {
         let mut new_index = current_index;
         let items_max = self.items.len().saturating_sub(1);
 
-        // unnecessary embedded loops -- "I wanted to see how loop labeling could be used"
         'a: for _ in 0..lines {
-            loop {
-                if new_index >= items_max {
-                    break 'a;
-                }
-
-                new_index = new_index.saturating_add(1);
+            if new_index >= items_max {
+                break 'a;
             }
+            new_index = new_index.saturating_add(1);
         }
 
-        if new_index == current_index { None }
-        else { Some(new_index) }
+        if new_index == current_index {
+            None
+        }
+        else {
+            Some(new_index)
+        }
     }
 
     // fn selection_up -- move selection up
@@ -113,13 +141,10 @@ impl ProcessList {
         let mut new_index = current_index;
         // labeling loop `a` to break out of `a` from within nested loop
         'a: for _ in 0..lines {
-            loop {
-                if new_index == 0 {
-                    break 'a;
-                }
-
-                new_index = new_index.saturating_sub(1);
+            if new_index == 0 {
+                break 'a;
             }
+            new_index = new_index.saturating_sub(1);
         }
 
         if new_index == current_index { None }

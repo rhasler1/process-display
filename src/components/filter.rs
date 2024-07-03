@@ -53,7 +53,7 @@ impl Component for FilterComponent {
 }
 
 impl StatefulDrawableComponent for FilterComponent {
-    fn draw(&mut self, f: &mut Frame, area: ratatui::prelude::Rect) -> io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: ratatui::prelude::Rect, focused: bool) -> io::Result<()> {
         let widget: Paragraph = Paragraph::new(self.input_str.as_str())
             .style(Style::default().fg(Color::White))
             .block(Block::default().borders(Borders::ALL).title("Filter by process name"));
