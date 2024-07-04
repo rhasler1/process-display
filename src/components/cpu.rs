@@ -73,8 +73,6 @@ impl CPUComponent {
     pub fn list_focused(&self) -> bool {
         matches!(self.focus, Focus::List)
     }
-
-
 }
 
 impl Component for CPUComponent {
@@ -198,7 +196,7 @@ impl StatefulDrawableComponent for CPUComponent {
                 else {
                     Style::default().fg(Color::White)
                 };
-                ListItem::new(format!("PID: {}, Name: {}, Selected: {:?}", item.pid(), item.name(), self.list.selection))
+                ListItem::new(format!("PID: {}, Name: {}, Selected: {:?}", item.pid(), item.name(), list.selection))
                     .style(style)
             })
             .collect::<Vec<_>>();

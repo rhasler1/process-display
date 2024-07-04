@@ -60,7 +60,12 @@ impl ProcessList {
     pub fn filter(&self, filter_text: String) -> Self {
         let mut new_self = Self {
             items: self.items.filter(filter_text),
-            selection:Some(0),
+            selection: if self.items.list_items.is_empty() {
+                None
+            }
+            else {
+                Some(0)
+            }
         };
         new_self
     }

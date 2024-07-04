@@ -176,7 +176,7 @@ impl ProcessListItems {
                 .list_items
                 .iter()
                 .filter(|item| {
-                    item.is_cpu() || item.is_memory() || item.is_match(&filter_text)
+                    item.is_match(&filter_text)
                 })
                 .map(|item| {
                     let item = item.clone();
