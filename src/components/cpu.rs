@@ -1,12 +1,12 @@
 use std::io;
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
     Frame,
     prelude::*,
     widgets::{block::*, *},
 };
 
-use super::{filter::FilterComponent, Component, EventState, StatefulDrawableComponent};
+use super::{filter::FilterComponent, Component, EventState, ListSortOrder, StatefulDrawableComponent};
 use super::utils::vertical_scroll::VerticalScroll;
 
 use crate::process::common_nav;
@@ -129,6 +129,18 @@ impl Component for CPUComponent {
                 &self.key_config
             ) {
                 return Ok(EventState::Consumed);
+            }
+            // was the input to sort the list?
+            //
+            // 'n' => sort by name in ascending order
+            else if key.code == KeyCode::Char('n') {
+                self.list.sort(Some(ListSortOrder::NameInc))?;
+                return Ok(EventState::Consumed);
+            }
+            // 'N' => sort by name in descending order
+            else if key.code == KeyCode::Char('N') {
+                self.list.sort(Some(ListSortOrder::NameDec))?;
+                return Ok(EventState::Consumed)
             }
         }
 

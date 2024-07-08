@@ -27,6 +27,7 @@ impl VerticalScroll {
 
     pub fn update(&self, selection: usize, _visual_height: usize) -> usize {
         // for now we are just setting the top of the list to be the selected item
+        self.top.set(selection);
         let new_top = selection;
         new_top
     }

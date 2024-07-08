@@ -1,6 +1,8 @@
 
 use std::io;
 
+use crate::components::ListSortOrder;
+
 use super::process_list_items::ProcessListItems;
 use super::process_list_items::ProcessListItem;
 use super::list_iter::ListIterator;
@@ -21,6 +23,7 @@ pub struct ProcessList {
     items: ProcessListItems,
     pub selection: Option<usize>,
     // consider adding visual_selection
+    sort: Option<ListSortOrder>,
 }
 
 impl ProcessList {
@@ -34,6 +37,7 @@ impl ProcessList {
         Self {
             items: ProcessListItems::new(list),
             selection: if list.is_empty() { None } else { Some(0) },
+            sort: None,
         }
     }
 
@@ -42,11 +46,26 @@ impl ProcessList {
     // new_list: &Vec<ProcessListItem> -- Reference to a Vector of new ProcessListItem's
     //
     pub fn update(&mut self, new_list: &Vec<ProcessListItem>) -> io::Result<()> {
-        self.items.update_items(new_list)?;
+        // get the selected item, selected_item = Some(item) || None
+        //
+        let selected_item: Option<&ProcessListItem> = self.items.list_items.get(self.selection.unwrap_or_default());
+        // get the selected item's pid, pid = Some(pid) || None
+        //
+        let pid: Option<u32> = selected_item.map(|item| item.pid());
 
-        //if !new_list.is_empty() && self.selection.is_none() {
-        //    self.selection = Some(0);
-        //}
+        // update items with new list
+        //
+        self.items.update_items(new_list, self.sort.as_ref())?;
+
+        // if pid is some then set self.selection = pid, else self.selection = None
+        //
+        self.selection = pid.and_then(|p| self.items.get_idx(p));
+
+        // if the new list is not empty and selection is None, set the selection to be 0.
+        //
+        if !new_list.is_empty() && self.selection.is_none() {
+            self.selection = Some(0);
+        }
 
         Ok(())
     }
@@ -65,9 +84,20 @@ impl ProcessList {
             }
             else {
                 Some(0)
-            }
+            },
+            sort: None,
         };
         new_self
+    }
+
+    // fn sort
+    //
+    pub fn sort(&mut self, sort: Option<ListSortOrder>) -> io::Result<()> {
+        if self.sort != sort {
+            self.sort = sort.clone();
+            self.items.sort_items(sort.clone())?;
+        }
+        Ok(())
     }
 
     // pub fn selection -- getter
@@ -182,7 +212,8 @@ impl ProcessList {
         else { Some(0) }
     }
 
-    // currently not using -- will be used for visual_selection when visual_selection is implemented
+    // pub fn iterate
+    //
     pub fn iterate(&self, start_index: usize, max_amount: usize) -> ListIterator<'_> {
         let start = start_index;
         ListIterator::new(self.items.iterate(start, max_amount), self.selection)

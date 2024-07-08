@@ -35,6 +35,16 @@ pub enum EventState {
     NotConsumed,
 }
 
+#[derive(PartialEq, Clone)]
+pub enum ListSortOrder {
+    PidInc,
+    PidDec,
+    NameInc,
+    NameDec,
+    UsageInc,
+    UsageDec,
+}
+
 impl EventState {
     pub fn is_consumed(&self) -> bool {
         *self == Self::Consumed

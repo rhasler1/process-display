@@ -1,5 +1,7 @@
 use std::io;
 
+use crate::components::ListSortOrder;
+
 use super::list_items_iter::ListItemsIterator;
 
 // information pertinent to system cpu
@@ -126,7 +128,7 @@ impl ProcessListItems {
     //
     pub fn new(list: &Vec<ProcessListItem>) -> Self {
         Self {
-            list_items: Self::create_items(list)
+            list_items: Self::create_items(list),
         }
     }
 
@@ -151,11 +153,20 @@ impl ProcessListItems {
     //   updates self.list_items with argument new_list
     //   Ok(())
     //
-    pub fn update_items(&mut self, new_list: &Vec<ProcessListItem>) -> io::Result<()> {
+    pub fn update_items(&mut self, new_list: &Vec<ProcessListItem>, sort: Option<&ListSortOrder>) -> io::Result<()> {
         for e in new_list {
              // 1. if the new list contains an entry not in the old list, then add entry to old list.
+             // - need to improve the method for pushing an item onto a list,
+             // - ie: if the list is sorted push the entry into it's sorted position
              //
-            if !self.list_items.contains(e) { self.list_items.push(e.clone()) }
+            if !self.list_items.contains(e) {
+                // get the index to insert the new item
+                //
+                let idx = self.insert_item_idx(e, sort);
+                // insert new item
+                //
+                self.list_items.insert(idx, e.clone())
+            }
             // 2. if the new list contains updated information for a process in the old list, then update old list entry.
             //
             else if let Some(old_item) = self.list_items.iter_mut().find(|item| item == &e) {
@@ -166,6 +177,75 @@ impl ProcessListItems {
         //
         self.list_items.retain(|item| new_list.contains(item));
         Ok(())
+    }
+
+    // fn insert_item_idx -- get the index to insert the argument item into a list
+    //
+    fn insert_item_idx(&mut self, item: &ProcessListItem, sort: Option<&ListSortOrder>) -> usize {
+        match sort {
+            Some(ListSortOrder::PidInc) => {
+                self.list_items
+                    .binary_search_by(|probe| probe.pid().cmp(&item.pid()))
+                    .unwrap_or_else(|index| index)
+            }
+            Some(ListSortOrder::PidDec) => {
+                self.list_items
+                    .binary_search_by(|probe| probe.pid().cmp(&item.pid()).reverse())
+                    .unwrap_or_else(|index| index)
+            }
+            Some(ListSortOrder::NameInc) => {
+                self.list_items
+                    .binary_search_by(|probe| probe.name().cmp(&item.name()))
+                    .unwrap_or_else(|index| index)
+            }
+            Some(ListSortOrder::NameDec) => {
+                self.list_items
+                    .binary_search_by(|probe| probe.name().cmp(&item.name()).reverse())
+                    .unwrap_or_else(|index| index)
+            }
+            _ => self.list_items.len() // return inde
+        }
+    }
+
+    // how can items be sorted?
+    // lets support by usage, by name, by pid
+    // the goal is to only call this function when the sort type changes, I
+    // do not want to sort the items every time a new item is added, the item
+    // should be added to it's correct position given the ListSortOrder by another function
+    //
+    pub fn sort_items(&mut self, sort: Option<ListSortOrder>) -> io::Result<()> {
+        match sort {
+            Some(ListSortOrder::PidInc) => {
+                self.list_items.sort_by(|a, b| a.pid().cmp(&b.pid()));
+            }
+            Some(ListSortOrder::PidDec) => {
+                self.list_items.sort_by(|a, b| b.pid().cmp(&a.pid()));
+            }
+            Some(ListSortOrder::NameInc) => {
+                self.list_items.sort_by(|a, b| a.name().cmp(&b.name()));
+            }
+            Some(ListSortOrder::NameDec) => {
+                self.list_items.sort_by(|a, b| b.name().cmp(&a.name()));
+            }
+            //TODO: implement sort by usages
+            _ => {}
+        }
+        Ok(())
+    }
+
+    // pub fn get_idx
+    // inputs:
+    //   pid: u32 -- pid to search index for
+    // outputs:
+    //   Ok(idx)
+    //
+    pub fn get_idx(&mut self, pid: u32) -> Option<usize> {
+        if let Some(idx) = self.list_items.iter_mut().position(|item| item.pid() == pid) {
+            return Some(idx);
+        }
+        else {
+            return None;
+        }
     }
 
     // pub fn filter
