@@ -1,5 +1,7 @@
 use std::io;
+
 use crossterm::event::{KeyEvent, KeyCode};
+
 use ratatui::{
     Frame,
     prelude::*,
@@ -8,7 +10,6 @@ use ratatui::{
 
 use super::{EventState, StatefulDrawableComponent, Component};
 
-// FilterComponent stores the characters entered by the user in the filter bar.
 pub struct FilterComponent {
     input_str: String,
 }
@@ -24,9 +25,6 @@ impl FilterComponent {
         self.input_str.clear();
     }
 
-    // pub method to get the current filter
-    // The method is used in the impl of App to communicate the filter with the CPUComponent.
-    //
     pub fn input_str(&mut self) -> String {
         return self.input_str.clone();
     }
@@ -54,10 +52,26 @@ impl Component for FilterComponent {
 
 impl StatefulDrawableComponent for FilterComponent {
     fn draw(&mut self, f: &mut Frame, area: ratatui::prelude::Rect, focused: bool) -> io::Result<()> {
-        let widget: Paragraph = Paragraph::new(self.input_str.as_str())
-            .style(Style::default().fg(Color::White))
-            .block(Block::default().borders(Borders::ALL).title("Filter by process name"));
+        let title: &str = "Filter";
+
+        let style: Style =
+        if focused {
+            Style::default().fg(Color::White)
+        }
+        else {
+            Style::default().fg(Color::DarkGray)
+        };
+
+        let filter_text: &str = self.input_str.as_str();
+
+        let widget: Paragraph =
+            Paragraph::new(filter_text)
+            .style(style)
+            .block(Block::default().borders(Borders::ALL)
+            .title(title));
+
         f.render_widget(widget, area);
+
         return Ok(())
     }
 }

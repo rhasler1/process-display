@@ -38,7 +38,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // event handler setup::end
 
     // app creation and initialization::begin
-    let mut app = App::new();
+    let config = config::Config::default();
+    let mut app = App::new(config);
     app.init().await?;
     // app creation and initialization::end
 
@@ -62,7 +63,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // Input Key Event
             Event::Input(key) => match app.event(key).await {
                 Ok(state) => {
-                    if !state.is_consumed() && key.code == app.config.key_config.quit {
+                    if !state.is_consumed() && key.code == app.config.key_config.exit_popup {
                         break;
                     }
                 }

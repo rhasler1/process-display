@@ -91,7 +91,7 @@ impl SystemWrapper {
 impl Component for SystemWrapper {
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         if key.code == KeyCode::Char('r') {
-            self.refresh_all();
+            self.refresh_all()?;
             return Ok(EventState::Consumed)
         }
         return Ok(EventState::NotConsumed)

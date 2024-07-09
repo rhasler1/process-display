@@ -23,7 +23,8 @@ pub struct ProcessList {
     items: ProcessListItems,
     pub selection: Option<usize>,
     // consider adding visual_selection
-    sort: Option<ListSortOrder>,
+    sort: ListSortOrder,
+    follow_selection: bool,
 }
 
 impl ProcessList {
@@ -37,7 +38,8 @@ impl ProcessList {
         Self {
             items: ProcessListItems::new(list),
             selection: if list.is_empty() { None } else { Some(0) },
-            sort: None,
+            sort: ListSortOrder::UsageInc,
+            follow_selection: false,
         }
     }
 
@@ -55,11 +57,26 @@ impl ProcessList {
 
         // update items with new list
         //
-        self.items.update_items(new_list, self.sort.as_ref())?;
+        self.items.update_items(new_list, &self.sort)?;
 
         // if pid is some then set self.selection = pid, else self.selection = None
         //
-        self.selection = pid.and_then(|p| self.items.get_idx(p));
+        if self.follow_selection {
+            self.selection = pid.and_then(|p| self.items.get_idx(p));
+        }
+        else {
+            // since it is the case that the process list might
+            // change in size on update, we need to check if the
+            // selection is still in range of the list. If it is not,
+            // then set self.selection to the max_idx.
+            //
+            if let Some(selection) = self.selection {
+                let max_idx = self.items.len().saturating_sub(1);
+                if selection > max_idx {
+                    self.selection = Some(max_idx)
+                }
+            }
+        }
 
         // if the new list is not empty and selection is None, set the selection to be 0.
         //
@@ -67,6 +84,26 @@ impl ProcessList {
             self.selection = Some(0);
         }
 
+        Ok(())
+    }
+
+    // pub fn follow
+    // returns true if self.follow_selection is set to true, else false.
+    //
+    pub fn follow(&self) -> bool {
+        self.follow_selection
+    }
+
+    // pub fn change_follow_selection
+    // if self.follow_selection is true, then sets to false, else true.
+    //
+    pub fn change_follow_selection(&mut self) -> io::Result<()> {
+        if self.follow_selection {
+            self.follow_selection = false;
+        }
+        else {
+            self.follow_selection = true;
+        }
         Ok(())
     }
 
@@ -85,18 +122,38 @@ impl ProcessList {
             else {
                 Some(0)
             },
-            sort: None,
+            sort: ListSortOrder::UsageInc,
+            follow_selection: false,
         };
         new_self
     }
 
     // fn sort
+    // TODO: update the selection on sort?
     //
-    pub fn sort(&mut self, sort: Option<ListSortOrder>) -> io::Result<()> {
+    pub fn sort(&mut self, sort: ListSortOrder) -> io::Result<()> {
+        // get the selected item, selected_item = Some(item) || None
+        //
+
+        let selected_item: Option<&ProcessListItem> = self.items.list_items.get(self.selection.unwrap_or_default());
+
+        // get the selected item's pid, pid = Some(pid) || None
+        //
+        let pid: Option<u32> = selected_item.map(|item| item.pid());
+
+        // sort
+        //
         if self.sort != sort {
             self.sort = sort.clone();
-            self.items.sort_items(sort.clone())?;
+            self.items.sort_items(&sort)?;
         }
+
+        // if follow selection get the new index of the selected item's pid
+        //
+        if self.follow_selection {
+            self.selection = pid.and_then(|p| self.items.get_idx(p));
+        }
+
         Ok(())
     }
 

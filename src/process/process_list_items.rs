@@ -153,7 +153,7 @@ impl ProcessListItems {
     //   updates self.list_items with argument new_list
     //   Ok(())
     //
-    pub fn update_items(&mut self, new_list: &Vec<ProcessListItem>, sort: Option<&ListSortOrder>) -> io::Result<()> {
+    pub fn update_items(&mut self, new_list: &Vec<ProcessListItem>, sort: &ListSortOrder) -> io::Result<()> {
         for e in new_list {
              // 1. if the new list contains an entry not in the old list, then add entry to old list.
              // - need to improve the method for pushing an item onto a list,
@@ -161,6 +161,7 @@ impl ProcessListItems {
              //
             if !self.list_items.contains(e) {
                 // get the index to insert the new item
+                // ideally log(n) insertion time into a sorted list
                 //
                 let idx = self.insert_item_idx(e, sort);
                 // insert new item
@@ -176,34 +177,45 @@ impl ProcessListItems {
         // 3. if the old list contains an entry not in the new list, then remove entry from old list.
         //
         self.list_items.retain(|item| new_list.contains(item));
+
+        // seeing if this 'fixes' sort by cpu usage
+        // the list might become unsorted if sorting by usage, usage values update
+        // every refresh event...
+        // TODO: clean this idea up
+        //
+        if *sort == ListSortOrder::UsageInc || *sort == ListSortOrder::UsageDec {
+            self.sort_items(sort)?;
+        }
+        
+
         Ok(())
     }
 
     // fn insert_item_idx -- get the index to insert the argument item into a list
     //
-    fn insert_item_idx(&mut self, item: &ProcessListItem, sort: Option<&ListSortOrder>) -> usize {
+    fn insert_item_idx(&mut self, item: &ProcessListItem, sort: &ListSortOrder) -> usize {
         match sort {
-            Some(ListSortOrder::PidInc) => {
+            ListSortOrder::PidInc => {
                 self.list_items
                     .binary_search_by(|probe| probe.pid().cmp(&item.pid()))
                     .unwrap_or_else(|index| index)
             }
-            Some(ListSortOrder::PidDec) => {
+            ListSortOrder::PidDec => {
                 self.list_items
                     .binary_search_by(|probe| probe.pid().cmp(&item.pid()).reverse())
                     .unwrap_or_else(|index| index)
             }
-            Some(ListSortOrder::NameInc) => {
+            ListSortOrder::NameInc => {
                 self.list_items
                     .binary_search_by(|probe| probe.name().cmp(&item.name()))
                     .unwrap_or_else(|index| index)
             }
-            Some(ListSortOrder::NameDec) => {
+            ListSortOrder::NameDec => {
                 self.list_items
                     .binary_search_by(|probe| probe.name().cmp(&item.name()).reverse())
                     .unwrap_or_else(|index| index)
             }
-            _ => self.list_items.len() // return inde
+            _ => self.list_items.len() // if sort is None, return the index to the end of the list
         }
     }
 
@@ -213,22 +225,44 @@ impl ProcessListItems {
     // do not want to sort the items every time a new item is added, the item
     // should be added to it's correct position given the ListSortOrder by another function
     //
-    pub fn sort_items(&mut self, sort: Option<ListSortOrder>) -> io::Result<()> {
+    pub fn sort_items(&mut self, sort: &ListSortOrder) -> io::Result<()> {
         match sort {
-            Some(ListSortOrder::PidInc) => {
+            ListSortOrder::PidInc => {
                 self.list_items.sort_by(|a, b| a.pid().cmp(&b.pid()));
             }
-            Some(ListSortOrder::PidDec) => {
+            ListSortOrder::PidDec => {
                 self.list_items.sort_by(|a, b| b.pid().cmp(&a.pid()));
             }
-            Some(ListSortOrder::NameInc) => {
-                self.list_items.sort_by(|a, b| a.name().cmp(&b.name()));
+            ListSortOrder::NameInc => {
+                self.list_items
+                    .sort_by(
+                        |a, b| a.name().cmp(&b.name())
+                    );
             }
-            Some(ListSortOrder::NameDec) => {
+            ListSortOrder::NameDec => {
                 self.list_items.sort_by(|a, b| b.name().cmp(&a.name()));
             }
-            //TODO: implement sort by usages
-            _ => {}
+            // TODO: remove all occurrences of .unwrap()
+            ListSortOrder::UsageInc => {
+                self.list_items.sort_by(|a, b| {
+                    if a.is_cpu() && b.is_cpu() {
+                        a.cpu_usage().unwrap().partial_cmp(&b.cpu_usage().unwrap()).unwrap_or(std::cmp::Ordering::Equal)
+                    }
+                    else {
+                        a.memory_usage().unwrap().partial_cmp(&b.memory_usage().unwrap()).unwrap_or(std::cmp::Ordering::Equal)
+                    }
+                })
+            }
+            ListSortOrder::UsageDec => {
+                self.list_items.sort_by(|a, b| {
+                    if a.is_cpu() && b.is_cpu() {
+                        b.cpu_usage().unwrap().partial_cmp(&a.cpu_usage().unwrap()).unwrap_or(std::cmp::Ordering::Equal)
+                    }
+                    else {
+                        b.memory_usage().unwrap().partial_cmp(&a.memory_usage().unwrap()).unwrap_or(std::cmp::Ordering::Equal)
+                    }
+                })
+            }
         }
         Ok(())
     }

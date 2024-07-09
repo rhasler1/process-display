@@ -1,5 +1,7 @@
 use std::io;
-use crossterm::event::{KeyCode, KeyEvent};
+
+use crossterm::event::KeyEvent;
+
 use ratatui::{
     Frame,
     prelude::*,
@@ -14,7 +16,10 @@ use crate::process::process_list_items::ProcessListItem;
 use crate::process::process_list::ProcessList;
 use crate::config::KeyConfig;
 
-// can either focus on filter or unfiltered list
+// The CPU Component can be navigated to focus on
+// either a ProcessList <filtered/unfiltered> or
+// FilterComponent.
+//
 #[derive(PartialEq)]
 pub enum Focus {
     Filter,
@@ -59,8 +64,14 @@ impl CPUComponent {
 
     // pub function to update the process list
     //
-    pub async fn update(&mut self, new_processes: &Vec<ProcessListItem>) {
-        self.list.update(new_processes);
+    pub async fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
+        // note: filtered items are not dynamically updated,
+        // if you want to update the items in a filtered list, you must re-submit
+        // the filter.
+        //
+        self.list.update(new_processes)?;
+
+        Ok(())
     }
 
     //  pub fn list -- getter
@@ -69,7 +80,7 @@ impl CPUComponent {
         self.filtered_list.as_ref().unwrap_or(&self.list)
     }
 
-    //
+    // pub fn list_focused -- getter
     pub fn list_focused(&self) -> bool {
         matches!(self.focus, Focus::List)
     }
@@ -130,22 +141,92 @@ impl Component for CPUComponent {
             ) {
                 return Ok(EventState::Consumed);
             }
-            // was the input to sort the list?
-            //
-            // 'n' => sort by name in ascending order
-            else if key.code == KeyCode::Char('n') {
-                self.list.sort(Some(ListSortOrder::NameInc))?;
+
+            // check if key code is follow selection
+            else if key.code == self.key_config.follow_selection {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.change_follow_selection()?;
+                }
+                else {
+                    self.list.change_follow_selection()?;
+                }
+
                 return Ok(EventState::Consumed);
             }
-            // 'N' => sort by name in descending order
-            else if key.code == KeyCode::Char('N') {
-                self.list.sort(Some(ListSortOrder::NameDec))?;
+
+            // check different sort options
+            //
+            else if key.code == self.key_config.sort_name_inc {
+                // if there is some filtered_list sort the filtered list
+                //
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::NameInc)?;
+                }
+                // else
+                //
+                else {
+                    self.list.sort(ListSortOrder::NameInc)?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+
+            else if key.code == self.key_config.sort_name_dec {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::NameDec)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::NameDec)?;
+                }
+
                 return Ok(EventState::Consumed)
+            }
+
+            else if key.code == self.key_config.sort_pid_inc {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::PidInc)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::PidInc)?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+
+            else if key.code == self.key_config.sort_pid_dec {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::PidDec)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::PidDec)?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+
+            else if key.code == self.key_config.sort_usage_inc {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::UsageInc)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::UsageInc)?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+
+            else if key.code == self.key_config.sort_usage_dec {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::UsageDec)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::UsageDec)?;
+                }
+
+                return Ok(EventState::Consumed);
             }
         }
 
-        // catch-all
-        //
         Ok(EventState::NotConsumed)
     }
 }
@@ -159,16 +240,10 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
     }
 }
 
-
 impl StatefulDrawableComponent for CPUComponent {
-    // TODO: Rewrite draw function
-    //
-    // TODO: Implement VerticalScroll?
-    //
-    // TODO: Move process_list_items.rs, process_list.rs, list_items_iter.rs, and list_iter.rs to Process Directory (add library).
-    //
-    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> io::Result<()> {
-        // make chunks for list & filter
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
+        // make chunks for list and filter
+        //
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -178,9 +253,17 @@ impl StatefulDrawableComponent for CPUComponent {
             .split(area);
 
         // draw filter
+        //
         self.filter.draw(f, chunks[0], matches!(self.focus, Focus::Filter))?;
 
-        let list_height = chunks[1].height as usize;
+        // note: saturating sub 2 to account for
+        // drawing the block border see variable drawable_list
+        //
+        let list_height = (chunks[1].height.saturating_sub(2)) as usize;
+
+        // get list to display if Some(filtered_list) set list to filtered_list
+        // else set to unfiltered list
+        //
         let list = if let Some(list) = self.filtered_list.as_ref() {
             list
         }
@@ -188,6 +271,8 @@ impl StatefulDrawableComponent for CPUComponent {
             &self.list
         };
 
+        // update the scroll struct -- determines what indices of the list are displayed
+        //
         list.selection().map_or_else(
             { ||
                 self.scroll.reset()
@@ -198,24 +283,51 @@ impl StatefulDrawableComponent for CPUComponent {
             },
         );
 
+        // get list.follow() to visually differentiate between a selected item being followed(underlined) and not.
+        //
+        let follow_flag = list.follow();
+
         let items = list
             .iterate(self.scroll.get_top(), list_height)
             .map(|(item, selected)| {
                 let style =
-                if selected {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-                }
-                else {
-                    Style::default().fg(Color::White)
-                };
-                ListItem::new(format!("PID: {}, Name: {}, Selected: {:?}", item.pid(), item.name(), list.selection))
+                    if matches!(self.focus, Focus::List) && selected && follow_flag {
+                        Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED)
+                    }
+                    else if matches!(self.focus, Focus::List) && selected && !follow_flag {
+                        Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD)
+                    }
+                    else if matches!(self.focus, Focus::List) {
+                        Style::default().fg(Color::White)
+                    }
+                    else {
+                        Style::default().fg(Color::DarkGray)
+                    };
+                    ListItem::new(
+                        format!(
+                            "PID: {:<5} Name: {:<50} Cpu Usage: {:?}%", // widths
+                            item.pid(),
+                            item.name(),
+                            item.cpu_usage().unwrap()
+                        )
+                    )
                     .style(style)
-            })
-            .collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
+
+        let block_style =
+            if matches!(self.focus, Focus::List) {
+                Style::default().fg(Color::White)
+            }
+            else {
+                Style::default().fg(Color::DarkGray)
+            };
+        
+        let block_title: &str = "Process List";
 
         let drawable_list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Process List"))
-            .style(Style::default().fg(Color::White));
+            .block(Block::default().borders(Borders::ALL).title(block_title))
+            .style(block_style);
 
         f.render_widget(drawable_list, chunks[1]);
 

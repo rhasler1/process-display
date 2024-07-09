@@ -3,15 +3,13 @@ use crossterm::event::KeyEvent;
 
 use ratatui::prelude::*;
 
-use crate::config::KeyConfig;
-use crate::process::process_list::MoveSelection;
-
 pub mod system;
 pub mod filter;
 pub mod help;
 pub mod cpu;
 pub mod tab;
 pub mod utils;
+pub mod command;
 
 pub trait StatefulDrawableComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> io::Result<()>;
@@ -43,6 +41,12 @@ pub enum ListSortOrder {
     NameDec,
     UsageInc,
     UsageDec,
+}
+
+impl Default for ListSortOrder {
+    fn default() -> Self {
+        ListSortOrder::UsageInc
+    }
 }
 
 impl EventState {

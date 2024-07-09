@@ -16,7 +16,7 @@ impl Default for EventConfig {
             exit_key: KeyCode::Char('q'),
             tick_rate: Duration::from_millis(250),
             // note: Minimum cpu refresh time is 200 ms-- this is the lower bound of refresh_rate
-            refresh_rate: Duration::from_millis(5000),
+            refresh_rate: Duration::from_millis(10000),
         }
     }
 }

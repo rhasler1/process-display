@@ -68,20 +68,36 @@ impl Component for TabComponent {
 }
 
 impl StatefulDrawableComponent for TabComponent {
-    //match selected tab for highlighting
-    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> std::io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> std::io::Result<()> {
+        let title: &str = "List Type";
+
         let names: Vec<String> = self.names();
-        let titles: Vec<Line> = names.iter().map(|name| Line::from(Span::raw(name.clone()))).collect();
-        let tabs = Tabs::new(titles)
-            .block(Block::default().borders(Borders::ALL).title("Select tab"))
-            .select(self.selected_tab.clone() as usize)
-            .style(Style::default().fg(Color::White))
-            .highlight_style(
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::UNDERLINED),   
-            );
+        let titles: Vec<Line> = names
+            .iter()
+            .map(
+                |name|
+                Line::from(
+                    Span::raw(
+                        name.clone()
+                    )
+                )
+            )
+            .collect();
+
+        let selected_tab = self.selected_tab.clone() as usize;
+
+        let selected_tab_style = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
+
+        let other_tab_style = Style::default().fg(Color::DarkGray);
+
+        let tabs: Tabs = Tabs::new(titles)
+            .block(Block::default().borders(Borders::ALL).title(title))
+            .select(selected_tab)
+            .style(other_tab_style)
+            .highlight_style(selected_tab_style);
+
         f.render_widget(tabs, area);
+
         return Ok(())
     }
 }
