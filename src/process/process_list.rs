@@ -15,16 +15,14 @@ pub enum MoveSelection {
     MultipleDown,
     Top,
     End,
-    //Terminate,
 }
 
 #[derive(Default)]
 pub struct ProcessList {
     items: ProcessListItems,
-    pub selection: Option<usize>,
-    // consider adding visual_selection
     sort: ListSortOrder,
     follow_selection: bool,
+    pub selection: Option<usize>,
 }
 
 impl ProcessList {
@@ -37,13 +35,38 @@ impl ProcessList {
     pub fn new(list: &Vec<ProcessListItem>) -> Self {
         Self {
             items: ProcessListItems::new(list),
-            selection: if list.is_empty() { None } else { Some(0) },
             sort: ListSortOrder::UsageInc,
             follow_selection: false,
+            selection: if list.is_empty() { None } else { Some(0) },
         }
     }
 
-    // pub fn update
+    // pub fn filter
+    // inputs:
+    //   filter_text: String -- text to filter processes by name
+    // outputs:
+    //    new ProcessList
+    //
+    pub fn filter(&self, filter_text: String) -> Self {
+        let new_self = Self {
+            items: self.items.filter(filter_text),
+            sort: ListSortOrder::UsageInc,
+            follow_selection: false,
+            selection: if self.items.list_items.is_empty() {
+                None
+            }
+            else {
+                Some(0)
+            },
+        };
+        new_self
+    }
+
+    pub fn list_is_empty(&self) -> bool {
+        self.items.len() == 0
+    }
+
+    // pub fn update, note: selection is be updated here.
     // inputs:
     // new_list: &Vec<ProcessListItem> -- Reference to a Vector of new ProcessListItem's
     //
@@ -51,6 +74,7 @@ impl ProcessList {
         // get the selected item, selected_item = Some(item) || None
         //
         let selected_item: Option<&ProcessListItem> = self.items.list_items.get(self.selection.unwrap_or_default());
+
         // get the selected item's pid, pid = Some(pid) || None
         //
         let pid: Option<u32> = selected_item.map(|item| item.pid());
@@ -78,13 +102,46 @@ impl ProcessList {
             }
         }
 
-        // if the new list is not empty and selection is None, set the selection to be 0.
+        // if the list is not empty and selection is None, set the selection to be 0.
         //
-        if !new_list.is_empty() && self.selection.is_none() {
+        if self.items.list_items.len() > 0 && self.selection.is_none() {
             self.selection = Some(0);
         }
 
         Ok(())
+    }
+
+    // pub function sort, note selection is updated here.
+    //
+    pub fn sort(&mut self, sort: ListSortOrder) -> io::Result<()> {
+        // get the selected item, selected_item = Some(item) || None
+        //
+        let selected_item: Option<&ProcessListItem> = self.items.list_items.get(self.selection.unwrap_or_default());
+
+        // get the selected item's pid, pid = Some(pid) || None
+        //
+        let pid: Option<u32> = selected_item.map(|item| item.pid());
+
+        // sort
+        //
+        if self.sort != sort {
+            self.sort = sort.clone();
+            self.items.sort_items(&sort)?;
+        }
+
+        // if follow selection, then set self.selection to the new index of the selected item's pid
+        //
+        if self.follow_selection {
+            self.selection = pid.and_then(|p| self.items.get_idx(p));
+        }
+
+        Ok(())
+    }
+
+    // pub fn selection -- getter
+    //
+    pub fn selection(&self) -> Option<usize> {
+        self.selection
     }
 
     // pub fn follow
@@ -107,62 +164,6 @@ impl ProcessList {
         Ok(())
     }
 
-    // pub fn filter
-    // inputs:
-    //   filter_text: String -- text to filter processes by name
-    // outputs:
-    //    new ProcessList
-    //
-    pub fn filter(&self, filter_text: String) -> Self {
-        let mut new_self = Self {
-            items: self.items.filter(filter_text),
-            selection: if self.items.list_items.is_empty() {
-                None
-            }
-            else {
-                Some(0)
-            },
-            sort: ListSortOrder::UsageInc,
-            follow_selection: false,
-        };
-        new_self
-    }
-
-    // fn sort
-    // TODO: update the selection on sort?
-    //
-    pub fn sort(&mut self, sort: ListSortOrder) -> io::Result<()> {
-        // get the selected item, selected_item = Some(item) || None
-        //
-
-        let selected_item: Option<&ProcessListItem> = self.items.list_items.get(self.selection.unwrap_or_default());
-
-        // get the selected item's pid, pid = Some(pid) || None
-        //
-        let pid: Option<u32> = selected_item.map(|item| item.pid());
-
-        // sort
-        //
-        if self.sort != sort {
-            self.sort = sort.clone();
-            self.items.sort_items(&sort)?;
-        }
-
-        // if follow selection get the new index of the selected item's pid
-        //
-        if self.follow_selection {
-            self.selection = pid.and_then(|p| self.items.get_idx(p));
-        }
-
-        Ok(())
-    }
-
-    // pub fn selection -- getter
-    //
-    pub fn selection(&self) -> Option<usize> {
-        self.selection
-    }
-
     // pub fn move_selection -- change self.selected_item given a direction
     // inputs:
     //   dir: MoveSelection
@@ -170,11 +171,6 @@ impl ProcessList {
     //   If selection was moved, then True, else False.
     //
     pub fn move_selection(&mut self, dir: MoveSelection) -> bool {
-        // update selection
-        //
-        if self.items.list_items.len() == 0 { self.selection = None }
-        if self.selection.is_none() && self.items.list_items.len() > 0 { self.selection = Some(0) }
-
         self.selection.map_or(false, |selection| {
             let new_index = match dir {
                 MoveSelection::Down => self.selection_down(selection, 1),
@@ -274,5 +270,131 @@ impl ProcessList {
     pub fn iterate(&self, start_index: usize, max_amount: usize) -> ListIterator<'_> {
         let start = start_index;
         ListIterator::new(self.items.iterate(start, max_amount), self.selection)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::vec;
+    use super::{MoveSelection, ProcessList, ProcessListItem};
+    use crate::process::process_list_items::CpuInfo;
+    use crate::components::ListSortOrder;
+
+    #[test]
+    fn test_selection() {
+        let pid: u32 = 0;
+        let name: String = String::from("test_move_selection");
+        let cpu_usage: f32 = 0.0;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
+        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
+
+        let items_size_0: Vec<ProcessListItem> = vec![];
+        let items_size_2: Vec<ProcessListItem> = vec![process_list_item_1, process_list_item_2];
+
+        let mut list_size_0 = ProcessList::new(&items_size_0);
+        let mut list_size_2 = ProcessList::new(&items_size_2);
+
+        assert_eq!(list_size_0.selection, None);
+        list_size_0.move_selection(MoveSelection::Down);
+        assert_eq!(list_size_0.selection, None);
+        list_size_0.move_selection(MoveSelection::Up);
+        assert_eq!(list_size_0.selection, None);
+        list_size_0.move_selection(MoveSelection::MultipleDown);
+        assert_eq!(list_size_0.selection, None);
+        list_size_0.move_selection(MoveSelection::MultipleUp);
+        assert_eq!(list_size_0.selection, None);
+        list_size_0.move_selection(MoveSelection::End);
+        assert_eq!(list_size_0.selection, None);
+        list_size_0.move_selection(MoveSelection::Top);
+        assert_eq!(list_size_0.selection, None);
+
+        assert_eq!(list_size_2.selection, Some(0));
+        list_size_2.move_selection(MoveSelection::Down);
+        assert_eq!(list_size_2.selection, Some(1));
+        list_size_2.move_selection(MoveSelection::Up);
+        assert_eq!(list_size_2.selection, Some(0));
+        list_size_2.move_selection(MoveSelection::MultipleDown);
+        assert_eq!(list_size_2.selection, Some(1));
+        list_size_2.move_selection(MoveSelection::MultipleUp);
+        assert_eq!(list_size_2.selection, Some(0));
+        list_size_2.move_selection(MoveSelection::End);
+        assert_eq!(list_size_2.selection, Some(1));
+        list_size_2.move_selection(MoveSelection::Top);
+        assert_eq!(list_size_2.selection, Some(0));
+    }
+
+    #[test]
+    fn test_sort() {
+        let pid: u32 = 0;
+        let name: String = String::from("process_1");
+        let cpu_usage: f32 = 0.0;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
+
+        let pid: u32 = 1;
+        let name: String = String::from("process_2");
+        let cpu_usage: f32 = 0.1;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
+
+        let items: Vec<ProcessListItem> = vec![process_list_item_1.clone(), process_list_item_2.clone()];
+        let mut list = ProcessList::new(&items);
+
+        let items: Vec<ProcessListItem> = vec![];
+        let mut empty_list = ProcessList::new(&items);
+
+        let _ = list.sort(ListSortOrder::PidInc);
+        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_1.clone());
+        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_2.clone());
+
+        let _ = list.sort(ListSortOrder::PidDec);
+        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_2.clone());
+        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_1.clone());
+
+        let _ = list.sort(ListSortOrder::NameInc);
+        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_1.clone());
+        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_2.clone());
+
+        let _ = list.sort(ListSortOrder::NameDec);
+        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_2.clone());
+        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_1.clone());
+
+        let _ = list.sort(ListSortOrder::UsageInc);
+        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_1.clone());
+        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_2.clone());
+
+        let _ = list.sort(ListSortOrder::UsageDec);
+        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_2.clone());
+        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_1.clone());
+
+        let _ = empty_list.sort(ListSortOrder::UsageDec);
+        assert!(empty_list.items.list_items.is_empty());
+    }
+
+    #[test]
+    fn test_follow_selection() {
+        let pid: u32 = 0;
+        let name: String = String::from("process_1");
+        let cpu_usage: f32 = 0.0;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
+
+        let pid: u32 = 1;
+        let name: String = String::from("process_2");
+        let cpu_usage: f32 = 0.1;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
+
+        let items: Vec<ProcessListItem> = vec![process_list_item_1.clone(), process_list_item_2.clone()];
+        let mut list = ProcessList::new(&items);
+
+        // default list.follow_selection = false, if list.follow_selection
+        // is false, then list.change_follow_selection() => list.follow_selection = true.
+        let _ = list.change_follow_selection();
+        
+        assert_eq!(list.selection(), Some(0));
+        let _ = list.sort(ListSortOrder::PidDec);
+        assert_eq!(list.selection(), Some(1))
     }
 }

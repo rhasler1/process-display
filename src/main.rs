@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // app creation and initialization::begin
     let config = config::Config::default();
     let mut app = App::new(config);
-    app.init().await?;
+    app.refresh().await?;
     // app creation and initialization::end
 
     terminal.clear()?; // clear terminal

@@ -69,7 +69,23 @@ impl Component for TabComponent {
 
 impl StatefulDrawableComponent for TabComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> std::io::Result<()> {
-        let title: &str = "List Type";
+        let vertical_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // filter chunk
+                Constraint::Min(1) // list chunk
+            ].as_ref())
+            .split(area);
+
+        let horizontal_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(50), // space for tab
+                Constraint::Percentage(50), // space will be used for filter
+            ].as_ref())
+            .split(vertical_chunks[0]);
+
+        //let title: &str = "List Type";
 
         let names: Vec<String> = self.names();
         let titles: Vec<Line> = names
@@ -91,12 +107,12 @@ impl StatefulDrawableComponent for TabComponent {
         let other_tab_style = Style::default().fg(Color::DarkGray);
 
         let tabs: Tabs = Tabs::new(titles)
-            .block(Block::default().borders(Borders::ALL).title(title))
+            .block(Block::default().borders(Borders::ALL))
             .select(selected_tab)
             .style(other_tab_style)
             .highlight_style(selected_tab_style);
 
-        f.render_widget(tabs, area);
+        f.render_widget(tabs, horizontal_chunks[0]);
 
         return Ok(())
     }

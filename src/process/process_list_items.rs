@@ -6,7 +6,7 @@ use super::list_items_iter::ListItemsIterator;
 
 // information pertinent to system cpu
 //
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CpuInfo {
     pub pid: u32,
     pub name: String,
@@ -25,7 +25,7 @@ impl CpuInfo {
 
 // information pertinent to system memory
 //
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MemoryInfo {
     pub pid: u32,
     pub name: String,
@@ -35,7 +35,7 @@ pub struct MemoryInfo {
 // ProcessListItem can be of Cpu or Memory
 // TODO: add Energy, Disk, and Network
 //
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ProcessListItem {
     Cpu(CpuInfo),
     Memory(MemoryInfo),
@@ -113,8 +113,6 @@ impl PartialEq for ProcessListItem {
     }
 }
 
-// Contains a Vector of ProcessListItem
-//
 #[derive(Default, Clone)]
 pub struct ProcessListItems {
     // vector of type ProcessListItem

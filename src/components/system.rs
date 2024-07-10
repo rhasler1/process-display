@@ -2,7 +2,6 @@ use std::io;
 use crossterm::event::{KeyEvent, KeyCode};
 use sysinfo::{System, Pid};
 
-
 use super::{Component, EventState};
 
 use crate::process::process_list_items::CpuInfo;
@@ -15,16 +14,15 @@ use crate::process::process_list_items::ProcessListItem;
 // note: sysinfo::MINIMUM_CPU_UPDATE_INTERVAL = 200 ms
 
 pub struct SystemWrapper {
-    // process_list[0] == PID, process_list[1] == process_name, process_list[2] == cpu_usage
-    cpu_process_list: Vec<ProcessListItem>, // main data structure list of processes
-    system: System, // system
+    system: System,
+    cpu_process_list: Vec<ProcessListItem>,
 }
 
 impl SystemWrapper {
     pub fn new() -> Self  {
         Self {
-            cpu_process_list: Vec::new(),
             system: System::new_all(),
+            cpu_process_list: Vec::new(),
         }
     }
 
@@ -83,7 +81,7 @@ impl SystemWrapper {
     // pub method get_cpu_process_list
     // outputs:
     //   cpu_process_list: Vec<(u32, String, f32)> -- Vector containing information relating processes and cpu usage
-    pub fn get_cpu_process_list(&mut self) -> &Vec<ProcessListItem> {
+    pub fn get_cpu_process_list(&self) -> &Vec<ProcessListItem> {
         return self.cpu_process_list.as_ref();
     }
 }

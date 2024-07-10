@@ -78,7 +78,7 @@ impl HelpComponent {
                 txt.push(
                     Line::from(
                         Line::styled(
-                            format!(" {}{:w$}", command_info.text.name, w = width),
+                            format!(" {}{:width$}", command_info.text.name, width),
                             if is_selected {
                                 Style::default().bg(Color::Blue)
                             }

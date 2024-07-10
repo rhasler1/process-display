@@ -46,36 +46,6 @@ impl App {
         }
     }
 
-    // pub async fn init -- initialize process
-    //
-    pub async fn init(&mut self) -> io::Result<()> {
-        self.system_wrapper.refresh_all()?;
-        let new_processes = self.system_wrapper.get_cpu_process_list();
-        self.cpu.update(new_processes).await?;
-        Ok(())
-    }
-
-    // pub async fn update_process_list -- update on refresh events
-    //
-    pub async fn refresh(&mut self) -> io::Result<()> {
-        // 1. refresh system
-        self.system_wrapper.refresh_all()?;
-        // 2. get new process list
-        let new_processes = self.system_wrapper.get_cpu_process_list();
-        // 3. update the process list of the selected tab
-        match self.tab.selected_tab {
-            Tab::CPU => {
-                self.cpu.update(new_processes.as_ref()).await?;
-            }
-
-            Tab::Memory => { //todo
-                //self.memory.update(new_processes.as_ref()).await?;
-            }
-        }
-
-        Ok(())
-    }
-
     // pub async function to process KeyEvent's
     //
     pub async fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
@@ -165,16 +135,39 @@ impl App {
         return Ok(EventState::NotConsumed); // eventkey was not consumed
     }
 
+    // pub async fn update_process_list -- update on refresh events
+    //
+    pub async fn refresh(&mut self) -> io::Result<()> {
+        // 1. refresh system
+        self.system_wrapper.refresh_all()?;
+        // 2. get new process list
+        let new_processes = self.system_wrapper.get_cpu_process_list();
+        // 3. update the process list of the selected tab
+        match self.tab.selected_tab {
+            Tab::CPU => {
+                self.cpu.update(new_processes.as_ref()).await?;
+            }
+
+            Tab::Memory => { //todo
+                //self.memory.update(new_processes.as_ref()).await?;
+            }
+        }
+        
+        Ok(())
+    }
+
     pub fn draw(&mut self, f: &mut Frame) -> io::Result<()> {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // tab bar
                 Constraint::Min(1), // process list & filter
-                Constraint::Length(3), // help bar
+                Constraint::Length(3),
             ])
             .split(f.size());
 
+        //
+        //self.title.draw()
+        
         // draw tab component at top of frame
         //
         self.tab.draw(f, chunks[0], false)?;
@@ -183,7 +176,7 @@ impl App {
         //
         match self.tab.selected_tab {
             Tab::CPU => {
-                self.cpu.draw(f, chunks[1], false)?;
+                self.cpu.draw(f, chunks[0], false)?;
             }
             Tab::Memory => {
                 //self.memory.draw(f, chunks[1])?;

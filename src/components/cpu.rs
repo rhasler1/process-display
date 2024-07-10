@@ -244,7 +244,7 @@ impl StatefulDrawableComponent for CPUComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
         // make chunks for list and filter
         //
-        let chunks = Layout::default()
+        let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // filter chunk
@@ -252,14 +252,22 @@ impl StatefulDrawableComponent for CPUComponent {
             ].as_ref())
             .split(area);
 
+        let horizontal_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(50), // space for tab
+                Constraint::Percentage(50), // space will be used for filter
+            ].as_ref())
+            .split(vertical_chunks[0]);
+
         // draw filter
         //
-        self.filter.draw(f, chunks[0], matches!(self.focus, Focus::Filter))?;
+        self.filter.draw(f, horizontal_chunks[1], matches!(self.focus, Focus::Filter))?;
 
         // note: saturating sub 2 to account for
         // drawing the block border see variable drawable_list
         //
-        let list_height = (chunks[1].height.saturating_sub(2)) as usize;
+        let list_height = (vertical_chunks[1].height.saturating_sub(2)) as usize;
 
         // get list to display if Some(filtered_list) set list to filtered_list
         // else set to unfiltered list
@@ -329,7 +337,7 @@ impl StatefulDrawableComponent for CPUComponent {
             .block(Block::default().borders(Borders::ALL).title(block_title))
             .style(block_style);
 
-        f.render_widget(drawable_list, chunks[1]);
+        f.render_widget(drawable_list, vertical_chunks[1]);
 
         Ok(())
     }
