@@ -10,3 +10,5 @@ sysinfo = "0.30.12"
 crossterm = { version = "0.27.0", features = ["serde", "event-stream"] }
 ratatui = { version = "0.26.0", features = ["serde", "macros"] }
 serde = { version = "1.0.188", features = ["derive"] }
+tokio = { version = "1.11.0", features = ["full"] }
+itertools = "0.10.0"

@@ -1,5 +1,6 @@
 use std::io;
 use crossterm::event::KeyEvent;
+
 use ratatui::prelude::*;
 
 pub mod system;
@@ -7,9 +8,11 @@ pub mod filter;
 pub mod help;
 pub mod cpu;
 pub mod tab;
+pub mod utils;
+pub mod command;
 
 pub trait StatefulDrawableComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<()>;
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> io::Result<()>;
 }
 
 pub trait Component {
@@ -28,6 +31,22 @@ pub enum Action {
 pub enum EventState {
     Consumed,
     NotConsumed,
+}
+
+#[derive(PartialEq, Clone)]
+pub enum ListSortOrder {
+    PidInc,
+    PidDec,
+    NameInc,
+    NameDec,
+    UsageInc,
+    UsageDec,
+}
+
+impl Default for ListSortOrder {
+    fn default() -> Self {
+        ListSortOrder::UsageInc
+    }
 }
 
 impl EventState {

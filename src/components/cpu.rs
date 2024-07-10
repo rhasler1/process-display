@@ -1,199 +1,88 @@
 use std::io;
+
 use crossterm::event::KeyEvent;
+
 use ratatui::{
     Frame,
     prelude::*,
     widgets::{block::*, *},
 };
 
-use super::{EventState, StatefulDrawableComponent, Component};
+use super::{filter::FilterComponent, Component, EventState, ListSortOrder, StatefulDrawableComponent};
+use super::utils::vertical_scroll::VerticalScroll;
+
+use crate::process::common_nav;
+use crate::process::process_list_items::ProcessListItem;
+use crate::process::process_list::ProcessList;
 use crate::config::KeyConfig;
 
-// CPUComponent can be in one of two states-- NotFiltering or Filtering. This enumerator
-// is implemented so the methods in CPUComponent interact with only the data structure
-// that corresponds to the `current` FilterState (ie: NotFiltering => unfiltered_list: Vec<(u32, String)>).
-pub enum FilterState {
-    NotFiltering,
-    Filtering,
+// The CPU Component can be navigated to focus on
+// either a ProcessList <filtered/unfiltered> or
+// FilterComponent.
+//
+#[derive(PartialEq)]
+pub enum Focus {
+    Filter,
+    List,
 }
 
-// CPUComponent is an observer of SystemWrapper, storing both unfiltered and filtered process
-// lists of the system. An action like process termination must be handled by SystemWrapper.
-// In the case that the user wishes to termiante a process, the CPU component provides the
-// SystemWrapper with the PID of the process to termiante (this communcation happens in the
-// impl of App).
 pub struct CPUComponent {
-    filter_state: FilterState,
-    filter_name: String, // filtering is done by process name
-    filtered_list: Vec<(u32, String)>,
-    unfiltered_list: Vec<(u32, String)>,
-    filtered_idx: usize,
-    unfiltered_idx: usize,
+    focus: Focus,
+    list: ProcessList,
+    filter: FilterComponent,
+    filtered_list: Option<ProcessList>,
+    scroll: VerticalScroll,
     key_config: KeyConfig,
 }
 
 impl CPUComponent {
-    // pub method to construct CPUComponent
+    // default constructor
     //
-    pub fn new() -> Self {
+    pub fn default() -> Self {
         Self {
-            filter_state: FilterState::NotFiltering,
-            filter_name: String::new(),
-            filtered_list: Vec::new(),
-            unfiltered_list: Vec::new(),
-            filtered_idx: 0,
-            unfiltered_idx: 0,
+            focus: Focus::List,
+            list: ProcessList::default(),
+            filter: FilterComponent::new(),
+            filtered_list: None,
+            scroll: VerticalScroll::new(false, false),
+            key_config: KeyConfig::default(),
+        }
+    }
+    
+    // new custom constructor
+    //
+    pub fn new(list: &Vec<ProcessListItem>) -> Self {
+        Self {
+            focus: Focus::List,
+            list: ProcessList::new(list),
+            filter: FilterComponent::new(),
+            filtered_list: None,
+            scroll: VerticalScroll::new(false, false),
             key_config: KeyConfig::default(),
         }
     }
 
-    // pub method to reset all struct fields
+    // pub function to update the process list
     //
-    pub fn reset(&mut self) {
-        self.filter_state = FilterState::NotFiltering;
-        self.filter_name.clear();
-        self.filtered_list.clear();
-        self.unfiltered_list.clear();
-        self.filtered_idx = 0;
-        self.unfiltered_idx = 0;        
+    pub async fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
+        // note: filtered items are not dynamically updated,
+        // if you want to update the items in a filtered list, you must re-submit
+        // the filter.
+        //
+        self.list.update(new_processes)?;
+
+        Ok(())
     }
 
-    // public method to set CPUComponent.unfiltered_list
-    // inputs:
-    //   list: Vec<()> -- A list of PID's and process information having to do with the CPU.
+    //  pub fn list -- getter
     //
-    pub fn set_unfiltered_list(&mut self, list: Vec<(u32, String)>) {
-        self.unfiltered_list = list.clone();
+    pub fn list(&self) -> &ProcessList {
+        self.filtered_list.as_ref().unwrap_or(&self.list)
     }
 
-    // public method to set CPUComponent.filtered_list
-    // inputs:
-    //   n: String -- A process name to filter CPUComponent.unfiltered_list.
-    //
-    pub fn set_filtered_list(&mut self, n: String) {
-        self.filter_name.clear();
-        self.filter_name = n.clone();
-        let temp_list = self.unfiltered_list.clone();
-        self.filtered_list = temp_list.into_iter().filter(|(_, name)| &self.filter_name == name).collect();
-    }
-
-    // public method to get the current pid of either the unfiltered_list or filtered_list
-    // returns:
-    //   Some<u32> || None
-    //
-    pub fn get_pid(&mut self) -> Option<u32> {
-        match self.filter_state {
-            FilterState::NotFiltering => {
-                if self.unfiltered_list.len() < 1 {
-                    return None
-                }
-                else {
-                    return Some(self.unfiltered_list[self.unfiltered_idx].0);
-                }
-            }
-            FilterState::Filtering => {
-                if self.filtered_list.len() < 1 {
-                    return None
-                }
-                else {
-                    return Some(self.filtered_list[self.filtered_idx].0);
-                }
-            }
-        }
-    }
-
-    // pub method to change the value of self.filter_state
-    //
-    pub fn swap_filter(&mut self) {
-        match self.filter_state {
-            FilterState::NotFiltering => {
-                self.filter_state = FilterState::Filtering;
-            }
-            FilterState::Filtering => {
-                self.filter_state = FilterState::NotFiltering;
-            }
-        }
-    }
-
-    // method to get either the unfiltered_list or filtered_list
-    // returns:
-    //   list: Vec<()> -- The value of filter_state determined which list to return.
-    //
-    fn get_process_list(&mut self) -> Vec<(u32, String)> {
-        match self.filter_state {
-            FilterState::NotFiltering => {
-                return self.unfiltered_list.clone();
-            }
-            FilterState::Filtering => {
-                return self.filtered_list.clone();
-            }
-        }
-    }
-
-    // method to get the current index of either the unfiltered_list or filtered_list
-    // returns:
-    //  idx: usize -- The value of filter_state determines which index to return.
-    //
-    fn get_idx(&mut self) -> usize {
-        let idx = match self.filter_state {
-            FilterState::NotFiltering => {
-                self.unfiltered_idx
-            }
-            FilterState::Filtering => {
-                self.filtered_idx
-            }
-        };
-        return idx;
-    }
-
-    // method to inc the index of either the unfiltered_list or filtered_list
-    //
-    fn inc_idx(&mut self) {
-        match self.filter_state {
-            FilterState::NotFiltering => {
-                if self.unfiltered_list.is_empty() {
-                    return
-                }
-                self.unfiltered_idx = (self.unfiltered_idx + 1) % self.unfiltered_list.len();
-                return
-            }
-            FilterState::Filtering => {
-                if self.filtered_list.is_empty() {
-                    return
-                }
-                self.filtered_idx = (self.filtered_idx + 1) % self.filtered_list.len();
-                return
-            }
-        }
-    }
-
-    // method to dec the index of either the unfiltered_list or filtered_list
-    //
-    fn dec_idx(&mut self) {
-        match self.filter_state {
-            FilterState::NotFiltering => {
-                if self.unfiltered_list.is_empty() {
-                    return
-                }
-                if self.unfiltered_idx == 0 {
-                    self.unfiltered_idx = self.unfiltered_list.len() - 1;
-                    return
-                }
-                self.unfiltered_idx = (self.unfiltered_idx - 1) % self.unfiltered_list.len();
-                return
-            }
-            FilterState::Filtering => {
-                if self.filtered_list.is_empty() {
-                    return
-                }
-                if self.filtered_idx == 0 {
-                    self.filtered_idx = self.filtered_list.len() - 1;
-                    return
-                }
-                self.filtered_idx = (self.filtered_idx - 1) % self.filtered_list.len();
-                return
-            }
-        }    
+    // pub fn list_focused -- getter
+    pub fn list_focused(&self) -> bool {
+        matches!(self.focus, Focus::List)
     }
 }
 
@@ -201,53 +90,255 @@ impl Component for CPUComponent {
     // handle key events for CPUComponent
     //
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
-        if key.code == self.key_config.move_up {
-            self.dec_idx();
-            return Ok(EventState::Consumed);
+        //  if they key event is filter and the CPUComponent Focus is on the List, then move the focus to Filter and return.
+        //
+        if key.code == self.key_config.filter && self.focus == Focus::List {
+            self.focus = Focus::Filter;
+            return Ok(EventState::Consumed)
         }
-        if key.code == self.key_config.move_down {
-            self.inc_idx();
-            return Ok(EventState::Consumed);
+
+        // if the CPUComponent Focus is on the Filter, then attempt to set the filtered_list.
+        // if the filter's input string is None, then set the filtered_list to None (no List to display),
+        // else create the filtered_list calling list.filter(input_str)
+        //
+        if matches!(self.focus, Focus::Filter) {
+            self.filtered_list = if self.filter.input_str().is_empty() {
+                None
+            }
+            else {
+                Some(self.list.filter(self.filter.input_str()))
+            };
         }
-        if key.code == self.key_config.filter {
-            self.swap_filter();
-            return Ok(EventState::Consumed);
+
+        // if the key event is enter and the focus is Filter, then change the focus to List and return.
+        //
+        if key.code == self.key_config.enter && matches!(self.focus, Focus::Filter) {
+            self.focus = Focus::List;
+            return Ok(EventState::Consumed)
         }
-        return Ok(EventState::NotConsumed);
+
+        // if the focus is Filter
+        // pass the key event to self.filter and attempt to consume.
+        //
+        if matches!(self.focus, Focus::Filter) {
+            if self.filter.event(key)?.is_consumed() {
+                return Ok(EventState::Consumed)
+            }
+        }
+
+        //  if the filtered_list is Some pass it as argument, else pass list (unfiltered_list)
+        //
+        if matches!(self.focus, Focus::List) {
+            if list_nav(
+                if let Some(list) = self.filtered_list.as_mut() {
+                    list
+                }
+                else {
+                    &mut self.list
+                },
+                key,
+                &self.key_config
+            ) {
+                return Ok(EventState::Consumed);
+            }
+
+            // check if key code is follow selection
+            else if key.code == self.key_config.follow_selection {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.change_follow_selection()?;
+                }
+                else {
+                    self.list.change_follow_selection()?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+
+            // check different sort options
+            //
+            else if key.code == self.key_config.sort_name_inc {
+                // if there is some filtered_list sort the filtered list
+                //
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::NameInc)?;
+                }
+                // else
+                //
+                else {
+                    self.list.sort(ListSortOrder::NameInc)?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+
+            else if key.code == self.key_config.sort_name_dec {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::NameDec)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::NameDec)?;
+                }
+
+                return Ok(EventState::Consumed)
+            }
+
+            else if key.code == self.key_config.sort_pid_inc {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::PidInc)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::PidInc)?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+
+            else if key.code == self.key_config.sort_pid_dec {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::PidDec)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::PidDec)?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+
+            else if key.code == self.key_config.sort_usage_inc {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::UsageInc)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::UsageInc)?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+
+            else if key.code == self.key_config.sort_usage_dec {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::UsageDec)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::UsageDec)?;
+                }
+
+                return Ok(EventState::Consumed);
+            }
+        }
+
+        Ok(EventState::NotConsumed)
+    }
+}
+
+fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bool {
+    if let Some(move_dir) = common_nav(key, key_config) {
+        list.move_selection(move_dir)
+    }
+    else {
+        false
     }
 }
 
 impl StatefulDrawableComponent for CPUComponent {
-    // draw the current state of CPUComponent -- drawing list and highlighting entry of the index in `focus`
-    fn draw(&mut self, f: &mut Frame, area: Rect) -> io::Result<()> {
-        let window_height = area.height as usize;
-        let list = self.get_process_list();
-        let idx = self.get_idx();
-        let pid = self.get_pid();
-        let items:Vec<ListItem> =
-        if pid.is_some() {
-            list.iter()
-            .skip(idx)
-            .take(window_height)
-            .map(|(p, n)| {
-                let style = if *p == pid.unwrap() {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-                }
-                else {
-                    Style::default().fg(Color::White)
-                };
-                ListItem::new(format!("PID: {}, Name: {}", p, n))
-                .style(style)
-            })
-            .collect::<Vec<_>>()
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
+        // make chunks for list and filter
+        //
+        let vertical_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // filter chunk
+                Constraint::Min(1) // list chunk
+            ].as_ref())
+            .split(area);
+
+        let horizontal_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(50), // space for tab
+                Constraint::Percentage(50), // space will be used for filter
+            ].as_ref())
+            .split(vertical_chunks[0]);
+
+        // draw filter
+        //
+        self.filter.draw(f, horizontal_chunks[1], matches!(self.focus, Focus::Filter))?;
+
+        // note: saturating sub 2 to account for
+        // drawing the block border see variable drawable_list
+        //
+        let list_height = (vertical_chunks[1].height.saturating_sub(2)) as usize;
+
+        // get list to display if Some(filtered_list) set list to filtered_list
+        // else set to unfiltered list
+        //
+        let list = if let Some(list) = self.filtered_list.as_ref() {
+            list
         }
         else {
-            Vec::new()
+            &self.list
         };
-        let list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title("Process List"))
-            .style(Style::default().fg(Color::White));
-        f.render_widget(list, area);
+
+        // update the scroll struct -- determines what indices of the list are displayed
+        //
+        list.selection().map_or_else(
+            { ||
+                self.scroll.reset()
+            }, |selection| {
+                self.scroll.update(
+                    selection, list_height
+                );
+            },
+        );
+
+        // get list.follow() to visually differentiate between a selected item being followed(underlined) and not.
+        //
+        let follow_flag = list.follow();
+
+        let items = list
+            .iterate(self.scroll.get_top(), list_height)
+            .map(|(item, selected)| {
+                let style =
+                    if matches!(self.focus, Focus::List) && selected && follow_flag {
+                        Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED)
+                    }
+                    else if matches!(self.focus, Focus::List) && selected && !follow_flag {
+                        Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD)
+                    }
+                    else if matches!(self.focus, Focus::List) {
+                        Style::default().fg(Color::White)
+                    }
+                    else {
+                        Style::default().fg(Color::DarkGray)
+                    };
+                    ListItem::new(
+                        format!(
+                            "PID: {:<5} Name: {:<50} Cpu Usage: {:?}%", // widths
+                            item.pid(),
+                            item.name(),
+                            item.cpu_usage().unwrap()
+                        )
+                    )
+                    .style(style)
+                })
+                .collect::<Vec<_>>();
+
+        let block_style =
+            if matches!(self.focus, Focus::List) {
+                Style::default().fg(Color::White)
+            }
+            else {
+                Style::default().fg(Color::DarkGray)
+            };
+        
+        let block_title: &str = "Process List";
+
+        let drawable_list = List::new(items)
+            .block(Block::default().borders(Borders::ALL).title(block_title))
+            .style(block_style);
+
+        f.render_widget(drawable_list, vertical_chunks[1]);
+
         Ok(())
     }
 }

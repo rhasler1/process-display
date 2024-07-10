@@ -4,24 +4,71 @@ use sysinfo::{System, Pid};
 
 use super::{Component, EventState};
 
+use crate::process::process_list_items::CpuInfo;
+use crate::process::process_list_items::ProcessListItem;
+
+
+// I want to asynch refresh the cpu
+// refreshing cpu see here: https://crates.io/crates/sysinfo#:~:text=use%20sysinfo%3A%3ASystem,(sysinfo%3A%3AMINIMUM_CPU_UPDATE_INTERVAL)%3B%0A%7D
+// asynch
+// note: sysinfo::MINIMUM_CPU_UPDATE_INTERVAL = 200 ms
+
 pub struct SystemWrapper {
-    process_list: Vec<(u32, String)>, // main data structure list of processes
-    system: System, // system
+    system: System,
+    cpu_process_list: Vec<ProcessListItem>,
 }
 
 impl SystemWrapper {
     pub fn new() -> Self  {
         Self {
-            process_list: Vec::new(),
             system: System::new_all(),
+            cpu_process_list: Vec::new(),
         }
     }
 
-    // method reset can also be used to `set` the system
-    pub fn reset(&mut self) {
-        self.process_list.clear(); // 1. clear process list
+    // pub method refresh_all
+    // 1. clears old data from process_list
+    // 2. refreshes all fields in the internal system structure
+    // 3. sets the process list with new data from
+    //
+    pub fn refresh_all(&mut self) -> io::Result<EventState> {
+        self.cpu_process_list.clear(); // 1. clear process list
         self.system.refresh_all(); // 2. refresh system
-        self.set_process_list(); // 3. set the process list
+        self.set_cpu_process_list(); // 3. set the process list
+        Ok(EventState::Consumed)
+    }
+
+    // fn set_cpu_process_list
+    //
+    fn set_cpu_process_list(&mut self) {
+        for (pid, process) in self.system.processes() {
+            // get process name and cpu usage
+            //
+            let name = self.get_process_name(*pid);
+            let cpu_usage = process.cpu_usage();
+
+            // instantiate ProcessListItem
+            //
+            let cpu_info = CpuInfo::new(pid.as_u32(), name, cpu_usage);
+            let item = ProcessListItem::Cpu(cpu_info);
+
+            // push item on list
+            //
+            self.cpu_process_list.push(item);
+        }
+    }
+
+    // method get_process_name
+    // inputs:
+    //   pid: Pid -- A PID to retrieve a process name from
+    // outputs:
+    //   String -- The process name belonging to pid
+    //
+    fn get_process_name(&self, pid: Pid) -> String {
+        match self.system.process(pid) {
+            Some(p) => return String::from(p.name()),
+            None => return String::from("No Process given pid"),
+        }
     }
 
     pub fn terminate_process(&mut self, pid: u32) -> io::Result<bool> {
@@ -31,34 +78,18 @@ impl SystemWrapper {
         Ok(true)
     }
 
-    // pub fn sort() // TODO: write generic sort using enums (ie: PidInc, PidDec, NameInc, NameDec, ...)
-    //fn sort_by_pid(&mut self) {
-    //    self.process_list.sort_by_key(|k| k.0);
-    //}
-
-    pub fn get_process_list(&mut self) -> Vec<(u32, String)> {
-        return self.process_list.clone();
-    }
-
-    fn set_process_list(&mut self) {
-        for (pid, _process) in self.system.processes() {
-            let process_name = self.get_process_name(*pid);
-            self.process_list.push((pid.as_u32(), process_name));
-        }
-    }
-
-    fn get_process_name(&self, pid: Pid) -> String {
-        match self.system.process(pid) {
-            Some(p) => return String::from(p.name()),
-            None => return String::from("No Process given pid"),
-        }
+    // pub method get_cpu_process_list
+    // outputs:
+    //   cpu_process_list: Vec<(u32, String, f32)> -- Vector containing information relating processes and cpu usage
+    pub fn get_cpu_process_list(&self) -> &Vec<ProcessListItem> {
+        return self.cpu_process_list.as_ref();
     }
 }
 
 impl Component for SystemWrapper {
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         if key.code == KeyCode::Char('r') {
-            self.reset();
+            self.refresh_all()?;
             return Ok(EventState::Consumed)
         }
         return Ok(EventState::NotConsumed)

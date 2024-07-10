@@ -1,63 +1,91 @@
-use std::io::{self};
+pub mod app;
+pub mod config;
+pub mod components;
+pub mod events;
+pub mod process;
+
+use std::io;
 use std::error::Error;
 
+use crossterm::ExecutableCommand;
 use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
     terminal::{disable_raw_mode, LeaveAlternateScreen},
-    event::{self, EnableMouseCapture, Event, DisableMouseCapture}
+    event::DisableMouseCapture
 };
+
 use ratatui::{
     backend::CrosstermBackend,
     Terminal,
 };
 
-pub mod app;
-pub mod config;
-pub mod components;
+
+use crate::events::event::{Event, Events};
 use crate::app::App;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    // set up terminal
-    enable_raw_mode()?;
-    let mut stderr = io::stderr();
-    execute!(stderr, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stderr);
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
+
+    // terminal setup::begin
+    setup_terminal()?;
+    let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
+    // terminal setup::end
+    
+    // event handler setup::begin
+    let events = Events::new(250, 5000); // argument 1: tick_rate , argument 2: system refresh_rate
+    // event handler setup::end
 
-    // set up app
-    let mut app = App::new();
-    app.reset();
-    terminal.clear()?;
+    // app creation and initialization::begin
+    let config = config::Config::default();
+    let mut app = App::new(config);
+    app.refresh().await?;
+    // app creation and initialization::end
 
+    terminal.clear()?; // clear terminal
+
+    // main event loop::begin
     loop {
-        // draw to terminal
+
+        // draw to terminal::begin
         terminal.draw(|f| {
             match app.draw(f) {
-                Ok(_state) => {} //TODO
-                Err(_err) => {} //TODO (exit program)
+                Ok(_state) => {}
+                Err(_err) => {}
             }
         })?;
+        // draw to terminal::end
 
-        // process next event
-        if let Event::Key(key) = event::read()? {
-            if key.kind == event::KeyEventKind::Press {
-                match app.event(key) {
-                    Ok(state) => {
-                        if !state.is_consumed() && key.code == app.config.key_config.quit {
-                            break;
-                        }
-                    }
-                    Err(_err) => {
-                        app.reset();
+        // process next event::begin
+        match events.next()? {
+
+            // Input Key Event
+            Event::Input(key) => match app.event(key).await {
+                Ok(state) => {
+                    if !state.is_consumed() && key.code == app.config.key_config.exit_popup {
+                        break;
                     }
                 }
+                Err(_err) => {
+                    //app.reset();
+                }
             }
-        }
 
-        // update structs
-        app.update()?;
+            // Refresh Event
+            Event::Refresh => match app.refresh().await {
+                Ok(_state) => {}
+                Err(_err) => {} 
+            }
+
+            // Tick Event
+            Event::Tick => {}
+        }
+        // process next event::end
     }
+    // main event loop:: end
+
+    // tear down terminal::begin
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -65,5 +93,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
-    return Ok(());
+    // tear down terminal::end
+
+    return Ok(())
+}
+
+fn setup_terminal() -> Result<(), Box<dyn Error>> {
+    enable_raw_mode()?;
+    io::stdout().execute(EnterAlternateScreen)?;
+    Ok(())
 }
