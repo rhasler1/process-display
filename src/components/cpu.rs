@@ -1,17 +1,13 @@
 use std::io;
-
 use crossterm::event::KeyEvent;
-
 use ratatui::{
     Frame,
     prelude::*,
     widgets::{block::*, *},
 };
-
 use super::{filter::FilterComponent, Component, EventState, ListSortOrder, StatefulDrawableComponent};
 use super::utils::vertical_scroll::VerticalScroll;
-
-use crate::process::common_nav;
+use crate::process::{common_nav, process_list_items::ProcessListItems};
 use crate::process::process_list_items::ProcessListItem;
 use crate::process::process_list::ProcessList;
 use crate::config::KeyConfig;
@@ -65,17 +61,21 @@ impl CPUComponent {
     // pub function to update the process list
     //
     pub async fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
-        // note: filtered items are not dynamically updated,
-        // if you want to update the items in a filtered list, you must re-submit
-        // the filter.
-        //
+        // update list
         self.list.update(new_processes)?;
+
+        // update filter list
+        if let Some(filtered_list) = self.filtered_list.as_mut() {
+            let processes = ProcessListItems::new(new_processes);
+            let filter_text = self.filter.input_str();
+            let filtered_processes = processes.filter(filter_text);
+            filtered_list.update(&filtered_processes.list_items)?;
+        }
 
         Ok(())
     }
 
     //  pub fn list -- getter
-    //
     pub fn list(&self) -> &ProcessList {
         self.filtered_list.as_ref().unwrap_or(&self.list)
     }
@@ -248,7 +248,8 @@ impl StatefulDrawableComponent for CPUComponent {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // filter chunk
-                Constraint::Min(1) // list chunk
+                Constraint::Min(1), // list chunk
+                //Constraint::Length(3),
             ].as_ref())
             .split(area);
 

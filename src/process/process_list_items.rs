@@ -1,7 +1,5 @@
 use std::io;
-
 use crate::components::ListSortOrder;
-
 use super::list_items_iter::ListItemsIterator;
 
 // information pertinent to system cpu
@@ -144,6 +142,24 @@ impl ProcessListItems {
         return items;
     }
 
+    // pub fn filter
+    //
+    pub fn filter(&self, filter_text: String) -> Self {
+        Self {
+            list_items: self
+                .list_items
+                .iter()
+                .filter(|item| {
+                    item.is_match(&filter_text)
+                })
+                .map(|item| {
+                    let item = item.clone();
+                    item
+                })
+                .collect::<Vec<ProcessListItem>>(),
+        }
+    }
+
     // pub fn update_items
     // inputs:
     //   new_list: &Vec<ProcessListItem>
@@ -176,16 +192,13 @@ impl ProcessListItems {
         //
         self.list_items.retain(|item| new_list.contains(item));
 
-        // seeing if this 'fixes' sort by cpu usage
-        // the list might become unsorted if sorting by usage, usage values update
-        // every refresh event...
-        // TODO: clean this idea up
+        // the list might become unsorted if sorting by usage-- an items usage value
+        // might change on refresh events, whereas an item's name or pid will not.
         //
         if *sort == ListSortOrder::UsageInc || *sort == ListSortOrder::UsageDec {
             self.sort_items(sort)?;
         }
         
-
         Ok(())
     }
 
@@ -213,15 +226,34 @@ impl ProcessListItems {
                     .binary_search_by(|probe| probe.name().cmp(&item.name()).reverse())
                     .unwrap_or_else(|index| index)
             }
-            _ => self.list_items.len() // if sort is None, return the index to the end of the list
+            ListSortOrder::UsageInc => {
+                self.list_items
+                    .binary_search_by(|probe| {
+                        if probe.is_cpu() && item.is_cpu() {
+                            probe.cpu_usage().partial_cmp(&item.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal)
+                        }
+                        else {
+                            probe.memory_usage().partial_cmp(&item.memory_usage()).unwrap_or(std::cmp::Ordering::Equal)
+                        }
+                    })
+                    .unwrap_or_else(|index| index)
+            }
+            ListSortOrder::UsageDec => {
+                self.list_items
+                .binary_search_by(|probe| {
+                    if probe.is_cpu() && item.is_cpu() {
+                        item.cpu_usage().partial_cmp(&probe.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal)
+                    }
+                    else {
+                        item.memory_usage().partial_cmp(&probe.memory_usage()).unwrap_or(std::cmp::Ordering::Equal)
+                    }
+                })
+                .unwrap_or_else(|index| index)
+            }
         }
     }
 
-    // how can items be sorted?
-    // lets support by usage, by name, by pid
-    // the goal is to only call this function when the sort type changes, I
-    // do not want to sort the items every time a new item is added, the item
-    // should be added to it's correct position given the ListSortOrder by another function
+    // pub fn sort_items
     //
     pub fn sort_items(&mut self, sort: &ListSortOrder) -> io::Result<()> {
         match sort {
@@ -280,33 +312,126 @@ impl ProcessListItems {
         }
     }
 
-    // pub fn filter
-    //
-    pub fn filter(&self, filter_text: String) -> Self {
-        Self {
-            list_items: self
-                .list_items
-                .iter()
-                .filter(|item| {
-                    item.is_match(&filter_text)
-                })
-                .map(|item| {
-                    let item = item.clone();
-                    item
-                })
-                .collect::<Vec<ProcessListItem>>(),
+    pub fn get_item(&self, idx: usize) -> Option<&ProcessListItem> {
+        let max_idx = self.list_len().saturating_sub(1);
+        if self.list_len() == 0 || idx > max_idx {
+            return None
         }
+        let item = self.list_items.get(idx);
+        item
     }
 
     // pub fn len -- getter to self.list_items.len()
     //
-    pub fn len(&self) -> usize {
+    pub fn list_len(&self) -> usize {
         self.list_items.len()
     }
 
-    // pub const fn iterate -- currently not using (will need if implementing visual selection)
+    // pub const fn iterate
     //
     pub const fn iterate(&self, start: usize, max_amount: usize) -> ListItemsIterator<'_> {
         ListItemsIterator::new(self, start, max_amount)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::process::process_list_items::ProcessListItems;
+    use std::vec;
+    use super::ProcessListItem;
+    use super::CpuInfo;
+    use crate::components::ListSortOrder;
+
+    #[test]
+    fn test_filter_update() {
+        let pid: u32 = 0;
+        let name: String = String::from("process_1");
+        let cpu_usage: f32 = 0.0;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
+
+        let pid: u32 = 1;
+        let name: String = String::from("process_2");
+        let cpu_usage: f32 = 0.1;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
+
+        let list: Vec<ProcessListItem> = vec![process_list_item_1.clone(), process_list_item_2.clone()];
+        let empty_list: Vec<ProcessListItem> = vec![];
+
+        let mut items = ProcessListItems::new(&list);
+
+        // testing filter()
+        let filtered_items = items.filter(String::from("process_1"));
+        assert_eq!(filtered_items.list_len(), 1);
+        assert_eq!(filtered_items.get_item(0), Some(&process_list_item_1));
+
+        // testing get_item()
+        let filtered_items = items.filter(String::from("process_3"));
+        assert_eq!(filtered_items.list_len(), 0);
+        assert_eq!(filtered_items.get_item(0), None);
+        assert_eq!(filtered_items.get_item(100), None);
+
+        // testing update() with new empty list
+        assert_eq!(items.list_len(), 2);
+        assert_eq!(items.get_item(0), Some(&process_list_item_1));
+        assert_eq!(items.get_item(1), Some(&process_list_item_2));
+        let _ = items.update_items(&empty_list, &ListSortOrder::PidDec);
+        assert_eq!(items.list_len(), 0);
+        assert_eq!(items.get_item(0), None);
+        assert_eq!(items.get_item(1), None);
+        
+        // testing update with new non-empty list
+        assert_eq!(items.list_len(), 0);
+        assert_eq!(items.get_item(0), None);
+        assert_eq!(items.get_item(1), None);
+        let _ = items.update_items(&list, &ListSortOrder::PidDec);
+        assert_eq!(items.list_len(), 2);
+        assert_eq!(items.get_item(0), Some(&process_list_item_2));
+        assert_eq!(items.get_item(1), Some(&process_list_item_1));
+    }
+
+    #[test]
+    fn test_insert_item_idx() {
+        let pid: u32 = 0;
+        let name: String = String::from("a");
+        let cpu_usage: f32 = 0.05;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
+
+        let pid: u32 = 1;
+        let name: String = String::from("b");
+        let cpu_usage: f32 = 0.1;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
+
+        let list: Vec<ProcessListItem> = vec![process_list_item_1.clone(), process_list_item_2.clone()];
+
+
+        let pid: u32 = 2;
+        let name: String = String::from("c");
+        let cpu_usage: f32 = 0.15;
+        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
+        let mut items = ProcessListItems::new(&list);
+        let process_list_item_3 = ProcessListItem::Cpu(cpu_info.clone());
+
+        assert_eq!(items.list_len(), 2);
+        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::UsageDec);
+        assert_eq!(idx, 0);
+
+        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::UsageInc);
+        assert_eq!(idx, 2);
+
+        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::NameDec);
+        assert_eq!(idx, 0);
+
+        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::NameInc);
+        assert_eq!(idx, 2);
+
+        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::PidDec);
+        assert_eq!(idx, 0);
+
+        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::PidInc);
+        assert_eq!(idx, 2);
     }
 }

@@ -1,13 +1,10 @@
 use std::io;
-
 use crossterm::event::{KeyEvent, KeyCode};
-
 use ratatui::{
     Frame,
     prelude::*,
     widgets::{block::*, *},
 };
-
 use super::{EventState, StatefulDrawableComponent, Component};
 
 pub struct FilterComponent {

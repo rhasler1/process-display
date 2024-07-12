@@ -1,12 +1,11 @@
+use crossterm::event::KeyEvent;
+use super::config::KeyConfig;
+use super::process::process_list::MoveSelection;
+
 pub mod list_items_iter;
 pub mod list_iter;
 pub mod process_list_items;
 pub mod process_list;
-
-use super::config::KeyConfig;
-use super::process::process_list::MoveSelection;
-
-use crossterm::event::KeyEvent;
 
 pub fn common_nav(key: KeyEvent, key_config: &KeyConfig) -> Option<MoveSelection> {
     if key.code == key_config.move_down {

@@ -1,17 +1,12 @@
 use std::io;
-
 use itertools::Itertools;
-
 use crossterm::event::KeyEvent;
-
 use ratatui::{
     Frame,
     prelude::*,
     widgets::*,
 };
-
 use crate::config::KeyConfig;
-
 use super::command::CommandInfo;
 use super::EventState;
 use super::StatefulDrawableComponent;

@@ -1,9 +1,6 @@
 use std::io::{self};
-
 use crossterm::event::KeyEvent;
-
 use ratatui::prelude::*;
-
 use crate::config::Config;
 use crate::components::{
     tab::TabComponent,
@@ -161,7 +158,7 @@ impl App {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Min(1), // process list & filter
-                Constraint::Length(3),
+                //Constraint::Length(3),
             ])
             .split(f.size());
 
@@ -186,6 +183,7 @@ impl App {
         // draw help as pop up
         //
         self.help.draw(f, Rect::default(), false)?;
+
         
         return Ok(())
     }

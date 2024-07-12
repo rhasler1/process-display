@@ -4,7 +4,6 @@ use ratatui::{
     widgets::{block::*, *},
     text::Span,
 };
-
 use super::{StatefulDrawableComponent, Component, EventState};
 use crate::config::KeyConfig;
 

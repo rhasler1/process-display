@@ -1,6 +1,5 @@
 use std::io;
 use crossterm::event::KeyEvent;
-
 use ratatui::prelude::*;
 
 pub mod system;
@@ -19,18 +18,16 @@ pub trait Component {
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState>;
 }
 
-#[derive(Clone, Copy)]
-pub enum Action {
-    Terminate,
-    Suspend,
-    Resume,
-    Filtering,
-}
-
 #[derive(PartialEq)]
 pub enum EventState {
     Consumed,
     NotConsumed,
+}
+
+impl EventState {
+    pub fn is_consumed(&self) -> bool {
+        *self == Self::Consumed
+    }
 }
 
 #[derive(PartialEq, Clone)]
@@ -46,11 +43,5 @@ pub enum ListSortOrder {
 impl Default for ListSortOrder {
     fn default() -> Self {
         ListSortOrder::UsageInc
-    }
-}
-
-impl EventState {
-    pub fn is_consumed(&self) -> bool {
-        *self == Self::Consumed
     }
 }
