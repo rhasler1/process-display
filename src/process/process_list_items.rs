@@ -1,153 +1,42 @@
 use std::io;
 use crate::components::ListSortOrder;
+use super::process_list_item::ProcessListItem;
 use super::list_items_iter::ListItemsIterator;
 
-// information pertinent to system cpu
-//
-#[derive(Clone, Debug)]
-pub struct CpuInfo {
-    pub pid: u32,
-    pub name: String,
-    pub cpu_usage: f32,
-}
-
-impl CpuInfo {
-    pub fn new(pid: u32, name: String, cpu_usage: f32) -> Self {
-        Self {
-            pid,
-            name,
-            cpu_usage,
-        }
-    }
-}
-
-// information pertinent to system memory
-//
-#[derive(Clone, Debug)]
-pub struct MemoryInfo {
-    pub pid: u32,
-    pub name: String,
-    pub memory_usage: u64,
-}
-
-// ProcessListItem can be of Cpu or Memory
-// TODO: add Energy, Disk, and Network
-//
-#[derive(Clone, Debug)]
-pub enum ProcessListItem {
-    Cpu(CpuInfo),
-    Memory(MemoryInfo),
-}
-
-impl ProcessListItem {
-    pub const fn is_cpu(&self) -> bool {
-        matches!(self, Self::Cpu { .. })
-    }
-
-    pub const fn is_memory(&self) -> bool {
-        matches!(self, Self::Memory { .. })
-    }
-
-    // pub fn is_match
-    // inputs:
-    //   filter_text: &str -- text to match the ProcessListItem::Variant::name with (all Variants will contain a name field)
-    // outputs:
-    //   bool -- true if match, false if no match.
-    //
-    pub fn is_match(&self, filter_text: &str) -> bool {
-        match self {
-            Self::Cpu(cpu) => cpu.name.contains(filter_text),
-            Self::Memory(memory) => memory.name.contains(filter_text),
-        }
-    }
-
-    // pub fn name -- getter
-    //
-    pub fn name(&self) -> String {
-        match self {
-            Self::Cpu(cpu) => cpu.name.clone(),
-            Self::Memory(memory) => memory.name.clone(),
-        }
-    }
-
-    // pub fn pid -- getter
-    //
-    pub fn pid(&self) -> u32 {
-        match self {
-            Self::Cpu(cpu) => cpu.pid.clone(),
-            Self::Memory(memory) => memory.pid.clone(),
-        }
-    }
-
-    // pub fn cpu_usage -- getter
-    // output:
-    //   Some(cpu_usage: f32) || None
-    //
-    pub fn cpu_usage(&self) -> Option<f32> {
-        match self {
-            Self::Cpu(cpu) => Some(cpu.cpu_usage.clone()),
-            Self::Memory(_memory) => None,
-        }
-    }
-
-    // pub fn memory_usage -- getter
-    // outputs:
-    //   Some(memory_usage: u64) || None
-    //
-    pub fn memory_usage(&self) -> Option<u64> {
-        match self {
-            Self::Cpu(_cpu) => None,
-            Self::Memory(memory) => Some(memory.memory_usage.clone()),
-        }
-    }
-}
-
-// PartialEq implemented to update Items in ProcessListItems
-//
-impl PartialEq for ProcessListItem {
-    fn eq(&self, other: &Self) -> bool {
-        // comparing processes pid's -- the pid is a unique identifier for all variants of ProcessListItem
-        return self.pid().eq(&other.pid())
-    }
-}
-
+// This structure contains a vector of type ProcessListItem.
 #[derive(Default, Clone)]
 pub struct ProcessListItems {
-    // vector of type ProcessListItem
     pub list_items: Vec<ProcessListItem>,
 }
 
 impl ProcessListItems {
-    // New Constructor
-    // inputs:
-    //   list: Vec<ProcessListItem> -- Vector containing any variant of ProcessListItem
-    //
+    // This function constructs a `new` instance of ProcessListItems and initializes field
+    // list_items by passing the parameter list to the instance function create_items(list).
     pub fn new(list: &Vec<ProcessListItem>) -> Self {
         Self {
             list_items: Self::create_items(list),
         }
     }
 
-    // fn create_items
-    // inputs:
-    //   list: &Vec<ProcessListItem> -- Reference to a vector containing any variant of ProcessListItem
-    // outputs:
-    //   list: Vec<ProcessListItem> -- New vector containing entries from argument
-    //
+    // This function populates a new vector of type ProcessListItem by cloning each item
+    // contained in the list parameter then pushing the cloned item onto the new vector.
+    // The new vector is returned.
     fn create_items(list: &Vec<ProcessListItem>) -> Vec<ProcessListItem> {
-        let mut items = Vec::with_capacity(list.len());
+        let list_len = list.len();
+        let mut items = Vec::with_capacity(list_len);
         for e in list {
-            items.push(e.clone());
+            let item = e.clone();
+            items.push(item);
         }
         return items;
     }
 
-    // pub fn filter
-    //
+    // This function constructs a new ProcessListItems instance by filtering items
+    // from the current ProcessListItems instance. Item's are filtered using the
+    // ProcessListItem instance function is_match(&filter_text: &str).
     pub fn filter(&self, filter_text: String) -> Self {
         Self {
-            list_items: self
-                .list_items
+            list_items: self.list_items
                 .iter()
                 .filter(|item| {
                     item.is_match(&filter_text)
@@ -160,50 +49,35 @@ impl ProcessListItems {
         }
     }
 
-    // pub fn update_items
-    // inputs:
-    //   new_list: &Vec<ProcessListItem>
-    // outputs:
-    //   updates self.list_items with argument new_list
-    //   Ok(())
-    //
+    // This function updates the ProcessListItems instance field list_items by adding new items, updating fields of
+    // existing items, and removing old items given the parameters new_list and sort. Item's can be sorted by a
+    // ListSortOrder, the sort of a list determines the items insert position.
     pub fn update_items(&mut self, new_list: &Vec<ProcessListItem>, sort: &ListSortOrder) -> io::Result<()> {
         for e in new_list {
-             // 1. if the new list contains an entry not in the old list, then add entry to old list.
-             // - need to improve the method for pushing an item onto a list,
-             // - ie: if the list is sorted push the entry into it's sorted position
-             //
+             // 1. If the new list contains an entry not in the instance list, then add entry to instance list.
             if !self.list_items.contains(e) {
-                // get the index to insert the new item
-                // ideally log(n) insertion time into a sorted list
-                //
+                // 1.1 Get the index to insert the item `e`.
                 let idx = self.insert_item_idx(e, sort);
-                // insert new item
-                //
-                self.list_items.insert(idx, e.clone())
+                // 1.2 Clone the item from the new list and insert in instance list.
+                let item = e.clone();
+                self.list_items.insert(idx, item);
             }
-            // 2. if the new list contains updated information for a process in the old list, then update old list entry.
-            //
-            else if let Some(old_item) = self.list_items.iter_mut().find(|item| item == &e) {
-                *old_item = e.clone();
-            }
+            // 2. If the new list contains updated information for a process in the instance list, then update the instance list item.
+            else if let Some(instance_item) =
+                self.list_items.iter_mut().find(|item| item == &e) { *instance_item = e.clone(); }
         }
-        // 3. if the old list contains an entry not in the new list, then remove entry from old list.
-        //
+        // 3. if the instance list contains an entry not in the new list, then remove entry from instance list.
         self.list_items.retain(|item| new_list.contains(item));
 
-        // the list might become unsorted if sorting by usage-- an items usage value
-        // might change on refresh events, whereas an item's name or pid will not.
-        //
+        // The instance list might become unsorted when updating items if sorting by usage (step 2 above).
+        // Sort the list if the list is being sorted by usage.
         if *sort == ListSortOrder::UsageInc || *sort == ListSortOrder::UsageDec {
             self.sort_items(sort)?;
-        }
-        
+        }  
         Ok(())
     }
 
-    // fn insert_item_idx -- get the index to insert the argument item into a list
-    //
+    // This function determines the parameter item's insert index position in the instance list given a ListSortOrder.
     fn insert_item_idx(&mut self, item: &ProcessListItem, sort: &ListSortOrder) -> usize {
         match sort {
             ListSortOrder::PidInc => {
@@ -253,8 +127,7 @@ impl ProcessListItems {
         }
     }
 
-    // pub fn sort_items
-    //
+    // This function sorts the instance list by parameter sort.
     pub fn sort_items(&mut self, sort: &ListSortOrder) -> io::Result<()> {
         match sort {
             ListSortOrder::PidInc => {
@@ -297,14 +170,23 @@ impl ProcessListItems {
         Ok(())
     }
 
-    // pub fn get_idx
-    // inputs:
-    //   pid: u32 -- pid to search index for
-    // outputs:
-    //   Ok(idx)
-    //
+    // This function gets the reference to an item given an index into the instance list.
+    pub fn get_item(&self, idx: usize) -> Option<&ProcessListItem> {
+        let list_len = self.list_len();
+        let max_idx = list_len.saturating_sub(1);
+        if list_len == 0 || max_idx < idx {
+            return None
+        }
+        let item = self.list_items.get(idx);
+        item
+    }
+
+    // This function gets the index of an item in the instance list given the item's pid.
     pub fn get_idx(&mut self, pid: u32) -> Option<usize> {
-        if let Some(idx) = self.list_items.iter_mut().position(|item| item.pid() == pid) {
+        if let Some(idx) = self.list_items
+            .iter()
+            .position(|item| item.pid() == pid)
+        {
             return Some(idx);
         }
         else {
@@ -312,23 +194,12 @@ impl ProcessListItems {
         }
     }
 
-    pub fn get_item(&self, idx: usize) -> Option<&ProcessListItem> {
-        let max_idx = self.list_len().saturating_sub(1);
-        if self.list_len() == 0 || idx > max_idx {
-            return None
-        }
-        let item = self.list_items.get(idx);
-        item
-    }
-
-    // pub fn len -- getter to self.list_items.len()
-    //
+    // This function gets the length of the instance list.
     pub fn list_len(&self) -> usize {
         self.list_items.len()
     }
 
-    // pub const fn iterate
-    //
+    // This function returns a ListItemIterator instance given a start position and max number of iterations. 
     pub const fn iterate(&self, start: usize, max_amount: usize) -> ListItemsIterator<'_> {
         ListItemsIterator::new(self, start, max_amount)
     }
@@ -336,10 +207,9 @@ impl ProcessListItems {
 
 #[cfg(test)]
 mod test {
-    use crate::process::process_list_items::ProcessListItems;
     use std::vec;
-    use super::ProcessListItem;
-    use super::CpuInfo;
+    use crate::process::process_list_items::ProcessListItems;
+    use crate::process::process_list_item::{ProcessListItem, CpuInfo};
     use crate::components::ListSortOrder;
 
     #[test]

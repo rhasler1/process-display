@@ -8,14 +8,13 @@ use ratatui::{
 use super::{filter::FilterComponent, Component, EventState, ListSortOrder, StatefulDrawableComponent};
 use super::utils::vertical_scroll::VerticalScroll;
 use crate::process::{common_nav, process_list_items::ProcessListItems};
-use crate::process::process_list_items::ProcessListItem;
+use crate::process::process_list_item::ProcessListItem;
 use crate::process::process_list::ProcessList;
 use crate::config::KeyConfig;
 
 // The CPU Component can be navigated to focus on
 // either a ProcessList <filtered/unfiltered> or
 // FilterComponent.
-//
 #[derive(PartialEq)]
 pub enum Focus {
     Filter,
@@ -33,7 +32,6 @@ pub struct CPUComponent {
 
 impl CPUComponent {
     // default constructor
-    //
     pub fn default() -> Self {
         Self {
             focus: Focus::List,
@@ -45,8 +43,7 @@ impl CPUComponent {
         }
     }
     
-    // new custom constructor
-    //
+    // new constructor
     pub fn new(list: &Vec<ProcessListItem>) -> Self {
         Self {
             focus: Focus::List,
@@ -59,11 +56,9 @@ impl CPUComponent {
     }
 
     // pub function to update the process list
-    //
     pub async fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
         // update list
         self.list.update(new_processes)?;
-
         // update filter list
         if let Some(filtered_list) = self.filtered_list.as_mut() {
             let processes = ProcessListItems::new(new_processes);
@@ -71,7 +66,6 @@ impl CPUComponent {
             let filtered_processes = processes.filter(filter_text);
             filtered_list.update(&filtered_processes.list_items)?;
         }
-
         Ok(())
     }
 
@@ -88,10 +82,8 @@ impl CPUComponent {
 
 impl Component for CPUComponent {
     // handle key events for CPUComponent
-    //
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
-        //  if they key event is filter and the CPUComponent Focus is on the List, then move the focus to Filter and return.
-        //
+        //  If they key event is filter and the CPUComponent Focus is on the List, then move the focus to Filter and return.
         if key.code == self.key_config.filter && self.focus == Focus::List {
             self.focus = Focus::Filter;
             return Ok(EventState::Consumed)
@@ -100,7 +92,6 @@ impl Component for CPUComponent {
         // if the CPUComponent Focus is on the Filter, then attempt to set the filtered_list.
         // if the filter's input string is None, then set the filtered_list to None (no List to display),
         // else create the filtered_list calling list.filter(input_str)
-        //
         if matches!(self.focus, Focus::Filter) {
             self.filtered_list = if self.filter.input_str().is_empty() {
                 None
@@ -111,7 +102,6 @@ impl Component for CPUComponent {
         }
 
         // if the key event is enter and the focus is Filter, then change the focus to List and return.
-        //
         if key.code == self.key_config.enter && matches!(self.focus, Focus::Filter) {
             self.focus = Focus::List;
             return Ok(EventState::Consumed)
@@ -119,7 +109,6 @@ impl Component for CPUComponent {
 
         // if the focus is Filter
         // pass the key event to self.filter and attempt to consume.
-        //
         if matches!(self.focus, Focus::Filter) {
             if self.filter.event(key)?.is_consumed() {
                 return Ok(EventState::Consumed)
@@ -127,7 +116,6 @@ impl Component for CPUComponent {
         }
 
         //  if the filtered_list is Some pass it as argument, else pass list (unfiltered_list)
-        //
         if matches!(self.focus, Focus::List) {
             if list_nav(
                 if let Some(list) = self.filtered_list.as_mut() {
@@ -155,19 +143,14 @@ impl Component for CPUComponent {
             }
 
             // check different sort options
-            //
             else if key.code == self.key_config.sort_name_inc {
                 // if there is some filtered_list sort the filtered list
-                //
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
                     filtered_list.sort(ListSortOrder::NameInc)?;
                 }
-                // else
-                //
                 else {
                     self.list.sort(ListSortOrder::NameInc)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
 
@@ -178,7 +161,6 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::NameDec)?;
                 }
-
                 return Ok(EventState::Consumed)
             }
 
@@ -189,7 +171,6 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::PidInc)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
 
@@ -200,7 +181,6 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::PidDec)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
 
@@ -211,7 +191,6 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::UsageInc)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
 
@@ -222,11 +201,10 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::UsageDec)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
         }
-
+        
         Ok(EventState::NotConsumed)
     }
 }
@@ -242,14 +220,11 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
 
 impl StatefulDrawableComponent for CPUComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
-        // make chunks for list and filter
-        //
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // filter chunk
                 Constraint::Min(1), // list chunk
-                //Constraint::Length(3),
             ].as_ref())
             .split(area);
 
@@ -257,22 +232,16 @@ impl StatefulDrawableComponent for CPUComponent {
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Percentage(50), // space for tab
-                Constraint::Percentage(50), // space will be used for filter
+                Constraint::Percentage(50), // space for filter
             ].as_ref())
             .split(vertical_chunks[0]);
 
-        // draw filter
-        //
         self.filter.draw(f, horizontal_chunks[1], matches!(self.focus, Focus::Filter))?;
 
-        // note: saturating sub 2 to account for
-        // drawing the block border see variable drawable_list
-        //
+        // note: saturating sub 2 to account for drawing the block border see variable drawable_list
         let list_height = (vertical_chunks[1].height.saturating_sub(2)) as usize;
 
-        // get list to display if Some(filtered_list) set list to filtered_list
-        // else set to unfiltered list
-        //
+        // get list to display if Some(filtered_list) set list to filtered_list else set to unfiltered list
         let list = if let Some(list) = self.filtered_list.as_ref() {
             list
         }
@@ -280,8 +249,7 @@ impl StatefulDrawableComponent for CPUComponent {
             &self.list
         };
 
-        // update the scroll struct -- determines what indices of the list are displayed
-        //
+        // update the scroll struct-- determines what indices of the list are displayed
         list.selection().map_or_else(
             { ||
                 self.scroll.reset()
@@ -292,8 +260,7 @@ impl StatefulDrawableComponent for CPUComponent {
             },
         );
 
-        // get list.follow() to visually differentiate between a selected item being followed(underlined) and not.
-        //
+        // get list.follow() to visually differentiate between a selected item being followed(underlined) and not
         let follow_flag = list.follow();
 
         let items = list

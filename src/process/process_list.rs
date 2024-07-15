@@ -1,10 +1,8 @@
 
 use std::io;
-
 use crate::components::ListSortOrder;
-
 use super::process_list_items::ProcessListItems;
-use super::process_list_items::ProcessListItem;
+use super::process_list_item::ProcessListItem;
 use super::list_iter::ListIterator;
 
 #[derive(Copy, Clone)]
@@ -282,7 +280,7 @@ impl ProcessList {
 mod test {
     use std::vec;
     use super::{MoveSelection, ProcessList, ProcessListItem};
-    use crate::process::process_list_items::CpuInfo;
+    use crate::process::process_list_item::CpuInfo;
     use crate::components::ListSortOrder;
 
     #[test]

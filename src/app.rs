@@ -184,7 +184,6 @@ impl App {
         //
         self.help.draw(f, Rect::default(), false)?;
 
-        
         return Ok(())
     }
 }

@@ -2,8 +2,8 @@ use std::io;
 use crossterm::event::{KeyEvent, KeyCode};
 use sysinfo::{System, Pid};
 use super::{Component, EventState};
-use crate::process::process_list_items::CpuInfo;
-use crate::process::process_list_items::ProcessListItem;
+use crate::process::process_list_item::CpuInfo;
+use crate::process::process_list_item::ProcessListItem;
 
 
 // I want to asynch refresh the cpu
