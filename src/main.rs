@@ -19,6 +19,7 @@ pub mod config;
 pub mod components;
 pub mod events;
 pub mod process;
+pub mod performance;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {

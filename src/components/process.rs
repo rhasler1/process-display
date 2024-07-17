@@ -258,34 +258,53 @@ impl DrawableComponent for ProcessComponent {
         // get list.follow() to visually differentiate between a selected item being followed(underlined) and not
         let follow_flag = list.follow();
 
-        let items = list
+        let header_style = Style::default().fg(Color::Black).bg(Color::Gray);
+        let select_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
+        let select_follow_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
+        let default_style = Style::default().fg(Color::White);
+        let out_of_focus_style = Style::default().fg(Color::DarkGray);
+
+        let header = ["Pid", "Name", "Cpu Usage (%)", "Memory Usage (Bytes)"]
+            .into_iter()
+            .map(Cell::from)
+            .collect::<Row>()
+            .style(
+                if matches!(self.focus, Focus::List) {
+                    header_style
+                }
+                else {
+                    out_of_focus_style
+                }
+            )
+            .height(1);
+
+        let rows = list
             .iterate(self.scroll.get_top(), list_height)
             .map(|(item, selected)| {
                 let style =
                     if matches!(self.focus, Focus::List) && selected && follow_flag {
-                        Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED)
+                        select_follow_style
                     }
                     else if matches!(self.focus, Focus::List) && selected && !follow_flag {
-                        Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD)
+                        select_style
                     }
                     else if matches!(self.focus, Focus::List) {
-                        Style::default().fg(Color::White)
+                        default_style
                     }
                     else {
-                        Style::default().fg(Color::DarkGray)
+                        out_of_focus_style
                     };
-                    ListItem::new(
-                        format!(
-                            "PID: {:<5} Name: {:<50} Cpu: {:<30?} Mem: {:<30?}", // widths
-                            item.pid(),
-                            item.name(),
-                            item.cpu_usage(),
-                            item.memory_usage(),
-                        )
-                    )
-                    .style(style)
-                })
-                .collect::<Vec<_>>();
+
+                let cells = vec![
+                    Cell::from(item.pid().to_string()),
+                    Cell::from(item.name().to_string()),
+                    Cell::from(item.cpu_usage().to_string()),
+                    Cell::from(item.memory_usage().to_string()),
+                ];
+
+                Row::new(cells).style(style)
+            })
+            .collect::<Vec<_>>();
 
         let block_style =
             if matches!(self.focus, Focus::List) {
@@ -294,14 +313,24 @@ impl DrawableComponent for ProcessComponent {
             else {
                 Style::default().fg(Color::DarkGray)
             };
-        
+
         let block_title: &str = "Process List";
 
-        let drawable_list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title(block_title))
+        let widths =
+            vec![
+                Constraint::Length(10),
+                Constraint::Length(50),
+                Constraint::Length(25),
+                Constraint::Length(20),
+            ];
+        
+        let table = Table::new(rows, widths)
+            .header(header)
+            .block(Block::default().borders(Borders::all()).title(block_title))
             .style(block_style);
 
-        f.render_widget(drawable_list, vertical_chunks[1]);
+        f.render_widget(table, vertical_chunks[1]);
+
 
         Ok(())
     }

@@ -7,6 +7,7 @@ pub mod filter;
 pub mod help;
 pub mod error;
 pub mod process;
+pub mod performance;
 pub mod tab;
 pub mod utils;
 pub mod command;

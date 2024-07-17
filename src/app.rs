@@ -144,7 +144,7 @@ impl App {
             Tab::Users => {}
         }
 
-        // drawing help component as a pop up
+        // drawing help component as a pop-up
         self.help.draw(f, Rect::default(), false)?;
 
         return Ok(())
