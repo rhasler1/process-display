@@ -1,20 +1,15 @@
 use std::io;
-
 use itertools::Itertools;
-
 use crossterm::event::KeyEvent;
-
 use ratatui::{
     Frame,
     prelude::*,
     widgets::*,
 };
-
 use crate::config::KeyConfig;
-
 use super::command::CommandInfo;
 use super::EventState;
-use super::StatefulDrawableComponent;
+use super::DrawableComponent;
 use super::Component;
 
 pub struct HelpComponent {
@@ -130,7 +125,7 @@ impl Component for HelpComponent {
     }
 }
 
-impl StatefulDrawableComponent for HelpComponent {
+impl DrawableComponent for HelpComponent {
     fn draw(&mut self, f: &mut Frame, _area: Rect, _focused: bool) -> io::Result<()> {
         if self.visible {
             const SIZE: (u16, u16) = (65, 24);
@@ -175,7 +170,6 @@ impl StatefulDrawableComponent for HelpComponent {
                 chunks[1],
             );
         }
-
         Ok(())
     }
 }

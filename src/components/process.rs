@@ -1,32 +1,27 @@
 use std::io;
-
 use crossterm::event::KeyEvent;
-
 use ratatui::{
     Frame,
     prelude::*,
     widgets::{block::*, *},
 };
-
-use super::{filter::FilterComponent, Component, EventState, ListSortOrder, StatefulDrawableComponent};
+use super::{filter::FilterComponent, Component, EventState, ListSortOrder, DrawableComponent};
 use super::utils::vertical_scroll::VerticalScroll;
-
-use crate::process::common_nav;
-use crate::process::process_list_items::ProcessListItem;
+use crate::process::{common_nav, process_list_items::ProcessListItems};
+use crate::process::process_list_item::ProcessListItem;
 use crate::process::process_list::ProcessList;
 use crate::config::KeyConfig;
 
-// The CPU Component can be navigated to focus on
+// The ProcessComponent can be navigated to focus on
 // either a ProcessList <filtered/unfiltered> or
 // FilterComponent.
-//
 #[derive(PartialEq)]
 pub enum Focus {
     Filter,
     List,
 }
 
-pub struct CPUComponent {
+pub struct ProcessComponent {
     focus: Focus,
     list: ProcessList,
     filter: FilterComponent,
@@ -35,47 +30,41 @@ pub struct CPUComponent {
     key_config: KeyConfig,
 }
 
-impl CPUComponent {
+impl ProcessComponent {
     // default constructor
-    //
-    pub fn default() -> Self {
+    pub fn new(key_config: KeyConfig) -> Self {
         Self {
             focus: Focus::List,
             list: ProcessList::default(),
-            filter: FilterComponent::new(),
+            filter: FilterComponent::default(),
             filtered_list: None,
             scroll: VerticalScroll::new(false, false),
-            key_config: KeyConfig::default(),
-        }
-    }
-    
-    // new custom constructor
-    //
-    pub fn new(list: &Vec<ProcessListItem>) -> Self {
-        Self {
-            focus: Focus::List,
-            list: ProcessList::new(list),
-            filter: FilterComponent::new(),
-            filtered_list: None,
-            scroll: VerticalScroll::new(false, false),
-            key_config: KeyConfig::default(),
+            key_config: key_config,
         }
     }
 
     // pub function to update the process list
-    //
     pub async fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
-        // note: filtered items are not dynamically updated,
-        // if you want to update the items in a filtered list, you must re-submit
-        // the filter.
-        //
+        // update list
         self.list.update(new_processes)?;
-
+        // update filter list
+        if let Some(filtered_list) = self.filtered_list.as_mut() {
+            let processes = ProcessListItems::new(new_processes);
+            let filter_text = self.filter.input_str();
+            let filtered_processes = processes.filter(filter_text);
+            filtered_list.update(&filtered_processes.list_items)?;
+        }
         Ok(())
     }
 
+    pub fn selected_pid(&self) -> Option<u32> {
+        if let Some(list) = self.filtered_list.as_ref() {
+            return list.get_selected_pid()
+        }
+        self.list.get_selected_pid()
+    }
+
     //  pub fn list -- getter
-    //
     pub fn list(&self) -> &ProcessList {
         self.filtered_list.as_ref().unwrap_or(&self.list)
     }
@@ -86,21 +75,18 @@ impl CPUComponent {
     }
 }
 
-impl Component for CPUComponent {
-    // handle key events for CPUComponent
-    //
+impl Component for ProcessComponent {
+    // handle key events for ProcessComponent
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
-        //  if they key event is filter and the CPUComponent Focus is on the List, then move the focus to Filter and return.
-        //
+        //  If they key event is filter and the ProcessComponent Focus is on the List, then move the focus to Filter and return.
         if key.code == self.key_config.filter && self.focus == Focus::List {
             self.focus = Focus::Filter;
             return Ok(EventState::Consumed)
         }
 
-        // if the CPUComponent Focus is on the Filter, then attempt to set the filtered_list.
+        // if the ProcessComponent Focus is on the Filter, then attempt to set the filtered_list.
         // if the filter's input string is None, then set the filtered_list to None (no List to display),
         // else create the filtered_list calling list.filter(input_str)
-        //
         if matches!(self.focus, Focus::Filter) {
             self.filtered_list = if self.filter.input_str().is_empty() {
                 None
@@ -111,7 +97,6 @@ impl Component for CPUComponent {
         }
 
         // if the key event is enter and the focus is Filter, then change the focus to List and return.
-        //
         if key.code == self.key_config.enter && matches!(self.focus, Focus::Filter) {
             self.focus = Focus::List;
             return Ok(EventState::Consumed)
@@ -119,7 +104,6 @@ impl Component for CPUComponent {
 
         // if the focus is Filter
         // pass the key event to self.filter and attempt to consume.
-        //
         if matches!(self.focus, Focus::Filter) {
             if self.filter.event(key)?.is_consumed() {
                 return Ok(EventState::Consumed)
@@ -127,7 +111,6 @@ impl Component for CPUComponent {
         }
 
         //  if the filtered_list is Some pass it as argument, else pass list (unfiltered_list)
-        //
         if matches!(self.focus, Focus::List) {
             if list_nav(
                 if let Some(list) = self.filtered_list.as_mut() {
@@ -155,19 +138,14 @@ impl Component for CPUComponent {
             }
 
             // check different sort options
-            //
             else if key.code == self.key_config.sort_name_inc {
                 // if there is some filtered_list sort the filtered list
-                //
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
                     filtered_list.sort(ListSortOrder::NameInc)?;
                 }
-                // else
-                //
                 else {
                     self.list.sort(ListSortOrder::NameInc)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
 
@@ -178,7 +156,6 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::NameDec)?;
                 }
-
                 return Ok(EventState::Consumed)
             }
 
@@ -189,7 +166,6 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::PidInc)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
 
@@ -200,7 +176,6 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::PidDec)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
 
@@ -211,7 +186,6 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::UsageInc)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
 
@@ -222,11 +196,10 @@ impl Component for CPUComponent {
                 else {
                     self.list.sort(ListSortOrder::UsageDec)?;
                 }
-
                 return Ok(EventState::Consumed);
             }
         }
-
+        
         Ok(EventState::NotConsumed)
     }
 }
@@ -240,15 +213,13 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
     }
 }
 
-impl StatefulDrawableComponent for CPUComponent {
+impl DrawableComponent for ProcessComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
-        // make chunks for list and filter
-        //
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(3), // filter chunk
-                Constraint::Min(1) // list chunk
+                Constraint::Min(1), // list chunk
             ].as_ref())
             .split(area);
 
@@ -256,22 +227,16 @@ impl StatefulDrawableComponent for CPUComponent {
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Percentage(50), // space for tab
-                Constraint::Percentage(50), // space will be used for filter
+                Constraint::Percentage(50), // space for filter
             ].as_ref())
             .split(vertical_chunks[0]);
 
-        // draw filter
-        //
         self.filter.draw(f, horizontal_chunks[1], matches!(self.focus, Focus::Filter))?;
 
-        // note: saturating sub 2 to account for
-        // drawing the block border see variable drawable_list
-        //
+        // note: saturating sub 2 to account for drawing the block border see variable drawable_list
         let list_height = (vertical_chunks[1].height.saturating_sub(2)) as usize;
 
-        // get list to display if Some(filtered_list) set list to filtered_list
-        // else set to unfiltered list
-        //
+        // get list to display if Some(filtered_list) set list to filtered_list else set to unfiltered list
         let list = if let Some(list) = self.filtered_list.as_ref() {
             list
         }
@@ -279,8 +244,7 @@ impl StatefulDrawableComponent for CPUComponent {
             &self.list
         };
 
-        // update the scroll struct -- determines what indices of the list are displayed
-        //
+        // update the scroll struct-- determines what indices of the list are displayed
         list.selection().map_or_else(
             { ||
                 self.scroll.reset()
@@ -291,37 +255,56 @@ impl StatefulDrawableComponent for CPUComponent {
             },
         );
 
-        // get list.follow() to visually differentiate between a selected item being followed(underlined) and not.
-        //
+        // get list.follow() to visually differentiate between a selected item being followed(underlined) and not
         let follow_flag = list.follow();
 
-        let items = list
+        let header_style = Style::default().fg(Color::Black).bg(Color::Gray);
+        let select_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
+        let select_follow_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
+        let default_style = Style::default().fg(Color::White);
+        let out_of_focus_style = Style::default().fg(Color::DarkGray);
+
+        let header = ["Pid", "Name", "Cpu Usage (%)", "Memory Usage (Bytes)"]
+            .into_iter()
+            .map(Cell::from)
+            .collect::<Row>()
+            .style(
+                if matches!(self.focus, Focus::List) {
+                    header_style
+                }
+                else {
+                    out_of_focus_style
+                }
+            )
+            .height(1);
+
+        let rows = list
             .iterate(self.scroll.get_top(), list_height)
             .map(|(item, selected)| {
                 let style =
                     if matches!(self.focus, Focus::List) && selected && follow_flag {
-                        Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED)
+                        select_follow_style
                     }
                     else if matches!(self.focus, Focus::List) && selected && !follow_flag {
-                        Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD)
+                        select_style
                     }
                     else if matches!(self.focus, Focus::List) {
-                        Style::default().fg(Color::White)
+                        default_style
                     }
                     else {
-                        Style::default().fg(Color::DarkGray)
+                        out_of_focus_style
                     };
-                    ListItem::new(
-                        format!(
-                            "PID: {:<5} Name: {:<50} Cpu Usage: {:?}%", // widths
-                            item.pid(),
-                            item.name(),
-                            item.cpu_usage().unwrap()
-                        )
-                    )
-                    .style(style)
-                })
-                .collect::<Vec<_>>();
+
+                let cells = vec![
+                    Cell::from(item.pid().to_string()),
+                    Cell::from(item.name().to_string()),
+                    Cell::from(item.cpu_usage().to_string()),
+                    Cell::from(item.memory_usage().to_string()),
+                ];
+
+                Row::new(cells).style(style)
+            })
+            .collect::<Vec<_>>();
 
         let block_style =
             if matches!(self.focus, Focus::List) {
@@ -330,14 +313,24 @@ impl StatefulDrawableComponent for CPUComponent {
             else {
                 Style::default().fg(Color::DarkGray)
             };
-        
+
         let block_title: &str = "Process List";
 
-        let drawable_list = List::new(items)
-            .block(Block::default().borders(Borders::ALL).title(block_title))
+        let widths =
+            vec![
+                Constraint::Length(10),
+                Constraint::Length(50),
+                Constraint::Length(25),
+                Constraint::Length(20),
+            ];
+        
+        let table = Table::new(rows, widths)
+            .header(header)
+            .block(Block::default().borders(Borders::all()).title(block_title))
             .style(block_style);
 
-        f.render_widget(drawable_list, vertical_chunks[1]);
+        f.render_widget(table, vertical_chunks[1]);
+
 
         Ok(())
     }

@@ -4,14 +4,20 @@ use ratatui::{
     widgets::{block::*, *},
     text::Span,
 };
-
-use super::{StatefulDrawableComponent, Component, EventState};
+use super::{DrawableComponent, Component, EventState};
 use crate::config::KeyConfig;
+
+#[derive(Clone, PartialEq)]
+pub enum MoveTabDirection {
+    Left,
+    Right,
+}
 
 #[derive(Clone)]
 pub enum Tab {
-    CPU,
-    Memory,
+    Process,
+    Performance,
+    Users,
 }
 
 pub struct TabComponent {
@@ -21,35 +27,53 @@ pub struct TabComponent {
 
 impl TabComponent {
     // default constructor
-    pub fn new() -> Self {
+    pub fn new(key_config: KeyConfig) -> Self {
         Self {
-            selected_tab: Tab::CPU,
-            key_config: KeyConfig::default(),
+            selected_tab: Tab::Process,
+            key_config: key_config,
         }
     }
 
     // set internal TabComponent State to default
     pub fn reset(&mut self) {
-        self.selected_tab = Tab::CPU;
+        self.selected_tab = Tab::Process;
         self.key_config = KeyConfig::default();
     }
 
     // String representation of Tab variants used in self.draw()
     fn names(&self) -> Vec<String> {
         vec![
-            String::from("CPU"),
-            String::from("Memory"),
+            String::from("Process"),
+            String::from("Performance"),
+            String::from("Users"),
         ]
     }
 
-    // rotate between Tab variants
-    fn update_selected_tab(&mut self) {
+    fn update_selected_tab(&mut self, direction: MoveTabDirection) {
         match self.selected_tab {
-            Tab::CPU => {
-                self.selected_tab = Tab::Memory;
+            Tab::Process => {
+                if direction == MoveTabDirection::Right {
+                    self.selected_tab = Tab::Performance;
+                }
+                else {
+                    self.selected_tab = Tab::Users;
+                }
             }
-            Tab::Memory => {
-                self.selected_tab = Tab::CPU;
+            Tab::Performance => {
+                if direction == MoveTabDirection::Right {
+                    self.selected_tab = Tab::Users;
+                }
+                else {
+                    self.selected_tab = Tab::Process;
+                }
+            }
+            Tab::Users => {
+                if direction == MoveTabDirection::Right {
+                    self.selected_tab = Tab::Process;
+                }
+                else {
+                    self.selected_tab = Tab::Performance;
+                }
             }
         }
     }
@@ -58,21 +82,23 @@ impl TabComponent {
 impl Component for TabComponent {
     fn event(&mut self, key: crossterm::event::KeyEvent) -> std::io::Result<EventState> {
         if key.code == self.key_config.tab_right {
-            // update selected tab -> only one key_config used here, self.update_selected_tab()
-            // rotates between possible Tab variants
-            self.update_selected_tab();
+            self.update_selected_tab(MoveTabDirection::Right);
+            return Ok(EventState::Consumed);
+        }
+        else if key.code == self.key_config.tab_left {
+            self.update_selected_tab(MoveTabDirection::Left);
             return Ok(EventState::Consumed);
         }
         return Ok(EventState::NotConsumed);
     }
 }
 
-impl StatefulDrawableComponent for TabComponent {
+impl DrawableComponent for TabComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> std::io::Result<()> {
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // filter chunk
+                Constraint::Length(3), // filter and tab chunk
                 Constraint::Min(1) // list chunk
             ].as_ref())
             .split(area);
@@ -81,11 +107,9 @@ impl StatefulDrawableComponent for TabComponent {
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Percentage(50), // space for tab
-                Constraint::Percentage(50), // space will be used for filter
+                Constraint::Percentage(50), // space for filter
             ].as_ref())
             .split(vertical_chunks[0]);
-
-        //let title: &str = "List Type";
 
         let names: Vec<String> = self.names();
         let titles: Vec<Line> = names

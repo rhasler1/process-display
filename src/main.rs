@@ -1,12 +1,5 @@
-pub mod app;
-pub mod config;
-pub mod components;
-pub mod events;
-pub mod process;
-
 use std::io;
 use std::error::Error;
-
 use crossterm::ExecutableCommand;
 use crossterm::{
     execute,
@@ -14,15 +7,19 @@ use crossterm::{
     terminal::{disable_raw_mode, LeaveAlternateScreen},
     event::DisableMouseCapture
 };
-
 use ratatui::{
     backend::CrosstermBackend,
     Terminal,
 };
-
-
 use crate::events::event::{Event, Events};
 use crate::app::App;
+
+pub mod app;
+pub mod config;
+pub mod components;
+pub mod events;
+pub mod process;
+pub mod performance;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -47,7 +44,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // main event loop::begin
     loop {
-
         // draw to terminal::begin
         terminal.draw(|f| {
             match app.draw(f) {
@@ -59,7 +55,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         // process next event::begin
         match events.next()? {
-
             // Input Key Event
             Event::Input(key) => match app.event(key).await {
                 Ok(state) => {
@@ -67,15 +62,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         break;
                     }
                 }
-                Err(_err) => {
-                    //app.reset();
+                Err(err) => {
+                    app.error.set(err.to_string())?;
                 }
             }
 
             // Refresh Event
             Event::Refresh => match app.refresh().await {
                 Ok(_state) => {}
-                Err(_err) => {} 
+                Err(err) => {
+                    app.error.set(err.to_string())?;
+                } 
             }
 
             // Tick Event

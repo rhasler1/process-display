@@ -1,26 +1,18 @@
 use std::io;
-
 use crossterm::event::{KeyEvent, KeyCode};
-
 use ratatui::{
     Frame,
     prelude::*,
     widgets::{block::*, *},
 };
+use super::{EventState, DrawableComponent, Component};
 
-use super::{EventState, StatefulDrawableComponent, Component};
-
+#[derive(Default)]
 pub struct FilterComponent {
     input_str: String,
 }
 
 impl FilterComponent {
-    pub fn new() -> Self {
-        Self {
-            input_str: String::new(),
-        }
-    }
-
     pub fn reset(&mut self) {
         self.input_str.clear();
     }
@@ -50,7 +42,7 @@ impl Component for FilterComponent {
     }
 }
 
-impl StatefulDrawableComponent for FilterComponent {
+impl DrawableComponent for FilterComponent {
     fn draw(&mut self, f: &mut Frame, area: ratatui::prelude::Rect, focused: bool) -> io::Result<()> {
         let title: &str = "Filter";
 

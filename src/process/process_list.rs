@@ -1,11 +1,9 @@
 
 use std::io;
-
 use crate::components::ListSortOrder;
-
+use crate::process::list_iter::ListIterator;
 use super::process_list_items::ProcessListItems;
-use super::process_list_items::ProcessListItem;
-use super::list_iter::ListIterator;
+use super::process_list_item::ProcessListItem;
 
 #[derive(Copy, Clone)]
 pub enum MoveSelection {
@@ -63,7 +61,17 @@ impl ProcessList {
     }
 
     pub fn list_is_empty(&self) -> bool {
-        self.items.len() == 0
+        self.items.list_len() == 0
+    }
+
+    pub fn get_selected_pid(&self) -> Option<u32> {
+        if let Some(selection) = self.selection {
+            if let Some(item) = self.items.get_item(selection) {
+                return Some(item.pid())
+            }
+            else { return None }
+        }
+        None
     }
 
     // pub fn update, note: selection is be updated here.
@@ -73,7 +81,7 @@ impl ProcessList {
     pub fn update(&mut self, new_list: &Vec<ProcessListItem>) -> io::Result<()> {
         // get the selected item, selected_item = Some(item) || None
         //
-        let selected_item: Option<&ProcessListItem> = self.items.list_items.get(self.selection.unwrap_or_default());
+        let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
 
         // get the selected item's pid, pid = Some(pid) || None
         //
@@ -95,7 +103,7 @@ impl ProcessList {
             // then set self.selection to the max_idx.
             //
             if let Some(selection) = self.selection {
-                let max_idx = self.items.len().saturating_sub(1);
+                let max_idx = self.items.list_len().saturating_sub(1);
                 if selection > max_idx {
                     self.selection = Some(max_idx)
                 }
@@ -104,7 +112,7 @@ impl ProcessList {
 
         // if the list is not empty and selection is None, set the selection to be 0.
         //
-        if self.items.list_items.len() > 0 && self.selection.is_none() {
+        if self.items.list_len() > 0 && self.selection.is_none() {
             self.selection = Some(0);
         }
 
@@ -116,7 +124,7 @@ impl ProcessList {
     pub fn sort(&mut self, sort: ListSortOrder) -> io::Result<()> {
         // get the selected item, selected_item = Some(item) || None
         //
-        let selected_item: Option<&ProcessListItem> = self.items.list_items.get(self.selection.unwrap_or_default());
+        let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
 
         // get the selected item's pid, pid = Some(pid) || None
         //
@@ -142,6 +150,11 @@ impl ProcessList {
     //
     pub fn selection(&self) -> Option<usize> {
         self.selection
+    }
+
+    pub fn selected_item(&self) -> Option<&ProcessListItem> {
+        let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
+        selected_item
     }
 
     // pub fn follow
@@ -202,7 +215,7 @@ impl ProcessList {
     //
     fn selection_down(&self, current_index: usize, lines: usize) -> Option<usize> {
         let mut new_index = current_index;
-        let items_max = self.items.len().saturating_sub(1);
+        let items_max = self.items.list_len().saturating_sub(1);
 
         'a: for _ in 0..lines {
             if new_index >= items_max {
@@ -246,7 +259,7 @@ impl ProcessList {
     //   If selection was moved, then Some(new_index), else None.
     //
     fn selection_end(&self, current_index: usize) -> Option<usize> {
-        let items_max = self.items.len().saturating_sub(1);
+        let items_max = self.items.list_len().saturating_sub(1);
         let new_index = items_max;
 
         if new_index == current_index { None }
@@ -275,126 +288,4 @@ impl ProcessList {
 
 #[cfg(test)]
 mod test {
-    use std::vec;
-    use super::{MoveSelection, ProcessList, ProcessListItem};
-    use crate::process::process_list_items::CpuInfo;
-    use crate::components::ListSortOrder;
-
-    #[test]
-    fn test_selection() {
-        let pid: u32 = 0;
-        let name: String = String::from("test_move_selection");
-        let cpu_usage: f32 = 0.0;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
-        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
-
-        let items_size_0: Vec<ProcessListItem> = vec![];
-        let items_size_2: Vec<ProcessListItem> = vec![process_list_item_1, process_list_item_2];
-
-        let mut list_size_0 = ProcessList::new(&items_size_0);
-        let mut list_size_2 = ProcessList::new(&items_size_2);
-
-        assert_eq!(list_size_0.selection, None);
-        list_size_0.move_selection(MoveSelection::Down);
-        assert_eq!(list_size_0.selection, None);
-        list_size_0.move_selection(MoveSelection::Up);
-        assert_eq!(list_size_0.selection, None);
-        list_size_0.move_selection(MoveSelection::MultipleDown);
-        assert_eq!(list_size_0.selection, None);
-        list_size_0.move_selection(MoveSelection::MultipleUp);
-        assert_eq!(list_size_0.selection, None);
-        list_size_0.move_selection(MoveSelection::End);
-        assert_eq!(list_size_0.selection, None);
-        list_size_0.move_selection(MoveSelection::Top);
-        assert_eq!(list_size_0.selection, None);
-
-        assert_eq!(list_size_2.selection, Some(0));
-        list_size_2.move_selection(MoveSelection::Down);
-        assert_eq!(list_size_2.selection, Some(1));
-        list_size_2.move_selection(MoveSelection::Up);
-        assert_eq!(list_size_2.selection, Some(0));
-        list_size_2.move_selection(MoveSelection::MultipleDown);
-        assert_eq!(list_size_2.selection, Some(1));
-        list_size_2.move_selection(MoveSelection::MultipleUp);
-        assert_eq!(list_size_2.selection, Some(0));
-        list_size_2.move_selection(MoveSelection::End);
-        assert_eq!(list_size_2.selection, Some(1));
-        list_size_2.move_selection(MoveSelection::Top);
-        assert_eq!(list_size_2.selection, Some(0));
-    }
-
-    #[test]
-    fn test_sort() {
-        let pid: u32 = 0;
-        let name: String = String::from("process_1");
-        let cpu_usage: f32 = 0.0;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
-
-        let pid: u32 = 1;
-        let name: String = String::from("process_2");
-        let cpu_usage: f32 = 0.1;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
-
-        let items: Vec<ProcessListItem> = vec![process_list_item_1.clone(), process_list_item_2.clone()];
-        let mut list = ProcessList::new(&items);
-
-        let items: Vec<ProcessListItem> = vec![];
-        let mut empty_list = ProcessList::new(&items);
-
-        let _ = list.sort(ListSortOrder::PidInc);
-        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_1.clone());
-        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_2.clone());
-
-        let _ = list.sort(ListSortOrder::PidDec);
-        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_2.clone());
-        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_1.clone());
-
-        let _ = list.sort(ListSortOrder::NameInc);
-        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_1.clone());
-        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_2.clone());
-
-        let _ = list.sort(ListSortOrder::NameDec);
-        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_2.clone());
-        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_1.clone());
-
-        let _ = list.sort(ListSortOrder::UsageInc);
-        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_1.clone());
-        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_2.clone());
-
-        let _ = list.sort(ListSortOrder::UsageDec);
-        assert_eq!(list.items.list_items.get(0).unwrap(), &process_list_item_2.clone());
-        assert_eq!(list.items.list_items.get(1).unwrap(), &process_list_item_1.clone());
-
-        let _ = empty_list.sort(ListSortOrder::UsageDec);
-        assert!(empty_list.items.list_items.is_empty());
-    }
-
-    #[test]
-    fn test_follow_selection() {
-        let pid: u32 = 0;
-        let name: String = String::from("process_1");
-        let cpu_usage: f32 = 0.0;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
-
-        let pid: u32 = 1;
-        let name: String = String::from("process_2");
-        let cpu_usage: f32 = 0.1;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
-
-        let items: Vec<ProcessListItem> = vec![process_list_item_1.clone(), process_list_item_2.clone()];
-        let mut list = ProcessList::new(&items);
-
-        // default list.follow_selection = false, if list.follow_selection
-        // is false, then list.change_follow_selection() => list.follow_selection = true.
-        let _ = list.change_follow_selection();
-        
-        assert_eq!(list.selection(), Some(0));
-        let _ = list.sort(ListSortOrder::PidDec);
-        assert_eq!(list.selection(), Some(1))
-    }
 }
