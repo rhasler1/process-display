@@ -5,14 +5,14 @@ use ratatui::{
     prelude::*,
     widgets::{block::*, *},
 };
-use super::{filter::FilterComponent, Component, EventState, ListSortOrder, StatefulDrawableComponent};
+use super::{filter::FilterComponent, Component, EventState, ListSortOrder, DrawableComponent};
 use super::utils::vertical_scroll::VerticalScroll;
 use crate::process::{common_nav, process_list_items::ProcessListItems};
 use crate::process::process_list_item::ProcessListItem;
 use crate::process::process_list::ProcessList;
 use crate::config::KeyConfig;
 
-// The CPU Component can be navigated to focus on
+// The ProcessComponent can be navigated to focus on
 // either a ProcessList <filtered/unfiltered> or
 // FilterComponent.
 #[derive(PartialEq)]
@@ -21,7 +21,7 @@ pub enum Focus {
     List,
 }
 
-pub struct CPUComponent {
+pub struct ProcessComponent {
     focus: Focus,
     list: ProcessList,
     filter: FilterComponent,
@@ -30,28 +30,16 @@ pub struct CPUComponent {
     key_config: KeyConfig,
 }
 
-impl CPUComponent {
+impl ProcessComponent {
     // default constructor
-    pub fn default() -> Self {
+    pub fn new(key_config: KeyConfig) -> Self {
         Self {
             focus: Focus::List,
             list: ProcessList::default(),
-            filter: FilterComponent::new(),
+            filter: FilterComponent::default(),
             filtered_list: None,
             scroll: VerticalScroll::new(false, false),
-            key_config: KeyConfig::default(),
-        }
-    }
-    
-    // new constructor
-    pub fn new(list: &Vec<ProcessListItem>) -> Self {
-        Self {
-            focus: Focus::List,
-            list: ProcessList::new(list),
-            filter: FilterComponent::new(),
-            filtered_list: None,
-            scroll: VerticalScroll::new(false, false),
-            key_config: KeyConfig::default(),
+            key_config: key_config,
         }
     }
 
@@ -69,6 +57,13 @@ impl CPUComponent {
         Ok(())
     }
 
+    pub fn selected_pid(&self) -> Option<u32> {
+        if let Some(list) = self.filtered_list.as_ref() {
+            return list.get_selected_pid()
+        }
+        self.list.get_selected_pid()
+    }
+
     //  pub fn list -- getter
     pub fn list(&self) -> &ProcessList {
         self.filtered_list.as_ref().unwrap_or(&self.list)
@@ -80,16 +75,16 @@ impl CPUComponent {
     }
 }
 
-impl Component for CPUComponent {
-    // handle key events for CPUComponent
+impl Component for ProcessComponent {
+    // handle key events for ProcessComponent
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
-        //  If they key event is filter and the CPUComponent Focus is on the List, then move the focus to Filter and return.
+        //  If they key event is filter and the ProcessComponent Focus is on the List, then move the focus to Filter and return.
         if key.code == self.key_config.filter && self.focus == Focus::List {
             self.focus = Focus::Filter;
             return Ok(EventState::Consumed)
         }
 
-        // if the CPUComponent Focus is on the Filter, then attempt to set the filtered_list.
+        // if the ProcessComponent Focus is on the Filter, then attempt to set the filtered_list.
         // if the filter's input string is None, then set the filtered_list to None (no List to display),
         // else create the filtered_list calling list.filter(input_str)
         if matches!(self.focus, Focus::Filter) {
@@ -218,7 +213,7 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
     }
 }
 
-impl StatefulDrawableComponent for CPUComponent {
+impl DrawableComponent for ProcessComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -281,10 +276,11 @@ impl StatefulDrawableComponent for CPUComponent {
                     };
                     ListItem::new(
                         format!(
-                            "PID: {:<5} Name: {:<50} Cpu Usage: {:?}%", // widths
+                            "PID: {:<5} Name: {:<50} Cpu: {:<30?} Mem: {:<30?}", // widths
                             item.pid(),
                             item.name(),
-                            item.cpu_usage().unwrap()
+                            item.cpu_usage(),
+                            item.memory_usage(),
                         )
                     )
                     .style(style)

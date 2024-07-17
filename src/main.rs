@@ -43,7 +43,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // main event loop::begin
     loop {
-
         // draw to terminal::begin
         terminal.draw(|f| {
             match app.draw(f) {
@@ -55,7 +54,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         // process next event::begin
         match events.next()? {
-
             // Input Key Event
             Event::Input(key) => match app.event(key).await {
                 Ok(state) => {
@@ -63,15 +61,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
                         break;
                     }
                 }
-                Err(_err) => {
-                    //app.reset();
+                Err(err) => {
+                    app.error.set(err.to_string())?;
                 }
             }
 
             // Refresh Event
             Event::Refresh => match app.refresh().await {
                 Ok(_state) => {}
-                Err(_err) => {} 
+                Err(err) => {
+                    app.error.set(err.to_string())?;
+                } 
             }
 
             // Tick Event

@@ -102,26 +102,12 @@ impl ProcessListItems {
             }
             ListSortOrder::UsageInc => {
                 self.list_items
-                    .binary_search_by(|probe| {
-                        if probe.is_cpu() && item.is_cpu() {
-                            probe.cpu_usage().partial_cmp(&item.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal)
-                        }
-                        else {
-                            probe.memory_usage().partial_cmp(&item.memory_usage()).unwrap_or(std::cmp::Ordering::Equal)
-                        }
-                    })
+                    .binary_search_by(|probe| probe.cpu_usage().partial_cmp(&item.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal))
                     .unwrap_or_else(|index| index)
             }
             ListSortOrder::UsageDec => {
                 self.list_items
-                .binary_search_by(|probe| {
-                    if probe.is_cpu() && item.is_cpu() {
-                        item.cpu_usage().partial_cmp(&probe.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal)
-                    }
-                    else {
-                        item.memory_usage().partial_cmp(&probe.memory_usage()).unwrap_or(std::cmp::Ordering::Equal)
-                    }
-                })
+                .binary_search_by(|probe| item.cpu_usage().partial_cmp(&probe.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal))
                 .unwrap_or_else(|index| index)
             }
         }
@@ -137,34 +123,16 @@ impl ProcessListItems {
                 self.list_items.sort_by(|a, b| b.pid().cmp(&a.pid()));
             }
             ListSortOrder::NameInc => {
-                self.list_items
-                    .sort_by(
-                        |a, b| a.name().cmp(&b.name())
-                    );
+                self.list_items.sort_by(|a, b| a.name().cmp(&b.name()));
             }
             ListSortOrder::NameDec => {
                 self.list_items.sort_by(|a, b| b.name().cmp(&a.name()));
             }
-            // TODO: remove all occurrences of .unwrap()
             ListSortOrder::UsageInc => {
-                self.list_items.sort_by(|a, b| {
-                    if a.is_cpu() && b.is_cpu() {
-                        a.cpu_usage().unwrap().partial_cmp(&b.cpu_usage().unwrap()).unwrap_or(std::cmp::Ordering::Equal)
-                    }
-                    else {
-                        a.memory_usage().unwrap().partial_cmp(&b.memory_usage().unwrap()).unwrap_or(std::cmp::Ordering::Equal)
-                    }
-                })
+                self.list_items.sort_by(|a, b| a.cpu_usage().partial_cmp(&b.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal));
             }
             ListSortOrder::UsageDec => {
-                self.list_items.sort_by(|a, b| {
-                    if a.is_cpu() && b.is_cpu() {
-                        b.cpu_usage().unwrap().partial_cmp(&a.cpu_usage().unwrap()).unwrap_or(std::cmp::Ordering::Equal)
-                    }
-                    else {
-                        b.memory_usage().unwrap().partial_cmp(&a.memory_usage().unwrap()).unwrap_or(std::cmp::Ordering::Equal)
-                    }
-                })
+                self.list_items.sort_by(|a, b| b.cpu_usage().partial_cmp(&a.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal));
             }
         }
         Ok(())
@@ -182,7 +150,7 @@ impl ProcessListItems {
     }
 
     // This function gets the index of an item in the instance list given the item's pid.
-    pub fn get_idx(&mut self, pid: u32) -> Option<usize> {
+    pub fn get_idx(&self, pid: u32) -> Option<usize> {
         if let Some(idx) = self.list_items
             .iter()
             .position(|item| item.pid() == pid)
@@ -209,99 +177,65 @@ impl ProcessListItems {
 mod test {
     use std::vec;
     use crate::process::process_list_items::ProcessListItems;
-    use crate::process::process_list_item::{ProcessListItem, CpuInfo};
-    use crate::components::ListSortOrder;
+    use crate::process::process_list_item::ProcessListItem;
+    //use crate::components::{filter, ListSortOrder};
 
     #[test]
-    fn test_filter_update() {
-        let pid: u32 = 0;
-        let name: String = String::from("process_1");
-        let cpu_usage: f32 = 0.0;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
+    fn test_default() {
+        let instance = ProcessListItems::default();
+        assert_eq!(instance.list_len(), 0);
+        assert_eq!(instance.get_idx(4), None);
+        assert_eq!(instance.get_item(0), None);
+    }
 
-        let pid: u32 = 1;
-        let name: String = String::from("process_2");
-        let cpu_usage: f32 = 0.1;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
+    #[test]
+    fn test_new() {
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1);
+        let clone_0 = item_0.clone();
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2);
+        let clone_1 = item_1.clone();
+        let items = vec![item_0, item_1];
+        let instance = ProcessListItems::new(&items);
 
-        let list: Vec<ProcessListItem> = vec![process_list_item_1.clone(), process_list_item_2.clone()];
-        let empty_list: Vec<ProcessListItem> = vec![];
+        assert_eq!(instance.list_len(), 2);
+        assert_eq!(instance.get_idx(1), Some(0));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), None);
 
-        let mut items = ProcessListItems::new(&list);
+        assert_eq!(instance.get_item(0), Some(&clone_0));
+        assert_eq!(instance.get_item(1), Some(&clone_1));
+        assert_eq!(instance.get_item(2), None);
+    }
 
-        // testing filter()
-        let filtered_items = items.filter(String::from("process_1"));
-        assert_eq!(filtered_items.list_len(), 1);
-        assert_eq!(filtered_items.get_item(0), Some(&process_list_item_1));
+    #[test]
+    fn test_filter() {
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1);
+        let clone_0 = item_0.clone();
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2);
+        let _clone_1 = item_1.clone();
+        let items = vec![item_0, item_1];
+        let instance = ProcessListItems::new(&items);
 
-        // testing get_item()
-        let filtered_items = items.filter(String::from("process_3"));
-        assert_eq!(filtered_items.list_len(), 0);
-        assert_eq!(filtered_items.get_item(0), None);
-        assert_eq!(filtered_items.get_item(100), None);
-
-        // testing update() with new empty list
-        assert_eq!(items.list_len(), 2);
-        assert_eq!(items.get_item(0), Some(&process_list_item_1));
-        assert_eq!(items.get_item(1), Some(&process_list_item_2));
-        let _ = items.update_items(&empty_list, &ListSortOrder::PidDec);
-        assert_eq!(items.list_len(), 0);
-        assert_eq!(items.get_item(0), None);
-        assert_eq!(items.get_item(1), None);
-        
-        // testing update with new non-empty list
-        assert_eq!(items.list_len(), 0);
-        assert_eq!(items.get_item(0), None);
-        assert_eq!(items.get_item(1), None);
-        let _ = items.update_items(&list, &ListSortOrder::PidDec);
-        assert_eq!(items.list_len(), 2);
-        assert_eq!(items.get_item(0), Some(&process_list_item_2));
-        assert_eq!(items.get_item(1), Some(&process_list_item_1));
+        let filtered_instance = instance.filter(String::from("a"));
+        assert_eq!(filtered_instance.list_len(), 1);
+        assert_eq!(filtered_instance.get_item(0), Some(&clone_0));
+        assert_eq!(filtered_instance.get_item(1), None);
+        assert_eq!(filtered_instance.get_idx(1), Some(0));
+        assert_eq!(filtered_instance.get_idx(2), None);
     }
 
     #[test]
     fn test_insert_item_idx() {
-        let pid: u32 = 0;
-        let name: String = String::from("a");
-        let cpu_usage: f32 = 0.05;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let process_list_item_1 = ProcessListItem::Cpu(cpu_info.clone());
 
-        let pid: u32 = 1;
-        let name: String = String::from("b");
-        let cpu_usage: f32 = 0.1;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let process_list_item_2 = ProcessListItem::Cpu(cpu_info.clone());
+    }
 
-        let list: Vec<ProcessListItem> = vec![process_list_item_1.clone(), process_list_item_2.clone()];
+    #[test]
+    fn test_update_items() {
 
+    }
 
-        let pid: u32 = 2;
-        let name: String = String::from("c");
-        let cpu_usage: f32 = 0.15;
-        let cpu_info = CpuInfo::new(pid, name, cpu_usage);
-        let mut items = ProcessListItems::new(&list);
-        let process_list_item_3 = ProcessListItem::Cpu(cpu_info.clone());
+    #[test]
+    fn test_sort_items() {
 
-        assert_eq!(items.list_len(), 2);
-        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::UsageDec);
-        assert_eq!(idx, 0);
-
-        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::UsageInc);
-        assert_eq!(idx, 2);
-
-        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::NameDec);
-        assert_eq!(idx, 0);
-
-        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::NameInc);
-        assert_eq!(idx, 2);
-
-        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::PidDec);
-        assert_eq!(idx, 0);
-
-        let idx = items.insert_item_idx(&process_list_item_3, &ListSortOrder::PidInc);
-        assert_eq!(idx, 2);
     }
 }

@@ -5,12 +5,13 @@ use ratatui::prelude::*;
 pub mod system;
 pub mod filter;
 pub mod help;
-pub mod cpu;
+pub mod error;
+pub mod process;
 pub mod tab;
 pub mod utils;
 pub mod command;
 
-pub trait StatefulDrawableComponent {
+pub trait DrawableComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> io::Result<()>;
 }
 
