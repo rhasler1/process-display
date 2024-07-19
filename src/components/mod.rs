@@ -7,6 +7,7 @@ pub mod filter;
 pub mod help;
 pub mod error;
 pub mod process;
+pub mod terminate;
 pub mod performance;
 pub mod tab;
 pub mod utils;
@@ -29,21 +30,5 @@ pub enum EventState {
 impl EventState {
     pub fn is_consumed(&self) -> bool {
         *self == Self::Consumed
-    }
-}
-
-#[derive(PartialEq, Clone)]
-pub enum ListSortOrder {
-    PidInc,
-    PidDec,
-    NameInc,
-    NameDec,
-    UsageInc,
-    UsageDec,
-}
-
-impl Default for ListSortOrder {
-    fn default() -> Self {
-        ListSortOrder::UsageInc
     }
 }

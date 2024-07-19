@@ -31,8 +31,10 @@ pub struct KeyConfig {
     pub sort_name_dec: KeyCode,
     pub sort_pid_inc: KeyCode,
     pub sort_pid_dec: KeyCode,
-    pub sort_usage_inc: KeyCode,
-    pub sort_usage_dec: KeyCode,
+    pub sort_cpu_usage_inc: KeyCode,
+    pub sort_cpu_usage_dec: KeyCode,
+    pub sort_memory_usage_inc: KeyCode,
+    pub sort_memory_usage_dec: KeyCode,
     pub follow_selection: KeyCode,
 }
 
@@ -55,8 +57,10 @@ impl Default for KeyConfig {
             sort_name_dec: KeyCode::Char('N'),
             sort_pid_inc: KeyCode::Char('p'),
             sort_pid_dec: KeyCode::Char('P'),
-            sort_usage_inc: KeyCode::Char('u'),
-            sort_usage_dec: KeyCode::Char('U'),
+            sort_cpu_usage_inc: KeyCode::Char('c'),
+            sort_cpu_usage_dec: KeyCode::Char('C'),
+            sort_memory_usage_inc: KeyCode::Char('m'),
+            sort_memory_usage_dec: KeyCode::Char('M'),
             follow_selection: KeyCode::Char('f'),
         }
     }

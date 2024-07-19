@@ -1,7 +1,7 @@
 
 use std::io;
-use crate::components::ListSortOrder;
 use crate::process_structs::list_iter::ListIterator;
+use super::ListSortOrder;
 use super::process_list_items::ProcessListItems;
 use super::process_list_item::ProcessListItem;
 
@@ -33,7 +33,7 @@ impl ProcessList {
     pub fn new(list: &Vec<ProcessListItem>) -> Self {
         Self {
             items: ProcessListItems::new(list),
-            sort: ListSortOrder::UsageInc,
+            sort: ListSortOrder::CpuUsageInc,
             follow_selection: false,
             selection: if list.is_empty() { None } else { Some(0) },
         }
@@ -48,7 +48,7 @@ impl ProcessList {
     pub fn filter(&self, filter_text: String) -> Self {
         let new_self = Self {
             items: self.items.filter(filter_text),
-            sort: ListSortOrder::UsageInc,
+            sort: ListSortOrder::CpuUsageInc,
             follow_selection: false,
             selection: if self.items.list_items.is_empty() {
                 None

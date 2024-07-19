@@ -26,7 +26,7 @@ pub struct App {
 }
 
 impl App {
-    // new constructor
+    // New constructor.
     pub fn new(config: Config) -> Self {
         Self {
             system: SystemComponent::new(config.key_config.clone()),
@@ -52,12 +52,12 @@ impl App {
         Ok(EventState::NotConsumed)
     }
 
-    // function to populate the help component with CommandInfo
+    // This function populates the HelpComponent with CommandInfo.
     fn update_commands(&mut self) {
         self.help.set_commands(self.commands());
     }
 
-    // function to populate a Vector with CommandInfo
+    // This function populates and returns a vector with CommandInfo.
     fn commands(&self) -> Vec<CommandInfo> {
         let res = vec![
             CommandInfo::new(command::help(&self.config.key_config)),
@@ -68,14 +68,15 @@ impl App {
             CommandInfo::new(command::follow_selection(&self.config.key_config)),
             CommandInfo::new(command::sort_list_by_name(&self.config.key_config)),
             CommandInfo::new(command::sort_list_by_pid(&self.config.key_config)),
-            CommandInfo::new(command::sort_list_by_usage(&self.config.key_config)),
+            CommandInfo::new(command::sort_list_by_cpu_usage(&self.config.key_config)),
+            CommandInfo::new(command::sort_list_by_memory_usage(&self.config.key_config)),
             CommandInfo::new(command::filter_submit(&self.config.key_config)),
             CommandInfo::new(command::terminate_process(&self.config.key_config)),
         ];
         res
     }
 
-    // async function to process component's event
+    // Async function to process component's event.
     async fn components_event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         if self.error.event(key)?.is_consumed() {
             return Ok(EventState::Consumed)
@@ -94,20 +95,18 @@ impl App {
                 if self.process.event(key)?.is_consumed() {
                     return Ok(EventState::Consumed);
                 }
+                //else if key.code == self.config.key_config.terminate {
+                //    if let Some(pid) = self.process.selected_pid() {
+                //        self.system.terminate_process(pid)?;
+                //        return Ok(EventState::Consumed)
+                //    }
+                //}
             }
 
             Tab::Performance => {}
 
             Tab::Users => {}
         }
-
-        //if self.system.event(key)?.is_consumed() {
-        //    if let Some(pid) = self.process.selected_pid() {
-        //        self.system.terminate_process(pid)?;
-        //    }
-        //    return Ok(EventState::Consumed)
-        //}
-
         Ok(EventState::NotConsumed)
     }
 
@@ -115,7 +114,7 @@ impl App {
         return Ok(EventState::NotConsumed);
     }
 
-    // refresh system structures and components
+    // Async function to refresh the system structure and update dependent components.
     pub async fn refresh(&mut self) -> io::Result<()> {
         self.system.refresh_all().await?;
         let new_processes = self.system.get_process_list();
@@ -123,6 +122,7 @@ impl App {
         Ok(())
     }
 
+    // App draw.
     pub fn draw(&mut self, f: &mut Frame) -> io::Result<()> {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -145,7 +145,7 @@ impl App {
             Tab::Users => {}
         }
 
-        // drawing help component as a pop-up
+        // Drawing the HelpComponent as a pop up. See /components/help.rs.
         self.help.draw(f, Rect::default(), false)?;
 
         return Ok(())

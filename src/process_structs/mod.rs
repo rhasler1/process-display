@@ -8,6 +8,24 @@ pub mod process_list_item;
 pub mod process_list_items;
 pub mod process_list;
 
+#[derive(PartialEq, Clone)]
+pub enum ListSortOrder {
+    PidInc,
+    PidDec,
+    NameInc,
+    NameDec,
+    CpuUsageInc,
+    CpuUsageDec,
+    MemoryUsageInc,
+    MemoryUsageDec,
+}
+
+impl Default for ListSortOrder {
+    fn default() -> Self {
+        ListSortOrder::CpuUsageInc
+    }
+}
+
 pub fn common_nav(key: KeyEvent, key_config: &KeyConfig) -> Option<MoveSelection> {
     if key.code == key_config.move_down {
         Some(MoveSelection::Down)
