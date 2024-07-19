@@ -19,6 +19,7 @@ use crate::config::KeyConfig;
 pub enum Focus {
     Filter,
     List,
+    // Add Terminate variant; This way we can match focus when drawing the ProcessComponent and draw TerminateComponent.
 }
 
 pub struct ProcessComponent {
@@ -28,6 +29,7 @@ pub struct ProcessComponent {
     filtered_list: Option<ProcessList>,
     scroll: VerticalScroll,
     key_config: KeyConfig,
+    // TODO: terminate: TerminateComponent
 }
 
 impl ProcessComponent {
@@ -60,13 +62,17 @@ impl ProcessComponent {
     }
 
     // This function can be used to communicate the selected item's pid to the application.
+    // Note: The function will always return None if the focus is on the filter.
     pub fn selected_pid(&self) -> Option<u32> {
-        if let Some(list) = self.filtered_list.as_ref() {
-            return list.get_selected_pid()
+        if matches!(self.focus, Focus::List) {
+            if let Some(list) = self.filtered_list.as_ref() {
+                return list.get_selected_pid()
+            }
+            else {
+                return self.list.get_selected_pid()
+            }
         }
-        else {
-            return self.list.get_selected_pid()
-        }
+        None
     }
 }
 

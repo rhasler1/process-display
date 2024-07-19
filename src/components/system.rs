@@ -11,7 +11,7 @@ use crate::{config::KeyConfig, performance_structs::perf_item::CpuItem, process_
 pub struct SystemComponent {
     system: System,
     process_list: Vec<ProcessListItem>,
-    key_config: KeyConfig
+    _key_config: KeyConfig
 }
 
 impl SystemComponent {
@@ -19,7 +19,7 @@ impl SystemComponent {
         Self {
             system: System::new_all(),
             process_list: Vec::new(),
-            key_config: key_config,
+            _key_config: key_config,
         }
     }
 
@@ -75,10 +75,7 @@ impl SystemComponent {
 }
 
 impl Component for SystemComponent {
-    fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
-        if key.code == self.key_config.terminate {
-            return Ok(EventState::NotConsumed)
-        }
+    fn event(&mut self, _key: KeyEvent) -> io::Result<EventState> {
         Ok(EventState::NotConsumed)
     }
 }
