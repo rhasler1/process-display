@@ -1,6 +1,4 @@
 use std::{collections::VecDeque, io};
-
-
 use super::perf_item::CpuItem;
 
 #[derive(Default, Clone, Debug)]

@@ -1,0 +1,1 @@
+![process-display](./resources/process_display_ex.gif)

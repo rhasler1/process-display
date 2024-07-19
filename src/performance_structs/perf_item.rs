@@ -3,17 +3,15 @@ pub struct CpuItem {
     total_usage: f32,
     num_cores: Option<usize>,
     frequency: u64,
-    uptime: u64,
     brand: String,
 }
 
 impl CpuItem {
-    pub fn new(total_usage: f32, num_cores: Option<usize>, frequency: u64, uptime: u64, brand: String) -> Self {
+    pub fn new(total_usage: f32, num_cores: Option<usize>, frequency: u64, brand: String) -> Self {
         Self {
             total_usage,
             num_cores,
             frequency,
-            uptime,
             brand,
         }
     }
@@ -28,10 +26,6 @@ impl CpuItem {
 
     pub fn frequency(&self) -> u64 {
         self.frequency.clone()
-    }
-
-    pub fn uptime(&self) -> u64 {
-        self.uptime.clone()
     }
 
     pub fn brand(&self) -> String {

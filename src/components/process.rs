@@ -7,9 +7,9 @@ use ratatui::{
 };
 use super::{filter::FilterComponent, Component, EventState, ListSortOrder, DrawableComponent};
 use super::utils::vertical_scroll::VerticalScroll;
-use crate::process::{common_nav, process_list_items::ProcessListItems};
-use crate::process::process_list_item::ProcessListItem;
-use crate::process::process_list::ProcessList;
+use crate::process_structs::{common_nav, process_list_items::ProcessListItems};
+use crate::process_structs::process_list_item::ProcessListItem;
+use crate::process_structs::process_list::ProcessList;
 use crate::config::KeyConfig;
 
 // The ProcessComponent can be navigated to focus on
@@ -44,7 +44,7 @@ impl ProcessComponent {
     }
 
     // pub function to update the process list
-    pub async fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
+    pub fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
         // update list
         self.list.update(new_processes)?;
         // update filter list
@@ -330,7 +330,6 @@ impl DrawableComponent for ProcessComponent {
             .style(block_style);
 
         f.render_widget(table, vertical_chunks[1]);
-
 
         Ok(())
     }

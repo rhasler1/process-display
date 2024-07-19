@@ -38,13 +38,6 @@ impl App {
         }
     }
 
-    pub async fn refresh(&mut self) -> io::Result<()> {
-        self.system.refresh_all()?;
-        let new_processes = self.system.get_process_list();
-        self.process.update(new_processes.as_ref()).await?;    
-        Ok(())
-    }
-
     pub async fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         self.update_commands();
 
@@ -52,7 +45,7 @@ impl App {
             return Ok(EventState::Consumed);
         }
 
-        else if self.move_focus(key).await?.is_consumed() {
+        else if self.move_focus(key)?.is_consumed() {
             return Ok(EventState::Consumed);
         }
 
@@ -118,8 +111,16 @@ impl App {
         Ok(EventState::NotConsumed)
     }
 
-    async fn move_focus(&mut self, _key: KeyEvent) -> io::Result<EventState> {
+    fn move_focus(&mut self, _key: KeyEvent) -> io::Result<EventState> {
         return Ok(EventState::NotConsumed);
+    }
+
+    // refresh system structures and components
+    pub async fn refresh(&mut self) -> io::Result<()> {
+        self.system.refresh_all().await?;
+        let new_processes = self.system.get_process_list();
+        self.process.update(new_processes.as_ref())?;
+        Ok(())
     }
 
     pub fn draw(&mut self, f: &mut Frame) -> io::Result<()> {
