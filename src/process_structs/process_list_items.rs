@@ -1,5 +1,5 @@
 use std::io;
-use crate::components::ListSortOrder;
+use super::ListSortOrder;
 use super::process_list_item::ProcessListItem;
 use super::list_items_iter::ListItemsIterator;
 
@@ -71,14 +71,14 @@ impl ProcessListItems {
 
         // The instance list might become unsorted when updating items if sorting by usage (step 2 above).
         // Sort the list if the list is being sorted by usage.
-        if *sort == ListSortOrder::UsageInc || *sort == ListSortOrder::UsageDec {
+        if *sort == ListSortOrder::CpuUsageInc || *sort == ListSortOrder::CpuUsageDec || *sort == ListSortOrder::MemoryUsageInc || *sort == ListSortOrder::MemoryUsageDec {
             self.sort_items(sort)?;
         }  
         Ok(())
     }
 
     // This function determines the parameter item's insert index position in the instance list given a ListSortOrder.
-    fn insert_item_idx(&mut self, item: &ProcessListItem, sort: &ListSortOrder) -> usize {
+    fn insert_item_idx(&self, item: &ProcessListItem, sort: &ListSortOrder) -> usize {
         match sort {
             ListSortOrder::PidInc => {
                 self.list_items
@@ -100,15 +100,25 @@ impl ProcessListItems {
                     .binary_search_by(|probe| probe.name().cmp(&item.name()).reverse())
                     .unwrap_or_else(|index| index)
             }
-            ListSortOrder::UsageInc => {
+            ListSortOrder::CpuUsageInc => {
                 self.list_items
                     .binary_search_by(|probe| probe.cpu_usage().partial_cmp(&item.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal))
                     .unwrap_or_else(|index| index)
             }
-            ListSortOrder::UsageDec => {
+            ListSortOrder::CpuUsageDec => {
                 self.list_items
-                .binary_search_by(|probe| item.cpu_usage().partial_cmp(&probe.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal))
-                .unwrap_or_else(|index| index)
+                    .binary_search_by(|probe| item.cpu_usage().partial_cmp(&probe.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal))
+                    .unwrap_or_else(|index| index)
+            }
+            ListSortOrder::MemoryUsageInc => {
+                self.list_items
+                    .binary_search_by(|probe| probe.memory_usage().cmp(&item.memory_usage()))
+                    .unwrap_or_else(|index| index)
+            }
+            ListSortOrder::MemoryUsageDec => {
+                self.list_items
+                    .binary_search_by(|probe| item.memory_usage().cmp(&probe.memory_usage()))
+                    .unwrap_or_else(|index| index)
             }
         }
     }
@@ -128,11 +138,17 @@ impl ProcessListItems {
             ListSortOrder::NameDec => {
                 self.list_items.sort_by(|a, b| b.name().cmp(&a.name()));
             }
-            ListSortOrder::UsageInc => {
+            ListSortOrder::CpuUsageInc => {
                 self.list_items.sort_by(|a, b| a.cpu_usage().partial_cmp(&b.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal));
             }
-            ListSortOrder::UsageDec => {
+            ListSortOrder::CpuUsageDec => {
                 self.list_items.sort_by(|a, b| b.cpu_usage().partial_cmp(&a.cpu_usage()).unwrap_or(std::cmp::Ordering::Equal));
+            }
+            ListSortOrder::MemoryUsageInc => {
+                self.list_items.sort_by(|a, b| a.memory_usage().cmp(&b.memory_usage()));
+            }
+            ListSortOrder::MemoryUsageDec => {
+                self.list_items.sort_by(|a, b| b.memory_usage().cmp(&a.memory_usage()));
             }
         }
         Ok(())
@@ -178,7 +194,7 @@ mod test {
     use std::vec;
     use crate::process_structs::process_list_items::ProcessListItems;
     use crate::process_structs::process_list_item::ProcessListItem;
-    //use crate::components::{filter, ListSortOrder};
+    use super::ListSortOrder;
 
     #[test]
     fn test_default() {
@@ -226,16 +242,112 @@ mod test {
 
     #[test]
     fn test_insert_item_idx() {
-        
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1);
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2);
+        let items = vec![item_0, item_1];
+        let mut instance = ProcessListItems::new(&items);
+        let item_to_insert = ProcessListItem::new(3, String::from("c"), 1.5, 0);
+
+        // The item's must be sorted by the argument provided to insert_item_idx(sort) to produce accurate results.
+        let _ = instance.sort_items(&ListSortOrder::NameDec);
+        let idx = instance.insert_item_idx(&item_to_insert, &ListSortOrder::NameDec);
+        assert_eq!(idx, 0);
+        let _ = instance.sort_items(&ListSortOrder::NameInc);
+        let idx = instance.insert_item_idx(&item_to_insert, &ListSortOrder::NameInc);
+        assert_eq!(idx, 2);
+        let _ = instance.sort_items(&ListSortOrder::PidDec);
+        let idx = instance.insert_item_idx(&item_to_insert, &ListSortOrder::PidDec);
+        assert_eq!(idx, 0);
+        let _ = instance.sort_items(&ListSortOrder::PidInc);
+        let idx = instance.insert_item_idx(&item_to_insert, &ListSortOrder::PidInc);
+        assert_eq!(idx, 2);
+        let _ = instance.sort_items(&ListSortOrder::CpuUsageDec);
+        let idx = instance.insert_item_idx(&item_to_insert, &ListSortOrder::CpuUsageDec);
+        assert_eq!(idx, 1);
+        let _ = instance.sort_items(&ListSortOrder::CpuUsageInc);
+        let idx = instance.insert_item_idx(&item_to_insert, &ListSortOrder::CpuUsageInc);
+        assert_eq!(idx, 1);
+        let _ = instance.sort_items(&ListSortOrder::MemoryUsageDec);
+        let idx = instance.insert_item_idx(&item_to_insert, &ListSortOrder::MemoryUsageDec);
+        assert_eq!(idx, 2);
+        let _ = instance.sort_items(&ListSortOrder::MemoryUsageInc);
+        let idx = instance.insert_item_idx(&item_to_insert, &ListSortOrder::MemoryUsageInc);
+        assert_eq!(idx, 0)
     }
 
     #[test]
     fn test_update_items() {
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1);
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2);
+        let items = vec![item_0, item_1];
+        let mut instance = ProcessListItems::new(&items);
 
+        // Note: ProcessListItem's are compared by Pid.
+        let item_2 = ProcessListItem::new(1, String::from("a"), 7.0, 1337);
+        let item_3 = ProcessListItem::new(3, String::from("c"), 3.0, 3);
+        let new_items = vec![item_2, item_3];
+
+        let _ = instance.sort_items(&ListSortOrder::CpuUsageInc);
+        assert_eq!(instance.get_idx(1), Some(0));
+        assert_eq!(instance.get_idx(2), Some(1));
+        let _ = instance.update_items(&new_items, &ListSortOrder::CpuUsageInc);
+        // Pid 2 is not in new_items so it should be removed from the instance list.
+        assert_eq!(instance.get_idx(2), None);
+        // Pid 3 cpu usage is 3.0 so it should be first in the instance list.
+        assert_eq!(instance.get_idx(3), Some(0));
+        // Pid 1 cpu usage is updated to 7.0 so it should be last in the instance list.
+        assert_eq!(instance.get_idx(1), Some(1));
     }
 
     #[test]
     fn test_sort_items() {
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1);
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2);
+        let item_3 = ProcessListItem::new(3, String::from("c"), 3.0, 3);
+        let items = vec![item_0, item_1, item_3];
+        let mut instance = ProcessListItems::new(&items);
 
+        assert_eq!(instance.get_idx(1), Some(0));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), Some(2));
+        let _ = instance.sort_items(&ListSortOrder::CpuUsageInc);
+        assert_eq!(instance.get_idx(1), Some(0));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), Some(2));
+
+        let _ = instance.sort_items(&ListSortOrder::CpuUsageDec);
+        assert_eq!(instance.get_idx(1), Some(2));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), Some(0));
+
+        let _ = instance.sort_items(&ListSortOrder::NameInc);
+        assert_eq!(instance.get_idx(1), Some(0));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), Some(2));
+
+        let _ = instance.sort_items(&ListSortOrder::NameDec);
+        assert_eq!(instance.get_idx(1), Some(2));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), Some(0));
+
+        let _ = instance.sort_items(&ListSortOrder::PidInc);
+        assert_eq!(instance.get_idx(1), Some(0));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), Some(2));
+
+        let _ = instance.sort_items(&ListSortOrder::PidDec);
+        assert_eq!(instance.get_idx(1), Some(2));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), Some(0));
+
+        let _ = instance.sort_items(&ListSortOrder::MemoryUsageInc);
+        assert_eq!(instance.get_idx(1), Some(0));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), Some(2));
+
+        let _ = instance.sort_items(&ListSortOrder::MemoryUsageDec);
+        assert_eq!(instance.get_idx(1), Some(2));
+        assert_eq!(instance.get_idx(2), Some(1));
+        assert_eq!(instance.get_idx(3), Some(0));
     }
 }

@@ -5,9 +5,9 @@ use ratatui::{
     prelude::*,
     widgets::{block::*, *},
 };
-use super::{filter::FilterComponent, Component, EventState, ListSortOrder, DrawableComponent};
+use super::{filter::FilterComponent, Component, EventState, DrawableComponent};
 use super::utils::vertical_scroll::VerticalScroll;
-use crate::process_structs::{common_nav, process_list_items::ProcessListItems};
+use crate::process_structs::{common_nav, ListSortOrder, process_list_items::ProcessListItems};
 use crate::process_structs::process_list_item::ProcessListItem;
 use crate::process_structs::process_list::ProcessList;
 use crate::config::KeyConfig;
@@ -31,7 +31,7 @@ pub struct ProcessComponent {
 }
 
 impl ProcessComponent {
-    // default constructor
+    // New constructor.
     pub fn new(key_config: KeyConfig) -> Self {
         Self {
             focus: Focus::List,
@@ -43,40 +43,35 @@ impl ProcessComponent {
         }
     }
 
-    // pub function to update the process list
+    // This function is used to update the process lists. Presumeably there will
+    // will always be an unfiltered list, it is updated without any conditions.
+    // The filtered list is only updated if there is some filtered list.
     pub fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
-        // update list
         self.list.update(new_processes)?;
-        // update filter list
         if let Some(filtered_list) = self.filtered_list.as_mut() {
+            // We first filter the new processes by the filter,
             let processes = ProcessListItems::new(new_processes);
             let filter_text = self.filter.input_str();
             let filtered_processes = processes.filter(filter_text);
+            // then we update the filtered list with the new filtered processes.
             filtered_list.update(&filtered_processes.list_items)?;
         }
         Ok(())
     }
 
+    // This function can be used to communicate the selected item's pid to the application.
     pub fn selected_pid(&self) -> Option<u32> {
         if let Some(list) = self.filtered_list.as_ref() {
             return list.get_selected_pid()
         }
-        self.list.get_selected_pid()
-    }
-
-    //  pub fn list -- getter
-    pub fn list(&self) -> &ProcessList {
-        self.filtered_list.as_ref().unwrap_or(&self.list)
-    }
-
-    // pub fn list_focused -- getter
-    pub fn list_focused(&self) -> bool {
-        matches!(self.focus, Focus::List)
+        else {
+            return self.list.get_selected_pid()
+        }
     }
 }
 
 impl Component for ProcessComponent {
-    // handle key events for ProcessComponent
+    // Handle key events for ProcessComponent.
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         //  If they key event is filter and the ProcessComponent Focus is on the List, then move the focus to Filter and return.
         if key.code == self.key_config.filter && self.focus == Focus::List {
@@ -84,9 +79,9 @@ impl Component for ProcessComponent {
             return Ok(EventState::Consumed)
         }
 
-        // if the ProcessComponent Focus is on the Filter, then attempt to set the filtered_list.
-        // if the filter's input string is None, then set the filtered_list to None (no List to display),
-        // else create the filtered_list calling list.filter(input_str)
+        // If the ProcessComponent Focus is on the Filter, then attempt to set the filtered_list.
+        // If the filter's input string is None, then set the filtered_list to None (no List to display),
+        // else create the filtered_list calling list.filter(input_str).
         if matches!(self.focus, Focus::Filter) {
             self.filtered_list = if self.filter.input_str().is_empty() {
                 None
@@ -96,22 +91,24 @@ impl Component for ProcessComponent {
             };
         }
 
-        // if the key event is enter and the focus is Filter, then change the focus to List and return.
+        // If the key event is enter and the focus is on the Filter, then change the focus to List and return.
         if key.code == self.key_config.enter && matches!(self.focus, Focus::Filter) {
             self.focus = Focus::List;
             return Ok(EventState::Consumed)
         }
 
-        // if the focus is Filter
-        // pass the key event to self.filter and attempt to consume.
+        // The following if block contains key event tasks for when the filter is in focus.
         if matches!(self.focus, Focus::Filter) {
+            // Check if the key input is to modify the filter.
             if self.filter.event(key)?.is_consumed() {
                 return Ok(EventState::Consumed)
             }
         }
 
-        //  if the filtered_list is Some pass it as argument, else pass list (unfiltered_list)
+        //  The following if block contains key event tasks for when the process list is in focus.
         if matches!(self.focus, Focus::List) {
+            // Check if the key input is to navigate the list. If there is some filtered list, then that is the
+            // list we want to interact with, else interact with the unfiltered list.
             if list_nav(
                 if let Some(list) = self.filtered_list.as_mut() {
                     list
@@ -125,7 +122,7 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed);
             }
 
-            // check if key code is follow selection
+            // Check if the key is to change the follow_selection value.
             else if key.code == self.key_config.follow_selection {
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
                     filtered_list.change_follow_selection()?;
@@ -134,19 +131,21 @@ impl Component for ProcessComponent {
                     self.list.change_follow_selection()?;
                 }
 
-                return Ok(EventState::Consumed);
+                return Ok(EventState::Consumed)
             }
 
-            // check different sort options
+            // Check if the key is to sort. The process list can be sorted eight different ways, resulting in
+            // the following eight else if blocks. In each block we first check to see if there is some filtered
+            // list, if so that is the list that is going to be displayed and we sort that list. If there is not
+            // a filtered list, then we sort the unfiltered list.
             else if key.code == self.key_config.sort_name_inc {
-                // if there is some filtered_list sort the filtered list
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
                     filtered_list.sort(ListSortOrder::NameInc)?;
                 }
                 else {
                     self.list.sort(ListSortOrder::NameInc)?;
                 }
-                return Ok(EventState::Consumed);
+                return Ok(EventState::Consumed)
             }
 
             else if key.code == self.key_config.sort_name_dec {
@@ -166,7 +165,7 @@ impl Component for ProcessComponent {
                 else {
                     self.list.sort(ListSortOrder::PidInc)?;
                 }
-                return Ok(EventState::Consumed);
+                return Ok(EventState::Consumed)
             }
 
             else if key.code == self.key_config.sort_pid_dec {
@@ -176,30 +175,50 @@ impl Component for ProcessComponent {
                 else {
                     self.list.sort(ListSortOrder::PidDec)?;
                 }
-                return Ok(EventState::Consumed);
+                return Ok(EventState::Consumed)
             }
 
-            else if key.code == self.key_config.sort_usage_inc {
+            else if key.code == self.key_config.sort_cpu_usage_inc {
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::UsageInc)?;
+                    filtered_list.sort(ListSortOrder::CpuUsageInc)?;
                 }
                 else {
-                    self.list.sort(ListSortOrder::UsageInc)?;
+                    self.list.sort(ListSortOrder::CpuUsageInc)?;
                 }
-                return Ok(EventState::Consumed);
+                return Ok(EventState::Consumed)
             }
 
-            else if key.code == self.key_config.sort_usage_dec {
+            else if key.code == self.key_config.sort_cpu_usage_dec {
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::UsageDec)?;
+                    filtered_list.sort(ListSortOrder::CpuUsageDec)?;
                 }
                 else {
-                    self.list.sort(ListSortOrder::UsageDec)?;
+                    self.list.sort(ListSortOrder::CpuUsageDec)?;
                 }
-                return Ok(EventState::Consumed);
+                return Ok(EventState::Consumed)
+            }
+            
+            else if key.code == self.key_config.sort_memory_usage_inc {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::MemoryUsageInc)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::MemoryUsageInc)?;
+                }
+                return Ok(EventState::Consumed)
+            }
+
+            else if key.code == self.key_config.sort_memory_usage_dec {
+                if let Some(filtered_list) = self.filtered_list.as_mut() {
+                    filtered_list.sort(ListSortOrder::MemoryUsageDec)?;
+                }
+                else {
+                    self.list.sort(ListSortOrder::MemoryUsageDec)?;
+                }
+                return Ok(EventState::Consumed)
             }
         }
-        
+
         Ok(EventState::NotConsumed)
     }
 }
@@ -215,28 +234,32 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
 
 impl DrawableComponent for ProcessComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
+        // Splitting the parameter area into two vertical chunks.
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // filter chunk
-                Constraint::Min(1), // list chunk
+                Constraint::Length(3), // vertical chunk for TabComponent and FilterComponent : vertical_chunks[0]
+                Constraint::Min(1), // vertical chunk for the ProcessList : vertical_chunks[1]
             ].as_ref())
             .split(area);
 
+        // Splitting the vertical chunk for the TabComponent and FilterComponent into two horizontal chunks.
         let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(50), // space for tab
-                Constraint::Percentage(50), // space for filter
+                Constraint::Percentage(50), // horizontal chunk for TabComponent : horizontal_chunks[0]
+                Constraint::Percentage(50), // horizontal chunk for FilterComponent : horizontal_chunks[1]
             ].as_ref())
             .split(vertical_chunks[0]);
 
+        // Drawing the filter component.
         self.filter.draw(f, horizontal_chunks[1], matches!(self.focus, Focus::Filter))?;
 
-        // note: saturating sub 2 to account for drawing the block border see variable drawable_list
+        // Setting the list height to the height of the vertical chunk for the process list; We are subtracting
+        // two from the height to account for the area that will be taken up by the border around the list.
         let list_height = (vertical_chunks[1].height.saturating_sub(2)) as usize;
 
-        // get list to display if Some(filtered_list) set list to filtered_list else set to unfiltered list
+        // Getting the list to display; If there is some filtered list display it, else display the unfiltered list.
         let list = if let Some(list) = self.filtered_list.as_ref() {
             list
         }
@@ -244,7 +267,7 @@ impl DrawableComponent for ProcessComponent {
             &self.list
         };
 
-        // update the scroll struct-- determines what indices of the list are displayed
+        // Updating the scroll struct which calculates the position at the top of the displayed list.
         list.selection().map_or_else(
             { ||
                 self.scroll.reset()
@@ -255,15 +278,17 @@ impl DrawableComponent for ProcessComponent {
             },
         );
 
-        // get list.follow() to visually differentiate between a selected item being followed(underlined) and not
+        // Getting the boolean list.follow(); The follow_flag is used to differentiate between a selected item being followed(underlined) and not.
         let follow_flag = list.follow();
 
+        // Different styles used to visually differentiate between components and focus.
         let header_style = Style::default().fg(Color::Black).bg(Color::Gray);
         let select_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
         let select_follow_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
         let default_style = Style::default().fg(Color::White);
         let out_of_focus_style = Style::default().fg(Color::DarkGray);
 
+        // Setting the header.
         let header = ["Pid", "Name", "Cpu Usage (%)", "Memory Usage (Bytes)"]
             .into_iter()
             .map(Cell::from)
@@ -278,6 +303,9 @@ impl DrawableComponent for ProcessComponent {
             )
             .height(1);
 
+        // Setting the rows to display; The iterate function iterates starting from the value self.scroll.get_top() and a list_height number of times.
+        // We don't iterate over the entire list everytime we draw the list, instead we only iterate over the portion that is being displayed.
+        // See process_structs::list_items_iter::next for the implementation.
         let rows = list
             .iterate(self.scroll.get_top(), list_height)
             .map(|(item, selected)| {
@@ -306,6 +334,17 @@ impl DrawableComponent for ProcessComponent {
             })
             .collect::<Vec<_>>();
 
+        // Setting the width constraints.
+        let widths =
+            vec![
+                Constraint::Length(10),
+                Constraint::Length(50),
+                Constraint::Length(25),
+                Constraint::Length(20),
+            ];
+
+        // Setting block information.
+        let block_title: &str = "Process List";
         let block_style =
             if matches!(self.focus, Focus::List) {
                 Style::default().fg(Color::White)
@@ -314,23 +353,20 @@ impl DrawableComponent for ProcessComponent {
                 Style::default().fg(Color::DarkGray)
             };
 
-        let block_title: &str = "Process List";
-
-        let widths =
-            vec![
-                Constraint::Length(10),
-                Constraint::Length(50),
-                Constraint::Length(25),
-                Constraint::Length(20),
-            ];
-        
+        // Setting the table.
         let table = Table::new(rows, widths)
             .header(header)
             .block(Block::default().borders(Borders::all()).title(block_title))
             .style(block_style);
 
+        // Render.
         f.render_widget(table, vertical_chunks[1]);
 
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod test {
+    // TODO
 }

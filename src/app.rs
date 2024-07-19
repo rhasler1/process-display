@@ -68,7 +68,8 @@ impl App {
             CommandInfo::new(command::follow_selection(&self.config.key_config)),
             CommandInfo::new(command::sort_list_by_name(&self.config.key_config)),
             CommandInfo::new(command::sort_list_by_pid(&self.config.key_config)),
-            CommandInfo::new(command::sort_list_by_usage(&self.config.key_config)),
+            CommandInfo::new(command::sort_list_by_cpu_usage(&self.config.key_config)),
+            CommandInfo::new(command::sort_list_by_memory_usage(&self.config.key_config)),
             CommandInfo::new(command::filter_submit(&self.config.key_config)),
             CommandInfo::new(command::terminate_process(&self.config.key_config)),
         ];

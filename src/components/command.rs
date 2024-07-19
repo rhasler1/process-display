@@ -123,12 +123,23 @@ pub fn sort_list_by_pid(key: &KeyConfig) -> CommandText {
     )
 }
 
-pub fn sort_list_by_usage(key: &KeyConfig) -> CommandText {
+pub fn sort_list_by_cpu_usage(key: &KeyConfig) -> CommandText {
     CommandText::new(
         format!(
-            "Sort by usage dec/inc [{:?}/{:?}]",
-            key.sort_usage_dec,
-            key.sort_usage_inc,
+            "Sort by cpu usage dec/inc [{:?}/{:?}]",
+            key.sort_cpu_usage_dec,
+            key.sort_cpu_usage_inc,
+        ),
+        CMD_GROUP_GENERAL
+    )
+}
+
+pub fn sort_list_by_memory_usage(key: &KeyConfig) -> CommandText {
+    CommandText::new(
+        format!(
+            "Sort by memory usage dec/inc [{:?}/{:?}]",
+            key.sort_memory_usage_dec,
+            key.sort_memory_usage_inc,
         ),
         CMD_GROUP_GENERAL
     )

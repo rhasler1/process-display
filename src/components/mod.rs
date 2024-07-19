@@ -31,19 +31,3 @@ impl EventState {
         *self == Self::Consumed
     }
 }
-
-#[derive(PartialEq, Clone)]
-pub enum ListSortOrder {
-    PidInc,
-    PidDec,
-    NameInc,
-    NameDec,
-    UsageInc,
-    UsageDec,
-}
-
-impl Default for ListSortOrder {
-    fn default() -> Self {
-        ListSortOrder::UsageInc
-    }
-}
