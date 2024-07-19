@@ -18,44 +18,44 @@ pub mod app;
 pub mod config;
 pub mod components;
 pub mod events;
-pub mod process;
-pub mod performance;
+pub mod process_structs;
+pub mod performance_structs;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
 
-    // terminal setup::begin
+    // terminal setup
     setup_terminal()?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
-    // terminal setup::end
     
-    // event handler setup::begin
-    let events = Events::new(250, 5000); // argument 1: tick_rate , argument 2: system refresh_rate
-    // event handler setup::end
+    // event handler setup
+    // argument 1: tick_rate , argument 2: system refresh_rate
+    let events = Events::new(250, 5000);
 
-    // app creation and initialization::begin
+    // app creation and initialization
     let config = config::Config::default();
     let mut app = App::new(config);
     app.refresh().await?;
-    // app creation and initialization::end
 
-    terminal.clear()?; // clear terminal
+    // clear terminal
+    terminal.clear()?;
 
-    // main event loop::begin
+    // main event loop
     loop {
-        // draw to terminal::begin
+        // draw to terminal
         terminal.draw(|f| {
             match app.draw(f) {
                 Ok(_state) => {}
-                Err(_err) => {}
+                Err(err) => {
+                    println!("error: {}", err.to_string());
+                    std::process::exit(1);
+                }
             }
         })?;
-        // draw to terminal::end
 
-        // process next event::begin
+        // process next event
         match events.next()? {
-            // Input Key Event
             Event::Input(key) => match app.event(key).await {
                 Ok(state) => {
                     if !state.is_consumed() && key.code == app.config.key_config.exit_popup {
@@ -66,23 +66,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     app.error.set(err.to_string())?;
                 }
             }
-
-            // Refresh Event
             Event::Refresh => match app.refresh().await {
                 Ok(_state) => {}
                 Err(err) => {
                     app.error.set(err.to_string())?;
                 } 
             }
-
-            // Tick Event
             Event::Tick => {}
         }
-        // process next event::end
     }
-    // main event loop:: end
 
-    // tear down terminal::begin
+    // tear down terminal
     disable_raw_mode()?;
     execute!(
         terminal.backend_mut(),
@@ -90,9 +84,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         DisableMouseCapture
     )?;
     terminal.show_cursor()?;
-    // tear down terminal::end
 
-    return Ok(())
+    Ok(())
 }
 
 fn setup_terminal() -> Result<(), Box<dyn Error>> {

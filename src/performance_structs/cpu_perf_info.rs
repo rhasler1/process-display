@@ -1,17 +1,16 @@
-use std::{collections::VecDeque, io};
-
+use std::io;
 use super::{perf_item::CpuItem, perf_items::CpuItems};
 
 #[derive(Default, Clone, Debug)]
 pub struct CpuInfo {
-    cpu_items: CpuItems,
+    pub cpu_items: CpuItems,
     max_size: usize,
 }
 
 impl CpuInfo {
-    pub fn new(list: &VecDeque<CpuItem>, max_size: usize) -> Self {
+    pub fn new(max_size: usize) -> Self {
         Self {
-            cpu_items: CpuItems::new(list, max_size),
+            cpu_items: CpuItems::default(),
             max_size,
         }
     }
@@ -20,5 +19,8 @@ impl CpuInfo {
         self.cpu_items.add_item(item, self.max_size)?;
         Ok(())
     }
-}
 
+    pub fn max_size(&self) -> usize {
+        self.max_size.clone()
+    } 
+}

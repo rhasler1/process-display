@@ -1,6 +1,6 @@
 use crossterm::event::KeyEvent;
 use super::config::KeyConfig;
-use super::process::process_list::MoveSelection;
+use super::process_structs::process_list::MoveSelection;
 
 pub mod list_items_iter;
 pub mod list_iter;

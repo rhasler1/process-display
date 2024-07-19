@@ -176,8 +176,8 @@ impl ProcessListItems {
 #[cfg(test)]
 mod test {
     use std::vec;
-    use crate::process::process_list_items::ProcessListItems;
-    use crate::process::process_list_item::ProcessListItem;
+    use crate::process_structs::process_list_items::ProcessListItems;
+    use crate::process_structs::process_list_item::ProcessListItem;
     //use crate::components::{filter, ListSortOrder};
 
     #[test]
@@ -226,7 +226,7 @@ mod test {
 
     #[test]
     fn test_insert_item_idx() {
-
+        
     }
 
     #[test]

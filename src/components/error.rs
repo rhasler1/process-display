@@ -5,7 +5,6 @@ use ratatui::{
     prelude::*,
     widgets::*,
 };
-
 use crate::config::KeyConfig;
 use crate::components::Component;
 use super::{DrawableComponent, EventState};
