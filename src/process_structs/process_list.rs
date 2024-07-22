@@ -48,7 +48,6 @@ impl ProcessList {
             items: self.items.filter(filter_text.clone()),
             sort: ListSortOrder::CpuUsageInc,
             follow_selection: false,
-            // Cannot know if `new_self.items` is empty or not, setting selection to None.
             selection:
                 if self.items.filter(filter_text.clone()).list_len() > 0 {
                     Some(0)
