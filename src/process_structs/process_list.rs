@@ -32,7 +32,7 @@ impl ProcessList {
     pub fn new(list: &Vec<ProcessListItem>) -> Self {
         Self {
             items: ProcessListItems::new(list),
-            sort: ListSortOrder::CpuUsageInc,
+            sort: ListSortOrder::default(), // CpuUsageDec
             follow_selection: false,
             selection: if list.is_empty() { None } else { Some(0) },
         }
@@ -46,7 +46,7 @@ impl ProcessList {
     pub fn filter(&self, filter_text: String) -> Self {
         let new_self = Self {
             items: self.items.filter(filter_text.clone()),
-            sort: ListSortOrder::CpuUsageInc,
+            sort: ListSortOrder::default(),
             follow_selection: false,
             selection:
                 if self.items.filter(filter_text.clone()).list_len() > 0 {
@@ -371,24 +371,26 @@ mod test {
     #[test]
     fn test_sort() {
         // Test sort when follow_selection = false.
-        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1);
-        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2);
-        let items = vec![item_0, item_1];
+        let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2);
+        let item_1 = ProcessListItem::new(2, String::from("b"), 1.0, 1);
+        let items = vec![item_1, item_0];
         let mut instance = ProcessList::new(&items);
+        assert!(instance.sort == ListSortOrder::CpuUsageDec);
         assert!(!instance.follow());
         assert_eq!(instance.selection(), Some(0));
-        let _ = instance.sort(ListSortOrder::CpuUsageDec);
+        let _ = instance.sort(ListSortOrder::CpuUsageInc);
         assert_eq!(instance.selection(), Some(0));
 
-        // Test sort when follow_selection = true.
-        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1);
-        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2);
+
+        let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2);
+        let item_1 = ProcessListItem::new(2, String::from("b"), 1.0, 1);
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(&items);
+        assert!(instance.sort == ListSortOrder::CpuUsageDec);
         let _ = instance.change_follow_selection();
         assert!(instance.follow());
         assert_eq!(instance.selection(), Some(0));
-        let _ = instance.sort(ListSortOrder::CpuUsageDec);
+        let _ = instance.sort(ListSortOrder::CpuUsageInc);
         assert_eq!(instance.selection(), Some(1));
     }
 
@@ -398,8 +400,8 @@ mod test {
         assert_eq!(empty_instance.move_selection(MoveSelection::Down), false);
         assert_eq!(empty_instance.selection(), None);
 
-        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1);
-        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2);
+        let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2);
+        let item_1 = ProcessListItem::new(2, String::from("b"), 1.0, 1);
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(&items);
         assert_eq!(instance.selection(), Some(0));
