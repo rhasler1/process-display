@@ -22,7 +22,7 @@ pub enum ListSortOrder {
 
 impl Default for ListSortOrder {
     fn default() -> Self {
-        ListSortOrder::CpuUsageInc
+        ListSortOrder::CpuUsageDec
     }
 }
 

@@ -42,9 +42,9 @@ impl Default for KeyConfig {
     fn default() -> Self {
         Self {
             move_up: KeyCode::Up,
-            move_top: KeyCode::PageUp,
+            move_top: KeyCode::Char('w'),
             move_down: KeyCode::Down,
-            move_bottom: KeyCode::PageDown,
+            move_bottom: KeyCode::Char('s'),
             enter: KeyCode::Enter,
             tab: KeyCode::Tab,
             filter: KeyCode::Char('/'),
