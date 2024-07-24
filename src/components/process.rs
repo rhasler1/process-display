@@ -7,7 +7,7 @@ use ratatui::{
 };
 use super::{filter::FilterComponent, Component, EventState, DrawableComponent};
 use super::utils::vertical_scroll::VerticalScroll;
-use crate::process_structs::{common_nav, ListSortOrder, process_list_items::ProcessListItems};
+use crate::process_structs::{common_nav, common_sort, process_list_items::ProcessListItems};
 use crate::process_structs::process_list_item::ProcessListItem;
 use crate::process_structs::process_list::ProcessList;
 use crate::config::KeyConfig;
@@ -140,88 +140,19 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed)
             }
 
-            // Check if the key is to sort. The process list can be sorted eight different ways, resulting in
-            // the following eight else if blocks. In each block we first check to see if there is some filtered
-            // list, if so that is the list that is going to be displayed and we sort that list. If there is not
-            // a filtered list, then we sort the unfiltered list.
-            else if key.code == self.key_config.sort_name_inc {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::NameInc)?;
+            // Check if the key input is to sort the list. If there is some filtered list, then that is the
+            // list we want to interact with, else interact with unfiltered list.
+            else if sort_list(
+                if let Some(list) = self.filtered_list.as_mut() {
+                    list
                 }
                 else {
-                    self.list.sort(ListSortOrder::NameInc)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_name_dec {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::NameDec)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::NameDec)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_pid_inc {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::PidInc)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::PidInc)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_pid_dec {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::PidDec)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::PidDec)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_cpu_usage_inc {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::CpuUsageInc)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::CpuUsageInc)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_cpu_usage_dec {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::CpuUsageDec)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::CpuUsageDec)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-            
-            else if key.code == self.key_config.sort_memory_usage_inc {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::MemoryUsageInc)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::MemoryUsageInc)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_memory_usage_dec {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::MemoryUsageDec)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::MemoryUsageDec)?;
-                }
-                return Ok(EventState::Consumed)
+                    &mut self.list
+                },
+                key,
+                &self.key_config
+            )? {
+                return Ok(EventState::Consumed);
             }
         }
 
@@ -235,6 +166,16 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
     }
     else {
         false
+    }
+}
+
+fn sort_list(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> io::Result<bool> {
+    if let Some(sort) = common_sort(key, key_config) {
+        list.sort(sort)?; // 
+        Ok(true)
+    }
+    else {
+        Ok(false)
     }
 }
 
