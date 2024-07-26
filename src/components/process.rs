@@ -204,7 +204,7 @@ impl DrawableComponent for ProcessComponent {
 
         // Setting the list height to the height of the vertical chunk for the process list; We are subtracting
         // two from the height to account for the area that will be taken up by the border around the list.
-        let list_height = (vertical_chunks[1].height.saturating_sub(2)) as usize;
+        let visual_list_height = (vertical_chunks[1].height.saturating_sub(2)) as usize;
 
         // Getting the list to display; If there is some filtered list display it, else display the unfiltered list.
         let list = if let Some(list) = self.filtered_list.as_ref() {
@@ -220,7 +220,7 @@ impl DrawableComponent for ProcessComponent {
                 self.scroll.reset()
             }, |selection| {
                 self.scroll.update(
-                    selection, list_height
+                    selection,list.list_len(), visual_list_height
                 );
             },
         );
@@ -254,7 +254,7 @@ impl DrawableComponent for ProcessComponent {
         // We don't iterate over the entire list everytime we draw the list, instead we only iterate over the portion that is being displayed.
         // See process_structs::list_items_iter::next for the implementation.
         let rows = list
-            .iterate(self.scroll.get_top(), list_height)
+            .iterate(self.scroll.get_top(), visual_list_height)
             .map(|(item, selected)| {
                 let style =
                     if matches!(self.focus, Focus::List) && selected && follow_flag {
@@ -303,11 +303,14 @@ impl DrawableComponent for ProcessComponent {
         // Setting the table.
         let table = Table::new(rows, widths)
             .header(header)
-            .block(Block::default().borders(Borders::all()).title(block_title))
+            .block(Block::default().borders(Borders::ALL).title(block_title))
             .style(block_style);
 
         // Render.
         f.render_widget(table, vertical_chunks[1]);
+
+        // Draw scrollbar.
+        self.scroll.draw(f, vertical_chunks[1], false)?;
 
         Ok(())
     }

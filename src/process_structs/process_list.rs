@@ -64,6 +64,10 @@ impl ProcessList {
         self.items.list_len() == 0
     }
 
+    pub fn list_len(&self) -> usize {
+        self.items.list_len()
+    }
+
     // This function returns the Pid of the selected item, returns None if item cannot
     // be retrieved or selection is None.
     pub fn get_selected_pid(&self) -> Option<u32> {
