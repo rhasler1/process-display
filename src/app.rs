@@ -86,10 +86,6 @@ impl App {
             return Ok(EventState::Consumed)
         }
 
-        if self.tab.event(key)?.is_consumed() {
-            return Ok(EventState::Consumed);
-        }
-
         match self.tab.selected_tab {
             Tab::Process => {
                 if self.process.event(key)?.is_consumed() {
@@ -107,6 +103,11 @@ impl App {
 
             Tab::Users => {}
         }
+
+        if self.tab.event(key)?.is_consumed() {
+            return Ok(EventState::Consumed);
+        }
+        
         Ok(EventState::NotConsumed)
     }
 

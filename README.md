@@ -6,8 +6,8 @@
 
 | Key | Description |
 |-----|-------------|
-|<kbd>Up</kbd>, <kbd>Down</kbd>, <kbd>w</kbd>, <kbd>s</kbd> | Move selection up/down/top/bottom
-|<kbd>Left</kbd>, <kbd>Right</kbd> | Move tab left/right
+|<kbd>w</kbd>, <kbd>s</kbd>, <kbd>W</kbd>, <kbd>S</kbd> | Move selection up/down/top/bottom
+|<kbd>a</kbd>, <kbd>d</kbd> | Move tab left/right
 |<kbd>f</kbd> | Follow selection
 |<kbd>C</kbd>, <kbd>c</kbd> | Sort by cpu usage dec/inc
 |<kbd>M</kbd>, <kbd>m</kbd> | Sort by memory usage dec/inc
