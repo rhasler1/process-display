@@ -5,7 +5,7 @@ use ratatui::{
     prelude::*,
     widgets::{block::*, *},
 };
-use super::{filter::FilterComponent, Component, EventState, DrawableComponent};
+use super::{filter::FilterComponent, Component, DrawableComponent, EventState};
 use super::utils::vertical_scroll::VerticalScroll;
 use crate::process_structs::{common_nav, common_sort, process_list_items::ProcessListItems};
 use crate::process_structs::process_list_item::ProcessListItem;
@@ -19,6 +19,7 @@ use crate::config::KeyConfig;
 pub enum Focus {
     Filter,
     List,
+    Terminate,
     // Add Terminate variant; This way we can match focus when drawing the ProcessComponent and draw TerminateComponent.
 }
 
@@ -29,7 +30,6 @@ pub struct ProcessComponent {
     filtered_list: Option<ProcessList>,
     scroll: VerticalScroll,
     key_config: KeyConfig,
-    // TODO: terminate: TerminateComponent
 }
 
 impl ProcessComponent {
@@ -40,8 +40,8 @@ impl ProcessComponent {
             list: ProcessList::default(),
             filter: FilterComponent::default(),
             filtered_list: None,
-            scroll: VerticalScroll::new(false, false),
-            key_config: key_config,
+            scroll: VerticalScroll::new(),
+            key_config: key_config.clone(),
         }
     }
 
@@ -155,11 +155,14 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed);
             }
         }
-
+        
         Ok(EventState::NotConsumed)
     }
 }
 
+// Function calls common_nav, common_nav checks if key can be consumed, if so,
+// Some(MoveSelection) is returned and list.move_selection(MoveSelection) is called.
+// Else return false.
 fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bool {
     if let Some(move_dir) = common_nav(key, key_config) {
         list.move_selection(move_dir)
@@ -169,9 +172,12 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
     }
 }
 
+// Function calls common_sort, common_sort checks if key can be consumed, if so,
+// Some(ListSortOrder) is returned and list.sort(ListSortOrder) is called.
+// Else return false.
 fn sort_list(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> io::Result<bool> {
     if let Some(sort) = common_sort(key, key_config) {
-        list.sort(sort)?; // 
+        list.sort(sort)?;
         Ok(true)
     }
     else {
@@ -286,7 +292,7 @@ impl DrawableComponent for ProcessComponent {
             vec![
                 Constraint::Length(10),
                 Constraint::Length(50),
-                Constraint::Length(25),
+                Constraint::Length(20),
                 Constraint::Length(20),
             ];
 
@@ -318,5 +324,5 @@ impl DrawableComponent for ProcessComponent {
 
 #[cfg(test)]
 mod test {
-    // TODO
+    // TODO: write tests, then write TerminateComponent.
 }

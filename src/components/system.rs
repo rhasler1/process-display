@@ -42,7 +42,8 @@ impl SystemComponent {
 
     fn get_process_name(&self, pid: Pid) -> String {
         match self.system.process(pid) {
-            Some(p) => return String::from(p.name()),
+            //Some(p) => return String::from(p.name()),
+            Some(p) => return String::from(p.name().to_str().unwrap_or_default()),
             None => return String::from("No Process given pid"),
         }
     }
@@ -59,17 +60,16 @@ impl SystemComponent {
     }
 
     pub fn get_cpu_info(&self) -> CpuItem {
-        let mut total_cpu_usage = 0.0;
         let mut brand_cpu: &str = "";
         let mut cpu_frequency: u64 = 0;
         for cpu in self.system.cpus() {
-            total_cpu_usage += cpu.cpu_usage();
             brand_cpu = cpu.brand();
             cpu_frequency = cpu.frequency();
         }
+        let global_cpu_usage = self.system.global_cpu_usage();
         let brand_cpu = String::from(brand_cpu);
         let num_cores = self.system.physical_core_count();
-        let item = CpuItem::new(total_cpu_usage, num_cores, cpu_frequency, brand_cpu);
+        let item = CpuItem::new(global_cpu_usage, num_cores, cpu_frequency, brand_cpu);
         item
     }
 }

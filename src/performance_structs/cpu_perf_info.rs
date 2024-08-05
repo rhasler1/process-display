@@ -22,5 +22,9 @@ impl CpuInfo {
 
     pub fn max_size(&self) -> usize {
         self.max_size.clone()
-    } 
+    }
+
+    pub fn back(&self) -> Option<&CpuItem> {
+        return self.cpu_items.cpu_items.back()
+    }
 }

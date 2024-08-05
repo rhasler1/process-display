@@ -8,7 +8,7 @@ use super::{DrawableComponent, Component, EventState};
 use crate::config::KeyConfig;
 
 #[derive(Clone, PartialEq)]
-pub enum MoveTabDirection {
+enum MoveTabDirection {
     Left,
     Right,
 }
@@ -22,7 +22,7 @@ pub enum Tab {
 
 pub struct TabComponent {
     pub selected_tab: Tab,
-    key_config: KeyConfig
+    key_config: KeyConfig,
 }
 
 impl TabComponent {

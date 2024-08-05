@@ -6,7 +6,7 @@ edition = "2021"
 authours = ["rhasler1 <rhasler@luc.edu>"]
 
 [dependencies]
-sysinfo = "0.30.12"
+sysinfo = "0.31.2"
 crossterm = { version = "0.27.0", features = ["serde", "event-stream"] }
 ratatui = { version = "0.26.0", features = ["serde", "macros"] }
 serde = { version = "1.0.188", features = ["derive"] }

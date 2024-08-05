@@ -2,23 +2,20 @@ use std::cell::Cell;
 use ratatui::{
     Frame,
     prelude::*,
+    widgets::*,
 };
-use crate::{components::DrawableComponent, ui::scrollbar::draw_scrollbar};
+use crate::components::DrawableComponent;
 
 pub struct VerticalScroll {
     top: Cell<usize>,
     count: Cell<usize>,
-    _inside: bool,
-    _border: bool,
 }
 
 impl VerticalScroll {
-    pub const fn new(_border: bool, _inside: bool) -> Self {
+    pub const fn new() -> Self {
         Self {
             top: Cell::new(0),
             count: Cell::new(0),
-            _border,
-            _inside,
         }
     }
 
@@ -67,4 +64,19 @@ impl DrawableComponent for VerticalScroll {
         );
         Ok(())
     }
+}
+
+fn draw_scrollbar(f: &mut Frame, area: Rect, top: usize, count: usize) {
+    let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
+        .begin_symbol(Some("↑"))
+        .end_symbol(Some("↓"))
+        .style(Color::White);
+
+    let mut scrollbar_state = ScrollbarState::new(count).position(top);
+    f.render_stateful_widget(scrollbar,
+        area.inner(&Margin {
+        vertical: 1,
+        horizontal: 0,
+    }),
+    &mut scrollbar_state)
 }

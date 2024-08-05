@@ -66,7 +66,7 @@ impl ProcessListItems {
             else if let Some(instance_item) =
                 self.list_items.iter_mut().find(|item| item == &e) { *instance_item = e.clone(); }
         }
-        // 3. if the instance list contains an entry not in the new list, then remove entry from instance list.
+        // 3. If the instance list contains an entry not in the new list, then remove entry from instance list.
         self.list_items.retain(|item| new_list.contains(item));
 
         // The instance list might become unsorted when updating items if sorting by usage (step 2 above).
