@@ -1,8 +1,11 @@
 use std::io;
 use crossterm::event::KeyEvent;
 use sysinfo::{System, Pid};
+use process_list::ProcessListItem;
+use performance_queue::CpuItem;
 use super::{Component, EventState};
-use crate::{config::KeyConfig, performance_structs::perf_item::CpuItem, process_structs::process_list_item::ProcessListItem};
+use super::KeyConfig;
+
 
 
 // See here for refreshing system: https://crates.io/crates/sysinfo#:~:text=use%20sysinfo%3A%3ASystem,(sysinfo%3A%3AMINIMUM_CPU_UPDATE_INTERVAL)%3B%0A%7D

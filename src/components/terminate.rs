@@ -1,4 +1,5 @@
-use crate::{config::KeyConfig, process_structs::process_list_item::ProcessListItem};
+use process_list::ProcessListItem;
+use crate::config::KeyConfig;
 
 use super::{Component, DrawableComponent};
 

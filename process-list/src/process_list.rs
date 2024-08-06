@@ -1,9 +1,25 @@
-
 use std::io;
-use crate::process_structs::list_iter::ListIterator;
-use super::ListSortOrder;
-use super::process_list_items::ProcessListItems;
-use super::process_list_item::ProcessListItem;
+use crate::process_list_items::ProcessListItems;
+use crate::process_list_item::ProcessListItem;
+use crate::list_iter::ListIterator;
+
+#[derive(PartialEq, Clone)]
+pub enum ListSortOrder {
+    PidInc,
+    PidDec,
+    NameInc,
+    NameDec,
+    CpuUsageInc,
+    CpuUsageDec,
+    MemoryUsageInc,
+    MemoryUsageDec,
+}
+
+impl Default for ListSortOrder {
+    fn default() -> Self {
+        ListSortOrder::CpuUsageDec
+    }
+}
 
 #[derive(Copy, Clone)]
 pub enum MoveSelection {
@@ -49,7 +65,7 @@ impl ProcessList {
             sort: ListSortOrder::default(),
             follow_selection: false,
             selection:
-                if self.items.filter(filter_text.clone()).list_len() > 0 {
+                if self.items.filter(filter_text.clone()).items_len() > 0 {
                     Some(0)
                 }
                 else {
@@ -57,27 +73,6 @@ impl ProcessList {
                 },
             };
         new_self
-    }
-    
-    // This function returns true if the instance field items is empty, otherwise false.
-    pub fn list_is_empty(&self) -> bool {
-        self.items.list_len() == 0
-    }
-
-    pub fn list_len(&self) -> usize {
-        self.items.list_len()
-    }
-
-    // This function returns the Pid of the selected item, returns None if item cannot
-    // be retrieved or selection is None.
-    pub fn get_selected_pid(&self) -> Option<u32> {
-        if let Some(selection) = self.selection {
-            if let Some(item) = self.items.get_item(selection) {
-                return Some(item.pid())
-            }
-            else { return None }
-        }
-        None
     }
 
     // This function is called whenever there is a refresh event. The function is responsible for
@@ -103,9 +98,9 @@ impl ProcessList {
             // selection is still in range of the list. If it is not,
             // then set self.selection to the max_idx.
             if let Some(selection) = self.selection {
-                let max_idx = self.items.list_len().saturating_sub(1);
+                let max_idx = self.items.items_len().saturating_sub(1);
                 // If the are no items in the list after the update, then set selection to None.
-                if self.items.list_len() == 0 {
+                if self.items.items_len() == 0 {
                     self.selection = None
                 }
                 // Else if the length of items shrinks in size after the update and the selection is
@@ -118,7 +113,7 @@ impl ProcessList {
 
         // If selection is None prior to self.update being called or if selection is set to None because the followed item
         // was removed from the list, then we need to check if the list is non-empty and set selection to Some(0).
-        if self.items.list_len() > 0 && self.selection.is_none() {
+        if self.items.items_len() > 0 && self.selection.is_none() {
             self.selection = Some(0);
         }
 
@@ -133,11 +128,9 @@ impl ProcessList {
         // Get the selected item's pid, pid = Some(pid) || None.
         let pid: Option<u32> = selected_item.map(|item| item.pid());
 
-        // Only sort if the parameter ListSortOrder differs from the instance ListSortOrder.
-        if self.sort != sort {
-            self.sort = sort.clone();
-            self.items.sort_items(&sort)?;
-        }
+        // Sort items.
+        self.sort = sort.clone();
+        self.items.sort_items(&sort)?;
 
         // If follow selection, then set self.selection to the new index of the selected item's pid.
         if self.follow_selection {
@@ -145,22 +138,6 @@ impl ProcessList {
         }
 
         Ok(())
-    }
-
-    // This function gets the instance selection.
-    pub fn selection(&self) -> Option<usize> {
-        self.selection
-    }
-
-    // This function gets an optional reference to the selected process item.
-    pub fn selected_item(&self) -> Option<&ProcessListItem> {
-        let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
-        selected_item
-    }
-
-    // This function returns true if follow_selection is true, otherwise false.
-    pub fn follow(&self) -> bool {
-        self.follow_selection
     }
 
     // This function is responsible for changing the follow_selection field. If follow_selection is true,
@@ -210,7 +187,7 @@ impl ProcessList {
     //   if the selection was moved, then Some(index), else none
     fn selection_down(&self, current_index: usize, lines: usize) -> Option<usize> {
         let mut new_index = current_index;
-        let items_max = self.items.list_len().saturating_sub(1);
+        let items_max = self.items.items_len().saturating_sub(1);
 
         'a: for _ in 0..lines {
             if new_index >= items_max {
@@ -252,7 +229,7 @@ impl ProcessList {
     // outputs:
     //   If selection was moved, then Some(new_index), else None.
     fn selection_end(&self, current_index: usize) -> Option<usize> {
-        let items_max = self.items.list_len().saturating_sub(1);
+        let items_max = self.items.items_len().saturating_sub(1);
         let new_index = items_max;
 
         if new_index == current_index { None }
@@ -270,25 +247,60 @@ impl ProcessList {
         else { Some(0) }
     }
 
-    // pub fn iterate
+    // Iterator
     pub fn iterate(&self, start_index: usize, max_amount: usize) -> ListIterator<'_> {
         let start = start_index;
         ListIterator::new(self.items.iterate(start, max_amount), self.selection)
+    }
+    
+    // BOOLS
+    pub fn empty(&self) -> bool {
+        self.items.items_len() == 0
+    }
+
+    pub fn follow(&self) -> bool {
+        self.follow_selection
+    }
+
+    // GETTERS
+    pub fn len(&self) -> usize {
+        self.items.items_len()
+    }
+
+    // This function gets the selection index.
+    pub fn selection(&self) -> Option<usize> {
+        self.selection
+    }
+
+    // This function gets an optional reference to the selected process item.
+    pub fn selected_item(&self) -> Option<&ProcessListItem> {
+        let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
+        selected_item
+    }
+
+    // This function returns the Pid of the selected item, returns None if item cannot
+    // be retrieved or selection is None.
+    pub fn selected_pid(&self) -> Option<u32> {
+        if let Some(selection) = self.selection {
+            if let Some(item) = self.items.get_item(selection) {
+                return Some(item.pid())
+            }
+            else { return None }
+        }
+        None
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::ListSortOrder;
-    use crate::process_structs::process_list_item::ProcessListItem;
-    use crate::process_structs::process_list::ProcessList;
-    use super::MoveSelection;
+    use crate::process_list::{ProcessList, ListSortOrder, MoveSelection};
+    use crate::process_list_item::ProcessListItem;
 
     #[test]
     fn test_constructors() {
         // Default constructor.
         let empty_instance = ProcessList::default();
-        assert!(empty_instance.list_is_empty());
+        assert!(empty_instance.empty());
         assert_eq!(empty_instance.selection(), None);
 
         // New constructor.
@@ -296,19 +308,19 @@ mod test {
         let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2);
         let items = vec![item_0, item_1];
         let instance = ProcessList::new(&items);
-        assert!(!instance.list_is_empty());
+        assert!(!instance.empty());
         assert_eq!(instance.selection(), Some(0));
 
         // Filter constructor case 1.
         let filter_string = String::from("c");
         let filter_instance = instance.filter(filter_string);
-        assert!(filter_instance.list_is_empty());
+        assert!(filter_instance.empty());
         assert_eq!(filter_instance.selection(), None);
 
         // Filter constructor case 2.
         let filter_string = String::from("b");
         let filter_instance = instance.filter(filter_string);
-        assert!(!filter_instance.list_is_empty());
+        assert!(!filter_instance.empty());
         assert_eq!(filter_instance.selection(), Some(0));
     }
 
@@ -321,7 +333,7 @@ mod test {
         let mut instance = ProcessList::new(&items);
         let empty_items = vec![];
         let _ = instance.update(&empty_items);
-        assert!(instance.list_is_empty());
+        assert!(instance.empty());
         assert!(instance.selection().is_none());
 
         // Update with non-empty list of items.
@@ -332,7 +344,7 @@ mod test {
         let item_2 = ProcessListItem::new(3, String::from("c"), 3.0, 3);
         let new_items = vec![item_2];
         let _ = instance.update(&new_items);
-        assert!(!instance.list_is_empty());
+        assert!(!instance.empty());
         assert_eq!(instance.selection(), Some(0));
 
         // Update with empty list of items and follow_selection set to true.
@@ -343,7 +355,7 @@ mod test {
         let _ = instance.change_follow_selection();
         let empty_items = vec![];
         let _ = instance.update(&empty_items);
-        assert!(instance.list_is_empty());
+        assert!(instance.empty());
         assert!(instance.selection().is_none());
 
         // Update with non-empty list of items and follow_selection set to true case 1.
@@ -355,7 +367,7 @@ mod test {
         let item_2 = ProcessListItem::new(3, String::from("c"), 3.0, 3);
         let new_items = vec![item_2];
         let _ = instance.update(&new_items);
-        assert!(!instance.list_is_empty());
+        assert!(!instance.empty());
         assert_eq!(instance.selection(), Some(0));
 
         // Update with non-empty list of items and follow_selection set to true case 2.
@@ -368,7 +380,7 @@ mod test {
         let item_3 = ProcessListItem::new(3, String::from("c"), 3.0, 3);
         let new_items = vec![item_2, item_3];
         let _ = instance.update(&new_items);
-        assert!(!instance.list_is_empty());
+        assert!(!instance.empty());
         assert_eq!(instance.selection(), Some(0));         
     }
 

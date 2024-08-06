@@ -5,10 +5,9 @@ use ratatui::{
     prelude::*,
     widgets::{block::*, *},
 };
+use performance_queue::{CpuInfo, CpuItem};
 use super::EventState;
 use super::DrawableComponent;
-use crate::performance_structs::cpu_perf_info::CpuInfo;
-use crate::performance_structs::perf_item::CpuItem;
 use crate::config::KeyConfig;
 use crate::components::Component;
 

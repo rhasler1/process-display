@@ -3,6 +3,12 @@ name = "process-display"
 version = "0.1.0"
 edition = "2021"
 
+[workspace]
+members = [
+    "process-list",
+    "performance-queue"
+]
+
 authours = ["rhasler1 <rhasler@luc.edu>"]
 
 [dependencies]
@@ -12,3 +18,5 @@ ratatui = { version = "0.26.0", features = ["serde", "macros"] }
 serde = { version = "1.0.188", features = ["derive"] }
 tokio = { version = "1.11.0", features = ["full"] }
 itertools = "0.10.0"
+process-list = {path = "./process-list", version = "0.1.0"}
+performance-queue = {path = "./performance-queue", version = "0.1.0"}

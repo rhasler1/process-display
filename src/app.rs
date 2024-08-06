@@ -124,11 +124,23 @@ impl App {
 
     // Async function to refresh the system structure and update dependent components.
     pub async fn refresh(&mut self) -> io::Result<()> {
+        // Refresh system structure.
         self.system.refresh_all().await?;
         // Update process component.
+        self.update_process()?;
+        // Update performance component.
+        self.update_performance()?;
+
+        Ok(())
+    }
+
+    fn update_process(&mut self) -> io::Result<()> {
         let new_processes = self.system.get_process_list();
         self.process.update(new_processes.as_ref())?;
-        // Update performance component.
+        Ok(())
+    }
+
+    fn update_performance(&mut self) -> io::Result<()> {
         let new_cpu_info = self.system.get_cpu_info();
         self.performance.update(&new_cpu_info)?;
         Ok(())
