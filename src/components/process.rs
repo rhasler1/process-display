@@ -99,7 +99,6 @@ impl ProcessComponent {
 
         // Getting the boolean list.follow(); The follow_flag is used to differentiate between a selected item being followed(underlined) and not.
         let follow_flag = list.follow();
-
         // Different styles used to visually differentiate between components and focus.
         let header_style = Style::default().fg(Color::Black).bg(Color::Gray);
         let select_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
@@ -108,7 +107,7 @@ impl ProcessComponent {
         let out_of_focus_style = Style::default().fg(Color::DarkGray);
 
         // Setting the header.
-        let header = ["Pid", "Name", "Cpu Usage (%)", "Memory Usage (Bytes)"]
+        let header = ["", "Pid", "Name", "Cpu Usage (%)", "Memory Usage (Bytes)"]
             .into_iter()
             .map(Cell::from)
             .collect::<Row>()
@@ -142,13 +141,18 @@ impl ProcessComponent {
                         out_of_focus_style
                     };
 
-                let cells = vec![
+                let cells: Vec<Cell> = vec![
+                    if style == select_style || style == select_follow_style {
+                        Cell::from(String::from("->"))
+                    }
+                    else {
+                        Cell::from(String::from(""))
+                    },
                     Cell::from(item.pid().to_string()),
                     Cell::from(item.name().to_string()),
                     Cell::from(item.cpu_usage().to_string()),
                     Cell::from(item.memory_usage().to_string()),
                 ];
-
                 Row::new(cells).style(style)
             })
             .collect::<Vec<_>>();
@@ -156,6 +160,7 @@ impl ProcessComponent {
         // Setting the width constraints.
         let widths =
             vec![
+                Constraint::Length(2),
                 Constraint::Length(10),
                 Constraint::Length(50),
                 Constraint::Length(20),
@@ -251,7 +256,7 @@ impl Component for ProcessComponent {
 
             // Check if the key input is to sort the list. If there is some filtered list, then that is the
             // list we want to interact with, else interact with unfiltered list.
-            else if sort_list(
+            else if list_sort(
                 if let Some(list) = self.filtered_list.as_mut() {
                     list
                 }
@@ -284,7 +289,7 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
 // Function calls common_sort, common_sort checks if key can be consumed, if so,
 // Some(ListSortOrder) is returned and list.sort(ListSortOrder) is called.
 // Else return false.
-fn sort_list(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> io::Result<bool> {
+fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> io::Result<bool> {
     if let Some(sort) = common_sort(key, key_config) {
         list.sort(sort)?;
         Ok(true)

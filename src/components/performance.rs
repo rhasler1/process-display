@@ -6,15 +6,19 @@ use ratatui::{
     widgets::{block::*, *},
 };
 use performance_queue::{CpuInfo, CpuItem};
+use tokio::io::split;
+use super::vertical_tabs::VerticalTab;
 use super::EventState;
 use super::DrawableComponent;
 use crate::config::KeyConfig;
 use crate::components::Component;
+use crate::components::vertical_tabs::VerticalTabComponent;
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct PerformanceComponent {
     cpu_info: CpuInfo,
     _key_config: KeyConfig,
+    vertical_tabs: VerticalTabComponent,
 }
 
 impl PerformanceComponent {
@@ -22,6 +26,7 @@ impl PerformanceComponent {
         Self {
             _key_config: key_config,
             cpu_info: CpuInfo::new(max_size),
+            vertical_tabs: VerticalTabComponent::default(),
         }
     }
 
@@ -43,7 +48,6 @@ impl PerformanceComponent {
 
         let data_set = vec![
             Dataset::default()
-                .name("Global Cpu Usage (%)")
                 .marker(Marker::Dot)
                 .graph_type(GraphType::Line)
                 .style(Style::default().cyan())
@@ -79,24 +83,29 @@ impl PerformanceComponent {
                     Span::raw("Global CPU Usage: "),
                     Span::raw(item.global_usage().to_string()),
                     Span::raw("%"),
-                ]),
+                ])
+                .style(Color::White),
                 Line::from(vec![
                     Span::raw("CPU Brand: "),
                     Span::raw(item.brand().to_string()),
-                ]),
+                ])
+                .style(Color::White),
                 Line::from(vec![
                     Span::raw("Number of Cores: "),
                     Span::raw(item.num_cores().unwrap_or_default().to_string()),
-                ]),
+                ])
+                .style(Color::White),
                 Line::from(vec![
                     Span::raw("Frequency: "),
                     Span::raw(item.frequency().to_string()),
-                ]),
+                    Span::raw(" MHz"),
+                ])
+                .style(Color::White),
             ];
 
             let widget = Paragraph::new(info)
                 .block(Block::default().title("Cpu Info").borders(Borders::ALL))
-                .style(Style::default().fg(Color::Cyan));
+                .style(Style::default().fg(Color::DarkGray));
 
             f.render_widget(widget, area);
         }
@@ -123,16 +132,17 @@ impl DrawableComponent for PerformanceComponent {
             ].as_ref())
             .split(area);
 
-        let split_graph_area = Layout::default()
+        let horizontal_chunks = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([
-                    Constraint::Percentage(30), // more tabs
-                    Constraint::Percentage(70), // total cpu usage over time graph
+                    Constraint::Percentage(50), // more tabs
+                    Constraint::Percentage(50), // total cpu usage over time graph
                 ].as_ref())
-                .split(vertical_chunks[1]);
+                .split(vertical_chunks[2]);
         
-        self.draw_cpu_graph(f, split_graph_area[1])?;
-        self.draw_cpu_item(f, vertical_chunks[2])?;
+        self.draw_cpu_graph(f, vertical_chunks[1])?;
+        self.draw_cpu_item(f, horizontal_chunks[1])?;
+        self.vertical_tabs.draw(f, horizontal_chunks[0], false)?;
 
         Ok(())
     }

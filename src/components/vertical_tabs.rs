@@ -4,6 +4,7 @@ use ratatui::{
     widgets::{block::*, *},
     text::Span,
 };
+use sysinfo::Cpu;
 use super::{DrawableComponent, Component, EventState};
 use crate::config::KeyConfig;
 
@@ -20,6 +21,13 @@ pub enum VerticalTab {
     Network,
 }
 
+impl Default for VerticalTab {
+    fn default() -> Self {
+        VerticalTab::Cpu
+    }
+}
+
+#[derive(Default)]
 pub struct VerticalTabComponent {
     pub selected_vert_tab: VerticalTab,
     key_config: KeyConfig,
@@ -92,32 +100,30 @@ impl Component for VerticalTabComponent {
 
 impl DrawableComponent for VerticalTabComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> std::io::Result<()> {
-        let names: Vec<String> = self.names();
-        let titles: Vec<Line> = names
+        let selected_tab = self.selected_vert_tab.clone() as usize;
+        let selected_style = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
+        let default_style = Style::default().fg(Color::DarkGray);
+
+        let titles: Vec<Line> = self.names()
             .iter()
-            .map(
-                |name|
+            .enumerate()
+            .map(|(idx, name)|
                 Line::from(
-                    Span::raw(
-                        name.clone()
-                    )
+                    if idx == selected_tab {
+                        Span::styled(name.clone(), selected_style)
+                    }
+                    else {
+                        Span::styled(name.clone(), default_style)
+                    }
                 )
             )
             .collect();
 
-        let selected_tab = self.selected_vert_tab.clone() as usize;
+        let widget = Paragraph::new(titles)
+            .block(Block::default().borders(Borders::ALL).title("Performance Focus"))
+            .style(Style::default().fg(Color::DarkGray));
 
-        let selected_tab_style = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
-
-        let other_tab_style = Style::default().fg(Color::DarkGray);
-
-        let tabs: Tabs = Tabs::new(titles)
-            .block(Block::default().borders(Borders::ALL))
-            .select(selected_tab)
-            .style(other_tab_style)
-            .highlight_style(selected_tab_style);
-
-        f.render_widget(tabs, area);
+        f.render_widget(widget, area);
 
         Ok(())
     }
