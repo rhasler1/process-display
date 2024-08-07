@@ -5,27 +5,27 @@ use ratatui::{
     prelude::*,
     widgets::{block::*, *},
 };
-use performance_queue::{CpuInfo, CpuItem};
-use tokio::io::split;
-use super::vertical_tabs::VerticalTab;
+use performance_queue::{PerformanceQueue, CpuItem};
 use super::EventState;
 use super::DrawableComponent;
+use super::vertical_tabs::VerticalTab;
 use crate::config::KeyConfig;
 use crate::components::Component;
 use crate::components::vertical_tabs::VerticalTabComponent;
 
-#[derive(Default)]
+//#[derive(Default)]
 pub struct PerformanceComponent {
-    cpu_info: CpuInfo,
-    _key_config: KeyConfig,
+    cpu_info: PerformanceQueue<CpuItem>,
+    //cpu_info: CpuInfo,
+    key_config: KeyConfig,
     vertical_tabs: VerticalTabComponent,
 }
 
 impl PerformanceComponent {
     pub fn new(key_config: KeyConfig, max_size: usize) -> Self {
         Self {
-            _key_config: key_config,
-            cpu_info: CpuInfo::new(max_size),
+            key_config: key_config,
+            cpu_info: PerformanceQueue::new(max_size),
             vertical_tabs: VerticalTabComponent::default(),
         }
     }
@@ -38,7 +38,7 @@ impl PerformanceComponent {
     fn draw_cpu_graph(&self, f: &mut Frame, area: Rect) -> io::Result<()> {
         //TODO
         let refresh_rate = 5;
-        let data_points = self.cpu_info.cpu_items.cpu_items
+        let data_points = self.cpu_info.performance_items
             .iter()
             .enumerate()
             .map(|(i, item)| {
@@ -114,10 +114,10 @@ impl PerformanceComponent {
 }
 
 impl Component for PerformanceComponent {
-    fn event(&mut self, _key: KeyEvent) -> io::Result<EventState> {
+    fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         //todo
-        Ok(EventState::NotConsumed)
-        
+        self.vertical_tabs.event(key)?;
+        Ok(EventState::NotConsumed)  
     }
 }
 
@@ -140,8 +140,16 @@ impl DrawableComponent for PerformanceComponent {
                 ].as_ref())
                 .split(vertical_chunks[2]);
         
-        self.draw_cpu_graph(f, vertical_chunks[1])?;
-        self.draw_cpu_item(f, horizontal_chunks[1])?;
+        if matches!(self.vertical_tabs.selected_vert_tab, VerticalTab::Cpu) {
+            self.draw_cpu_graph(f, vertical_chunks[1])?;
+            self.draw_cpu_item(f, horizontal_chunks[1])?;
+        }
+        else if matches!(self.vertical_tabs.selected_vert_tab, VerticalTab::Memory) {
+            //self.draw_memory_graph(f, vertical_chunks[1])?;
+        }
+        else if matches!(self.vertical_tabs.selected_vert_tab, VerticalTab::Network) {
+            //self.draw_network_graph(f, vertical_chunks[1])?;
+        }
         self.vertical_tabs.draw(f, horizontal_chunks[0], false)?;
 
         Ok(())

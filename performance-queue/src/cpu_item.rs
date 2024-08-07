@@ -35,7 +35,23 @@ impl CpuItem {
 
 #[cfg(test)]
 mod test {
+    use super::CpuItem;
+
     #[test]
-    fn test_cpuinfo_default() {
+    fn test_default() {
+        let instance = CpuItem::default();
+        assert_eq!(instance.global_usage(), 0.0);
+        assert_eq!(instance.num_cores(), None);
+        assert_eq!(instance.frequency(), 0);
+        assert!(instance.brand().is_empty());
+    }
+
+    #[test]
+    fn test_new() {
+        let instance = CpuItem::new(1.0, Some(11), 4056, String::from("Apple"));
+        assert_eq!(instance.global_usage(), 1.0);
+        assert_eq!(instance.num_cores(), Some(11));
+        assert_eq!(instance.frequency(), 4056);
+        assert_eq!(instance.brand(), String::from("Apple"));
     }
 }

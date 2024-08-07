@@ -4,7 +4,6 @@ use ratatui::{
     widgets::{block::*, *},
     text::Span,
 };
-use sysinfo::Cpu;
 use super::{DrawableComponent, Component, EventState};
 use crate::config::KeyConfig;
 
