@@ -31,6 +31,22 @@ impl MemoryItem {
     pub fn available_memory(&self) -> u64 {
         return self.available_memory.clone()
     }
+    
+    pub fn total_memory_gb(&self) -> f64 {
+        self.total_memory as f64 / 1000000000 as f64 
+    }
+
+    pub fn used_memory_gb(&self) -> f64 {
+        self.used_memory as f64 / 1000000000 as f64 
+    }
+
+    pub fn free_memory_gb(&self) -> f64 {
+        self.free_memory as f64 / 1000000000 as f64 
+    }
+
+    pub fn available_memory_gb(&self) -> f64 {
+        self.available_memory as f64 / 1000000000 as f64 
+    }
 }
 
 #[cfg(test)]
@@ -44,6 +60,10 @@ mod test {
         assert_eq!(instance.used_memory(), 0);
         assert_eq!(instance.free_memory(), 0);
         assert_eq!(instance.available_memory(), 0);
+        assert_eq!(instance.total_memory_gb(), 0.0);
+        assert_eq!(instance.used_memory_gb(), 0.0);
+        assert_eq!(instance.free_memory_gb(), 0.0);
+        assert_eq!(instance.available_memory_gb(), 0.0);
     }
 
     #[test]
@@ -53,5 +73,9 @@ mod test {
         assert_eq!(instance.used_memory(), 2);
         assert_eq!(instance.free_memory(), 3);
         assert_eq!(instance.available_memory(), 4);
+        assert_eq!(instance.total_memory_gb(), 0.000000001);
+        assert_eq!(instance.used_memory_gb(), 0.000000002);
+        assert_eq!(instance.free_memory_gb(), 0.000000003);
+        assert_eq!(instance.available_memory_gb(), 0.000000004);
     }
 }

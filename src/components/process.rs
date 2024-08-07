@@ -75,8 +75,8 @@ impl ProcessComponent {
 
     fn draw_process_list(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
         // Setting the list height to the height of the vertical chunk for the process list; We are subtracting
-        // two from the height to account for the area that will be taken up by the border around the list.
-        let visual_list_height = (area.height.saturating_sub(2)) as usize;
+        // three from the height to account for the area that will be taken up by the border around the list.
+        let visual_list_height = (area.height.saturating_sub(3)) as usize;
 
         // Getting the list to display; If there is some filtered list display it, else display the unfiltered list.
         let list = if let Some(list) = self.filtered_list.as_ref() {

@@ -142,7 +142,8 @@ impl App {
 
     fn update_performance(&mut self) -> io::Result<()> {
         let new_cpu_info = self.system.get_cpu_info();
-        self.performance.update(&new_cpu_info)?;
+        let new_memory_info = self.system.get_memory_info();
+        self.performance.update(&new_cpu_info, &new_memory_info)?;
         Ok(())
     }
 

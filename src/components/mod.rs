@@ -10,7 +10,6 @@ pub mod filter;
 pub mod help;
 pub mod error;
 pub mod process;
-pub mod terminate;
 pub mod performance;
 pub mod tab;
 pub mod utils;

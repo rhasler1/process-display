@@ -1,8 +1,8 @@
-use std::io;
+use std::{io, mem};
 use crossterm::event::KeyEvent;
 use sysinfo::{System, Pid};
 use process_list::ProcessListItem;
-use performance_queue::CpuItem;
+use performance_queue::{CpuItem, MemoryItem};
 use super::{Component, EventState};
 use super::KeyConfig;
 
@@ -74,6 +74,15 @@ impl SystemComponent {
         let num_cores = self.system.physical_core_count();
         let item = CpuItem::new(global_cpu_usage, num_cores, cpu_frequency, brand_cpu);
         item
+    }
+
+    pub fn get_memory_info(&self) -> MemoryItem {
+        let total_memory = self.system.total_memory();
+        let used_memory = self.system.used_memory();
+        let free_memory = self.system.free_memory();
+        let available_memory = self.system.available_memory();
+        let memory_info = MemoryItem::new(total_memory, used_memory, free_memory, available_memory);
+        memory_info
     }
 }
 
