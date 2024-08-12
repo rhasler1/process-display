@@ -1,6 +1,7 @@
 use std::io::{self};
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
+use crate::components::performance::PerformanceComponent;
 use crate::config::Config;
 use crate::components::{
     tab::TabComponent,
@@ -19,6 +20,7 @@ use crate::components::{
 pub struct App {
     system: SystemComponent,
     process: ProcessComponent,
+    performance: PerformanceComponent,
     tab: TabComponent,
     help: HelpComponent,
     pub error: ErrorComponent,
@@ -31,6 +33,7 @@ impl App {
         Self {
             system: SystemComponent::new(config.key_config.clone()),
             process: ProcessComponent::new(config.key_config.clone()),
+            performance: PerformanceComponent::new(config.key_config.clone(), 10),
             tab: TabComponent::new(config.key_config.clone()),
             help: HelpComponent::new(config.key_config.clone()),
             error: ErrorComponent::new(config.key_config.clone()),
@@ -86,14 +89,10 @@ impl App {
             return Ok(EventState::Consumed)
         }
 
-        if self.tab.event(key)?.is_consumed() {
-            return Ok(EventState::Consumed);
-        }
-
         match self.tab.selected_tab {
             Tab::Process => {
                 if self.process.event(key)?.is_consumed() {
-                    return Ok(EventState::Consumed);
+                    return Ok(EventState::Consumed)
                 }
                 //else if key.code == self.config.key_config.terminate {
                 //    if let Some(pid) = self.process.selected_pid() {
@@ -103,10 +102,19 @@ impl App {
                 //}
             }
 
-            Tab::Performance => {}
+            Tab::Performance => {
+                if self.performance.event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
 
             Tab::Users => {}
         }
+
+        if self.tab.event(key)?.is_consumed() {
+            return Ok(EventState::Consumed);
+        }
+        
         Ok(EventState::NotConsumed)
     }
 
@@ -116,9 +124,26 @@ impl App {
 
     // Async function to refresh the system structure and update dependent components.
     pub async fn refresh(&mut self) -> io::Result<()> {
+        // Refresh system structure.
         self.system.refresh_all().await?;
+        // Update process component.
+        self.update_process()?;
+        // Update performance component.
+        self.update_performance()?;
+
+        Ok(())
+    }
+
+    fn update_process(&mut self) -> io::Result<()> {
         let new_processes = self.system.get_process_list();
         self.process.update(new_processes.as_ref())?;
+        Ok(())
+    }
+
+    fn update_performance(&mut self) -> io::Result<()> {
+        let new_cpu_info = self.system.get_cpu_info();
+        let new_memory_info = self.system.get_memory_info();
+        self.performance.update(&new_cpu_info, &new_memory_info)?;
         Ok(())
     }
 
@@ -140,7 +165,9 @@ impl App {
                 self.process.draw(f, chunks[0], false)?;
             }
 
-            Tab::Performance => {}
+            Tab::Performance => {
+                self.performance.draw(f, chunks[0], false)?;
+            }
 
             Tab::Users => {}
         }

@@ -1,7 +1,7 @@
 use std::io;
-use super::ListSortOrder;
-use super::process_list_item::ProcessListItem;
-use super::list_items_iter::ListItemsIterator;
+use crate::process_list::ListSortOrder;
+use crate::process_list_item::ProcessListItem;
+use crate::list_items_iter::ListItemsIterator;
 
 // This structure contains a vector of type ProcessListItem.
 #[derive(Default, Clone)]
@@ -66,7 +66,7 @@ impl ProcessListItems {
             else if let Some(instance_item) =
                 self.list_items.iter_mut().find(|item| item == &e) { *instance_item = e.clone(); }
         }
-        // 3. if the instance list contains an entry not in the new list, then remove entry from instance list.
+        // 3. If the instance list contains an entry not in the new list, then remove entry from instance list.
         self.list_items.retain(|item| new_list.contains(item));
 
         // The instance list might become unsorted when updating items if sorting by usage (step 2 above).
@@ -154,9 +154,10 @@ impl ProcessListItems {
         Ok(())
     }
 
+    // GETTERS
     // This function gets the reference to an item given an index into the instance list.
     pub fn get_item(&self, idx: usize) -> Option<&ProcessListItem> {
-        let list_len = self.list_len();
+        let list_len = self.items_len();
         let max_idx = list_len.saturating_sub(1);
         if list_len == 0 || max_idx < idx {
             return None
@@ -179,7 +180,7 @@ impl ProcessListItems {
     }
 
     // This function gets the length of the instance list.
-    pub fn list_len(&self) -> usize {
+    pub fn items_len(&self) -> usize {
         self.list_items.len()
     }
 
@@ -192,14 +193,14 @@ impl ProcessListItems {
 #[cfg(test)]
 mod test {
     use std::vec;
-    use crate::process_structs::process_list_items::ProcessListItems;
-    use crate::process_structs::process_list_item::ProcessListItem;
-    use super::ListSortOrder;
+    use crate::process_list::ListSortOrder;
+    use crate::process_list_item::ProcessListItem;
+    use crate::process_list_items::ProcessListItems;
 
     #[test]
     fn test_default() {
         let instance = ProcessListItems::default();
-        assert_eq!(instance.list_len(), 0);
+        assert_eq!(instance.items_len(), 0);
         assert_eq!(instance.get_idx(4), None);
         assert_eq!(instance.get_item(0), None);
     }
@@ -213,7 +214,7 @@ mod test {
         let items = vec![item_0, item_1];
         let instance = ProcessListItems::new(&items);
 
-        assert_eq!(instance.list_len(), 2);
+        assert_eq!(instance.items_len(), 2);
         assert_eq!(instance.get_idx(1), Some(0));
         assert_eq!(instance.get_idx(2), Some(1));
         assert_eq!(instance.get_idx(3), None);
@@ -233,7 +234,7 @@ mod test {
         let instance = ProcessListItems::new(&items);
 
         let filtered_instance = instance.filter(String::from("a"));
-        assert_eq!(filtered_instance.list_len(), 1);
+        assert_eq!(filtered_instance.items_len(), 1);
         assert_eq!(filtered_instance.get_item(0), Some(&clone_0));
         assert_eq!(filtered_instance.get_item(1), None);
         assert_eq!(filtered_instance.get_idx(1), Some(0));

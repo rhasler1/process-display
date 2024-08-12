@@ -41,16 +41,16 @@ pub struct KeyConfig {
 impl Default for KeyConfig {
     fn default() -> Self {
         Self {
-            move_up: KeyCode::Up,
-            move_top: KeyCode::Char('w'),
-            move_down: KeyCode::Down,
-            move_bottom: KeyCode::Char('s'),
+            move_up: KeyCode::Char('w'),
+            move_top: KeyCode::Char('W'),
+            move_down: KeyCode::Char('s'),
+            move_bottom: KeyCode::Char('S'),
             enter: KeyCode::Enter,
             tab: KeyCode::Tab,
             filter: KeyCode::Char('/'),
             terminate: KeyCode::Delete,
-            tab_right: KeyCode::Right,
-            tab_left: KeyCode::Left,
+            tab_right: KeyCode::Char('d'),
+            tab_left: KeyCode::Char('a'),
             open_help: KeyCode::Char('?'),
             exit_popup: KeyCode::Esc,
             sort_name_inc: KeyCode::Char('n'),

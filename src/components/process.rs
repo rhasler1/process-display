@@ -5,11 +5,11 @@ use ratatui::{
     prelude::*,
     widgets::{block::*, *},
 };
-use super::{filter::FilterComponent, Component, EventState, DrawableComponent};
+use process_list::{ProcessList, ProcessListItems, ProcessListItem};
+
+use super::{common_nav, common_sort};
+use super::{filter::FilterComponent, Component, DrawableComponent, EventState};
 use super::utils::vertical_scroll::VerticalScroll;
-use crate::process_structs::{common_nav, ListSortOrder, process_list_items::ProcessListItems};
-use crate::process_structs::process_list_item::ProcessListItem;
-use crate::process_structs::process_list::ProcessList;
 use crate::config::KeyConfig;
 
 // The ProcessComponent can be navigated to focus on
@@ -19,7 +19,6 @@ use crate::config::KeyConfig;
 pub enum Focus {
     Filter,
     List,
-    // Add Terminate variant; This way we can match focus when drawing the ProcessComponent and draw TerminateComponent.
 }
 
 pub struct ProcessComponent {
@@ -29,7 +28,6 @@ pub struct ProcessComponent {
     filtered_list: Option<ProcessList>,
     scroll: VerticalScroll,
     key_config: KeyConfig,
-    // TODO: terminate: TerminateComponent
 }
 
 impl ProcessComponent {
@@ -40,8 +38,8 @@ impl ProcessComponent {
             list: ProcessList::default(),
             filter: FilterComponent::default(),
             filtered_list: None,
-            scroll: VerticalScroll::new(false, false),
-            key_config: key_config,
+            scroll: VerticalScroll::new(),
+            key_config: key_config.clone(),
         }
     }
 
@@ -66,13 +64,129 @@ impl ProcessComponent {
     pub fn selected_pid(&self) -> Option<u32> {
         if matches!(self.focus, Focus::List) {
             if let Some(list) = self.filtered_list.as_ref() {
-                return list.get_selected_pid()
+                return list.selected_pid()
             }
             else {
-                return self.list.get_selected_pid()
+                return self.list.selected_pid()
             }
         }
         None
+    }
+
+    fn draw_process_list(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
+        // Setting the list height to the height of the vertical chunk for the process list; We are subtracting
+        // three from the height to account for the area that will be taken up by the border around the list.
+        let visual_list_height = (area.height.saturating_sub(3)) as usize;
+
+        // Getting the list to display; If there is some filtered list display it, else display the unfiltered list.
+        let list = if let Some(list) = self.filtered_list.as_ref() {
+            list
+        }
+        else {
+            &self.list
+        };
+
+        // Updating the scroll struct which calculates the position at the top of the displayed list.
+        list.selection().map_or_else(
+            { ||
+                self.scroll.reset()
+            }, |selection| {
+                self.scroll.update(
+                    selection,list.len(), visual_list_height
+                );
+            },
+        );
+
+        // Getting the boolean list.follow(); The follow_flag is used to differentiate between a selected item being followed(underlined) and not.
+        let follow_flag = list.follow();
+        // Different styles used to visually differentiate between components and focus.
+        let header_style = Style::default().fg(Color::Black).bg(Color::Gray);
+        let select_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
+        let select_follow_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
+        let default_style = Style::default().fg(Color::White);
+        let out_of_focus_style = Style::default().fg(Color::DarkGray);
+
+        // Setting the header.
+        let header = ["", "Pid", "Name", "Cpu Usage (%)", "Memory Usage (Bytes)"]
+            .into_iter()
+            .map(Cell::from)
+            .collect::<Row>()
+            .style(
+                if matches!(self.focus, Focus::List) {
+                    header_style
+                }
+                else {
+                    out_of_focus_style
+                }
+            )
+            .height(1);
+
+        // Setting the rows to display; The iterate function iterates starting from the value self.scroll.get_top() and a list_height number of times.
+        // We don't iterate over the entire list everytime we draw the list, instead we only iterate over the portion that is being displayed.
+        // See process_structs::list_items_iter::next for the implementation.
+        let rows = list
+            .iterate(self.scroll.get_top(), visual_list_height)
+            .map(|(item, selected)| {
+                let style =
+                    if matches!(self.focus, Focus::List) && selected && follow_flag {
+                        select_follow_style
+                    }
+                    else if matches!(self.focus, Focus::List) && selected && !follow_flag {
+                        select_style
+                    }
+                    else if matches!(self.focus, Focus::List) {
+                        default_style
+                    }
+                    else {
+                        out_of_focus_style
+                    };
+
+                let cells: Vec<Cell> = vec![
+                    if style == select_style || style == select_follow_style {
+                        Cell::from(String::from("->"))
+                    }
+                    else {
+                        Cell::from(String::from(""))
+                    },
+                    Cell::from(item.pid().to_string()),
+                    Cell::from(item.name().to_string()),
+                    Cell::from(item.cpu_usage().to_string()),
+                    Cell::from(item.memory_usage().to_string()),
+                ];
+                Row::new(cells).style(style)
+            })
+            .collect::<Vec<_>>();
+
+        // Setting the width constraints.
+        let widths =
+            vec![
+                Constraint::Length(2),
+                Constraint::Length(10),
+                Constraint::Length(50),
+                Constraint::Length(20),
+                Constraint::Length(20),
+            ];
+
+        // Setting block information.
+        let block_title: &str = "Process List";
+        let block_style =
+            if matches!(self.focus, Focus::List) {
+                Style::default().fg(Color::White)
+            }
+            else {
+                Style::default().fg(Color::DarkGray)
+            };
+
+        // Setting the table.
+        let table = Table::new(rows, widths)
+            .header(header)
+            .block(Block::default().borders(Borders::ALL).title(block_title))
+            .style(block_style);
+
+        // Render.
+        f.render_widget(table, area);
+
+        Ok(())
     }
 }
 
@@ -140,101 +254,48 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed)
             }
 
-            // Check if the key is to sort. The process list can be sorted eight different ways, resulting in
-            // the following eight else if blocks. In each block we first check to see if there is some filtered
-            // list, if so that is the list that is going to be displayed and we sort that list. If there is not
-            // a filtered list, then we sort the unfiltered list.
-            else if key.code == self.key_config.sort_name_inc {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::NameInc)?;
+            // Check if the key input is to sort the list. If there is some filtered list, then that is the
+            // list we want to interact with, else interact with unfiltered list.
+            else if list_sort(
+                if let Some(list) = self.filtered_list.as_mut() {
+                    list
                 }
                 else {
-                    self.list.sort(ListSortOrder::NameInc)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_name_dec {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::NameDec)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::NameDec)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_pid_inc {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::PidInc)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::PidInc)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_pid_dec {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::PidDec)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::PidDec)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_cpu_usage_inc {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::CpuUsageInc)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::CpuUsageInc)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_cpu_usage_dec {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::CpuUsageDec)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::CpuUsageDec)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-            
-            else if key.code == self.key_config.sort_memory_usage_inc {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::MemoryUsageInc)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::MemoryUsageInc)?;
-                }
-                return Ok(EventState::Consumed)
-            }
-
-            else if key.code == self.key_config.sort_memory_usage_dec {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.sort(ListSortOrder::MemoryUsageDec)?;
-                }
-                else {
-                    self.list.sort(ListSortOrder::MemoryUsageDec)?;
-                }
-                return Ok(EventState::Consumed)
+                    &mut self.list
+                },
+                key,
+                &self.key_config
+            )? {
+                return Ok(EventState::Consumed);
             }
         }
-
+        
         Ok(EventState::NotConsumed)
     }
 }
 
+// Function calls common_nav, common_nav checks if key can be consumed, if so,
+// Some(MoveSelection) is returned and list.move_selection(MoveSelection) is called.
+// Else return false.
 fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bool {
     if let Some(move_dir) = common_nav(key, key_config) {
         list.move_selection(move_dir)
     }
     else {
         false
+    }
+}
+
+// Function calls common_sort, common_sort checks if key can be consumed, if so,
+// Some(ListSortOrder) is returned and list.sort(ListSortOrder) is called.
+// Else return false.
+fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> io::Result<bool> {
+    if let Some(sort) = common_sort(key, key_config) {
+        list.sort(sort)?;
+        Ok(true)
+    }
+    else {
+        Ok(false)
     }
 }
 
@@ -261,112 +322,11 @@ impl DrawableComponent for ProcessComponent {
         // Drawing the filter component.
         self.filter.draw(f, horizontal_chunks[1], matches!(self.focus, Focus::Filter))?;
 
-        // Setting the list height to the height of the vertical chunk for the process list; We are subtracting
-        // two from the height to account for the area that will be taken up by the border around the list.
-        let list_height = (vertical_chunks[1].height.saturating_sub(2)) as usize;
+        // Draw process list.
+        self.draw_process_list(f, vertical_chunks[1], matches!(self.focus, Focus::List))?;
 
-        // Getting the list to display; If there is some filtered list display it, else display the unfiltered list.
-        let list = if let Some(list) = self.filtered_list.as_ref() {
-            list
-        }
-        else {
-            &self.list
-        };
-
-        // Updating the scroll struct which calculates the position at the top of the displayed list.
-        list.selection().map_or_else(
-            { ||
-                self.scroll.reset()
-            }, |selection| {
-                self.scroll.update(
-                    selection, list_height
-                );
-            },
-        );
-
-        // Getting the boolean list.follow(); The follow_flag is used to differentiate between a selected item being followed(underlined) and not.
-        let follow_flag = list.follow();
-
-        // Different styles used to visually differentiate between components and focus.
-        let header_style = Style::default().fg(Color::Black).bg(Color::Gray);
-        let select_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
-        let select_follow_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
-        let default_style = Style::default().fg(Color::White);
-        let out_of_focus_style = Style::default().fg(Color::DarkGray);
-
-        // Setting the header.
-        let header = ["Pid", "Name", "Cpu Usage (%)", "Memory Usage (Bytes)"]
-            .into_iter()
-            .map(Cell::from)
-            .collect::<Row>()
-            .style(
-                if matches!(self.focus, Focus::List) {
-                    header_style
-                }
-                else {
-                    out_of_focus_style
-                }
-            )
-            .height(1);
-
-        // Setting the rows to display; The iterate function iterates starting from the value self.scroll.get_top() and a list_height number of times.
-        // We don't iterate over the entire list everytime we draw the list, instead we only iterate over the portion that is being displayed.
-        // See process_structs::list_items_iter::next for the implementation.
-        let rows = list
-            .iterate(self.scroll.get_top(), list_height)
-            .map(|(item, selected)| {
-                let style =
-                    if matches!(self.focus, Focus::List) && selected && follow_flag {
-                        select_follow_style
-                    }
-                    else if matches!(self.focus, Focus::List) && selected && !follow_flag {
-                        select_style
-                    }
-                    else if matches!(self.focus, Focus::List) {
-                        default_style
-                    }
-                    else {
-                        out_of_focus_style
-                    };
-
-                let cells = vec![
-                    Cell::from(item.pid().to_string()),
-                    Cell::from(item.name().to_string()),
-                    Cell::from(item.cpu_usage().to_string()),
-                    Cell::from(item.memory_usage().to_string()),
-                ];
-
-                Row::new(cells).style(style)
-            })
-            .collect::<Vec<_>>();
-
-        // Setting the width constraints.
-        let widths =
-            vec![
-                Constraint::Length(10),
-                Constraint::Length(50),
-                Constraint::Length(25),
-                Constraint::Length(20),
-            ];
-
-        // Setting block information.
-        let block_title: &str = "Process List";
-        let block_style =
-            if matches!(self.focus, Focus::List) {
-                Style::default().fg(Color::White)
-            }
-            else {
-                Style::default().fg(Color::DarkGray)
-            };
-
-        // Setting the table.
-        let table = Table::new(rows, widths)
-            .header(header)
-            .block(Block::default().borders(Borders::all()).title(block_title))
-            .style(block_style);
-
-        // Render.
-        f.render_widget(table, vertical_chunks[1]);
+        // Draw scrollbar.
+        self.scroll.draw(f, vertical_chunks[1], false)?;
 
         Ok(())
     }
@@ -374,5 +334,5 @@ impl DrawableComponent for ProcessComponent {
 
 #[cfg(test)]
 mod test {
-    // TODO
+    // TODO: write tests
 }
