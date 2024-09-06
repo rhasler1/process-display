@@ -94,6 +94,7 @@ impl App {
                 if self.process.event(key)?.is_consumed() {
                     return Ok(EventState::Consumed)
                 }
+                // Process termination code
                 //else if key.code == self.config.key_config.terminate {
                 //    if let Some(pid) = self.process.selected_pid() {
                 //        self.system.terminate_process(pid)?;
@@ -135,8 +136,9 @@ impl App {
     }
 
     fn update_process(&mut self) -> io::Result<()> {
-        let new_processes = self.system.get_process_list();
-        self.process.update(new_processes.as_ref())?;
+        //let new_processes = self.system.get_process_list();
+        let new_processes = self.system.get_processes();
+        self.process.update(&new_processes)?;
         Ok(())
     }
 

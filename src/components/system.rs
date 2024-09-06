@@ -1,4 +1,4 @@
-use std::{io, mem};
+use std::io;
 use crossterm::event::KeyEvent;
 use sysinfo::{System, Pid};
 use process_list::ProcessListItem;
@@ -6,14 +6,11 @@ use performance_queue::{CpuItem, MemoryItem};
 use super::{Component, EventState};
 use super::KeyConfig;
 
-
-
 // See here for refreshing system: https://crates.io/crates/sysinfo#:~:text=use%20sysinfo%3A%3ASystem,(sysinfo%3A%3AMINIMUM_CPU_UPDATE_INTERVAL)%3B%0A%7D
 // note: sysinfo::MINIMUM_CPU_UPDATE_INTERVAL = 200 ms
 
 pub struct SystemComponent {
     system: System,
-    process_list: Vec<ProcessListItem>,
     _key_config: KeyConfig
 }
 
@@ -21,45 +18,13 @@ impl SystemComponent {
     pub fn new(key_config: KeyConfig) -> Self  {
         Self {
             system: System::new_all(),
-            process_list: Vec::new(),
             _key_config: key_config,
         }
     }
 
     pub async fn refresh_all(&mut self) -> io::Result<EventState> {
-        self.process_list.clear(); // 1. clear process list
-        self.system.refresh_all(); // 2. refresh system
-        self.set_process_list(); // 3. set the process list
+        self.system.refresh_all(); // 1. refresh system
         Ok(EventState::Consumed)
-    }
-
-    fn set_process_list(&mut self) {
-        for (pid, process) in self.system.processes() {
-            let name = self.get_process_name(*pid);
-            let cpu_usage = process.cpu_usage();
-            let memory_usage = process.memory();
-            let item = ProcessListItem::new(pid.as_u32(), name, cpu_usage, memory_usage);
-            self.process_list.push(item);
-        }
-    }
-
-    fn get_process_name(&self, pid: Pid) -> String {
-        match self.system.process(pid) {
-            //Some(p) => return String::from(p.name()),
-            Some(p) => return String::from(p.name().to_str().unwrap_or_default()),
-            None => return String::from("No Process given pid"),
-        }
-    }
-
-    pub fn terminate_process(&mut self, pid: u32) -> io::Result<bool> {
-        if let Some(process) = self.system.process(Pid::from_u32(pid)) {
-            process.kill();
-        }
-        Ok(true)
-    }
-
-    pub fn get_process_list(&self) -> &Vec<ProcessListItem> {
-        return self.process_list.as_ref();
     }
 
     pub fn get_cpu_info(&self) -> CpuItem {
@@ -83,6 +48,33 @@ impl SystemComponent {
         let available_memory = self.system.available_memory();
         let memory_info = MemoryItem::new(total_memory, used_memory, free_memory, available_memory);
         memory_info
+    }
+
+    pub fn get_processes(&self) -> Vec<ProcessListItem> {
+        let mut processes: Vec<ProcessListItem> = Vec::new();
+        for (pid, process) in self.system.processes() {
+            let name = self.get_process_name(*pid);
+            let cpu_usage = process.cpu_usage();
+            let memory_usage = process.memory();
+            let item = ProcessListItem::new(pid.as_u32(), name, cpu_usage, memory_usage);
+            processes.push(item);
+        }
+        return processes;
+    }
+
+    fn get_process_name(&self, pid: Pid) -> String {
+        match self.system.process(pid) {
+            //Some(p) => return String::from(p.name()),
+            Some(p) => return String::from(p.name().to_str().unwrap_or_default()),
+            None => return String::from("No Process given pid"),
+        }
+    }
+
+    pub fn terminate_process(&mut self, pid: u32) -> io::Result<bool> {
+        if let Some(process) = self.system.process(Pid::from_u32(pid)) {
+            process.kill();
+        }
+        Ok(true)
     }
 }
 
