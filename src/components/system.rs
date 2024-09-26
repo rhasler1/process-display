@@ -1,6 +1,6 @@
 use std::io;
 use crossterm::event::KeyEvent;
-use sysinfo::{System, Pid};
+use sysinfo::{System, Networks, Pid};
 use process_list::ProcessListItem;
 use performance_queue::{CpuItem, MemoryItem};
 use super::{Component, EventState};
@@ -11,6 +11,7 @@ use super::KeyConfig;
 
 pub struct SystemComponent {
     system: System,
+    //network: Networks,
     _key_config: KeyConfig
 }
 
@@ -18,14 +19,21 @@ impl SystemComponent {
     pub fn new(key_config: KeyConfig) -> Self  {
         Self {
             system: System::new_all(),
+            //network: Networks::new_with_refreshed_list(),
             _key_config: key_config,
         }
     }
 
     pub async fn refresh_all(&mut self) -> io::Result<EventState> {
         self.system.refresh_all(); // 1. refresh system
+        //self.network.refresh_list(); // 2. refresh network interfaces list
+        //self.network.refresh(); // 3. refresh network interfaces' content
         Ok(EventState::Consumed)
     }
+
+    //pub fn get_network_info(&self) -> NetworkItem {
+
+    //}
 
     pub fn get_cpu_info(&self) -> CpuItem {
         let mut brand_cpu: &str = "";
