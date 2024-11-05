@@ -26,14 +26,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
     setup_terminal()?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
-    
-    // event handler setup
-    // argument 1: tick_rate , argument 2: system refresh_rate
-    let events = Events::new(250, 5000);
 
     // app creation and initialization
     let config = config::Config::default();
+    let tick_rate = config.tick_rate();
+    let refresh_rate = config.refresh_rate();
+    // event handler setup
+    // argument 1: tick_rate , argument 2: system refresh_rate
+    let events = Events::new(tick_rate, refresh_rate);
+
     let mut app = App::new(config);
+
+
     app.refresh().await?;
 
     // clear terminal

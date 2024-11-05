@@ -33,7 +33,7 @@ impl App {
         Self {
             system: SystemComponent::new(config.key_config.clone()),
             process: ProcessComponent::new(config.key_config.clone()),
-            performance: PerformanceComponent::new(config.key_config.clone(), 10),
+            performance: PerformanceComponent::new(config.clone(), 10),
             tab: TabComponent::new(config.key_config.clone()),
             help: HelpComponent::new(config.key_config.clone()),
             error: ErrorComponent::new(config.key_config.clone()),
@@ -95,12 +95,12 @@ impl App {
                     return Ok(EventState::Consumed)
                 }
                 // Process termination code
-                //else if key.code == self.config.key_config.terminate {
-                //    if let Some(pid) = self.process.selected_pid() {
-                //        self.system.terminate_process(pid)?;
-                //        return Ok(EventState::Consumed)
-                //    }
-                //}
+                else if key.code == self.config.key_config.terminate {
+                    if let Some(pid) = self.process.selected_pid() {
+                        self.system.terminate_process(pid)?;
+                        return Ok(EventState::Consumed)
+                    }
+                }
             }
 
             Tab::Performance => {

@@ -9,7 +9,7 @@ use performance_queue::{CpuItem, MemoryItem, PerformanceQueue};
 use super::EventState;
 use super::DrawableComponent;
 use super::vertical_tabs::VerticalTab;
-use crate::config::KeyConfig;
+use crate::config::Config;
 use crate::components::Component;
 use crate::components::vertical_tabs::VerticalTabComponent;
 
@@ -18,16 +18,16 @@ pub struct PerformanceComponent {
     cpu_info: PerformanceQueue<CpuItem>,
     memory_info: PerformanceQueue<MemoryItem>,
     vertical_tabs: VerticalTabComponent,
-    key_config: KeyConfig,
+    config: Config,
 }
 
 impl PerformanceComponent {
-    pub fn new(key_config: KeyConfig, max_size: usize) -> Self {
+    pub fn new(config: Config, max_size: usize) -> Self {
         Self {
             cpu_info: PerformanceQueue::new(max_size),
             memory_info: PerformanceQueue::new(max_size),
             vertical_tabs: VerticalTabComponent::default(),
-            key_config: key_config,
+            config,
         }
     }
 
@@ -38,83 +38,30 @@ impl PerformanceComponent {
     }
 
     fn draw_memory_graph(&self, f: &mut Frame, area: Rect) -> io::Result<()> {
-        // TODO: make sure there is something to draw...
-        let refresh_rate = 5;
+        let refresh_rate = (self.config.refresh_rate() / 1000) as usize; // Converting ms to s.
         let data_points = self.memory_info.performance_items
             .iter()
             .enumerate()
-            .map(|(i, item)| {
-                ((i*refresh_rate) as f64, item.used_memory_gb() as f64)
-            })
+            .map(|(i, item)| ((i * refresh_rate) as f64, item.used_memory_gb() as f64))
             .collect::<Vec<_>>();
 
-        let data_set = vec![
-            Dataset::default()
-                .marker(Marker::Dot)
-                .graph_type(GraphType::Line)
-                .style(Style::default().cyan())
-                .data(&data_points)
-        ];
-
-        let x_axis = Axis::default()
-            .title("Time (s)")
-            .style(Style::default().white())
-            .bounds([0.0, ((self.memory_info.max_size() - 1) * refresh_rate) as f64])
-            .labels(vec![0.to_string().into(), ((self.memory_info.max_size() - 1) * refresh_rate).to_string().into()]);
-
-        let y_axis = Axis::default()
-            .title("Used Memory (GB)")
-            .style(Style::default().white())
-            .bounds([0.0, self.memory_info.back().unwrap().total_memory_gb() as f64])
-            .labels(vec![0.to_string().into(), self.memory_info.back().unwrap().total_memory_gb().to_string().into()]);
-
-        let chart = Chart::new(data_set)
-            .block(Block::default())
-            .x_axis(x_axis)
-            .y_axis(y_axis);
-
-        f.render_widget(chart, area);
-
+        let y_axis_title = String::from("Used Memory (GB)");
+        let y_bounds = [0.0, self.memory_info.back().unwrap().total_memory_gb() as f64];
+        draw_graph(f, area, refresh_rate, self.memory_info.max_size(), data_points, y_axis_title, y_bounds)?;
         Ok(())
     }
 
     fn draw_cpu_graph(&self, f: &mut Frame, area: Rect) -> io::Result<()> {
-        //TODO
-        let refresh_rate = 5;
+        let refresh_rate = (self.config.refresh_rate() / 1000) as usize; // Converting ms to s.
         let data_points = self.cpu_info.performance_items
             .iter()
             .enumerate()
-            .map(|(i, item)| {
-                ((i*refresh_rate) as f64, item.global_usage() as f64)
-            })
+            .map(|(i, item)| ((i * refresh_rate) as f64, item.global_usage() as f64))
             .collect::<Vec<_>>();
 
-        let data_set = vec![
-            Dataset::default()
-                .marker(Marker::Dot)
-                .graph_type(GraphType::Line)
-                .style(Style::default().cyan())
-                .data(&data_points)
-        ];
-
-        let x_axis = Axis::default()
-            .title("Time (s)")
-            .style(Style::default().white())
-            .bounds([0.0, ((self.cpu_info.max_size() - 1) * refresh_rate) as f64])
-            .labels(vec![0.to_string().into(), ((self.cpu_info.max_size() - 1) * refresh_rate).to_string().into()]);
-
-        let y_axis = Axis::default()
-            .title("Global CPU Usage (%)")
-            .style(Style::default().white())
-            .bounds([0.0, 100.0])
-            .labels(vec![0.to_string().into(), 100.to_string().into()]);
-
-        let chart = Chart::new(data_set)
-            .block(Block::default())
-            .x_axis(x_axis)
-            .y_axis(y_axis);
-
-        f.render_widget(chart, area);
+        let y_axis_title = String::from("Global CPU Usage (%)");
+        let y_bounds = [0.0, 100.0];
+        draw_graph(f, area, refresh_rate, self.cpu_info.max_size(), data_points, y_axis_title, y_bounds)?;
         Ok(())
     }
 
@@ -236,4 +183,46 @@ impl DrawableComponent for PerformanceComponent {
 
         Ok(())
     }
+}
+
+fn draw_graph(
+    f: &mut Frame,
+    area: Rect,
+    refresh_rate: usize,
+    max_size: usize,
+    data_points: Vec<(f64, f64)>,
+    y_axis_title: String,
+    y_bounds: [f64; 2],
+) -> io::Result<()> {
+    let data_set = vec![
+        Dataset::default()
+            .marker(Marker::Dot)
+            .graph_type(GraphType::Line)
+            .style(Style::default().cyan())
+            .data(&data_points)
+    ];
+
+    let x_axis = Axis::default()
+        .title("Time (s)")
+        .style(Style::default().white())
+        .bounds([0.0, ((max_size - 1) * refresh_rate as usize) as f64])
+        .labels(vec![
+            0.to_string().into(),
+            ((max_size - 1) * refresh_rate as usize).to_string().into(),
+        ]);
+
+    let y_axis = Axis::default()
+        .title(y_axis_title)
+        .style(Style::default().white())
+        .bounds(y_bounds)
+        .labels(vec![y_bounds[0].to_string().into(), y_bounds[1].to_string().into()]);
+
+    let chart = Chart::new(data_set)
+        .block(Block::default())
+        .x_axis(x_axis)
+        .y_axis(y_axis);
+
+    f.render_widget(chart, area);
+
+    Ok(())
 }

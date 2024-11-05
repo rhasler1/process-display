@@ -107,7 +107,7 @@ impl ProcessComponent {
         let out_of_focus_style = Style::default().fg(Color::DarkGray);
 
         // Setting the header.
-        let header = ["", "Pid", "Name", "Cpu Usage (%)", "Memory Usage (Bytes)"]
+        let header = ["", "Pid", "Name", "CPU Usage (%)", "Memory Usage (Bytes)"]
             .into_iter()
             .map(Cell::from)
             .collect::<Row>()

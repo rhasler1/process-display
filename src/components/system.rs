@@ -1,6 +1,6 @@
 use std::io;
 use crossterm::event::KeyEvent;
-use sysinfo::{System, Networks, Pid};
+use sysinfo::{System, Pid};
 use process_list::ProcessListItem;
 use performance_queue::{CpuItem, MemoryItem};
 use super::{Component, EventState};

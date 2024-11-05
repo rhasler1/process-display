@@ -1,19 +1,34 @@
 use crossterm::event::KeyCode;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Config {
     pub key_config: KeyConfig,
+    refresh_rate: u64,
+    tick_rate: u64,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
             key_config: KeyConfig::default(),
+            refresh_rate: 5000,
+            tick_rate: 250,
         }
     }
 }
 
-#[derive(Clone)]
+impl Config {
+    pub fn refresh_rate(&self) -> u64 {
+        return self.refresh_rate.clone()
+    }
+
+    pub fn tick_rate(&self) -> u64 {
+        return self.tick_rate.clone()
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct KeyConfig {
     pub move_up: KeyCode,
     pub move_top: KeyCode,
@@ -48,7 +63,7 @@ impl Default for KeyConfig {
             enter: KeyCode::Enter,
             tab: KeyCode::Tab,
             filter: KeyCode::Char('/'),
-            terminate: KeyCode::Delete,
+            terminate: KeyCode::Char('T'),
             tab_right: KeyCode::Char('d'),
             tab_left: KeyCode::Char('a'),
             open_help: KeyCode::Char('?'),
