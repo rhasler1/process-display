@@ -17,7 +17,7 @@ pub enum MoveTabDirection {
 pub enum VerticalTab {
     Cpu,
     Memory,
-    Network,
+    //Network,
 }
 
 impl Default for VerticalTab {
@@ -49,7 +49,7 @@ impl VerticalTabComponent {
         vec![
             String::from("CPU"),
             String::from("Memory"),
-            String::from("Network"),
+            //String::from("Network"),
         ]
     }
 
@@ -57,7 +57,7 @@ impl VerticalTabComponent {
         match self.selected_vert_tab {
             VerticalTab::Cpu => {
                 if direction == MoveTabDirection::Up {
-                    self.selected_vert_tab = VerticalTab::Network;
+                    self.selected_vert_tab = VerticalTab::Memory;
                 }
                 else {
                     self.selected_vert_tab = VerticalTab::Memory;
@@ -68,17 +68,17 @@ impl VerticalTabComponent {
                     self.selected_vert_tab = VerticalTab::Cpu;
                 }
                 else {
-                    self.selected_vert_tab = VerticalTab::Network;
-                }
-            }
-            VerticalTab::Network => {
-                if direction == MoveTabDirection::Up {
-                    self.selected_vert_tab = VerticalTab::Memory;
-                }
-                else {
                     self.selected_vert_tab = VerticalTab::Cpu;
                 }
             }
+            //VerticalTab::Network => {
+            //    if direction == MoveTabDirection::Up {
+            //        self.selected_vert_tab = VerticalTab::Memory;
+            //    }
+            //    else {
+            //        self.selected_vert_tab = VerticalTab::Cpu;
+            //    }
+            //}
         }
     }   
 }

@@ -109,7 +109,7 @@ impl App {
                 }
             }
 
-            Tab::Users => {}
+            //Tab::Users => {}
         }
 
         if self.tab.event(key)?.is_consumed() {
@@ -171,7 +171,7 @@ impl App {
                 self.performance.draw(f, chunks[0], false)?;
             }
 
-            Tab::Users => {}
+            //Tab::Users => {}
         }
 
         // Drawing the HelpComponent as a pop up. See /components/help.rs.

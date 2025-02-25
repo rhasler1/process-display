@@ -17,7 +17,7 @@ enum MoveTabDirection {
 pub enum Tab {
     Process,
     Performance,
-    Users,
+    //Users,
 }
 
 pub struct TabComponent {
@@ -45,7 +45,7 @@ impl TabComponent {
         vec![
             String::from("Process"),
             String::from("Performance"),
-            String::from("Users"),
+            //String::from("Users"),
         ]
     }
 
@@ -56,25 +56,25 @@ impl TabComponent {
                     self.selected_tab = Tab::Performance;
                 }
                 else {
-                    self.selected_tab = Tab::Users;
+                    self.selected_tab = Tab::Performance;
                 }
             }
             Tab::Performance => {
                 if direction == MoveTabDirection::Right {
-                    self.selected_tab = Tab::Users;
+                    self.selected_tab = Tab::Process;
                 }
                 else {
                     self.selected_tab = Tab::Process;
                 }
             }
-            Tab::Users => {
-                if direction == MoveTabDirection::Right {
-                    self.selected_tab = Tab::Process;
-                }
-                else {
-                    self.selected_tab = Tab::Performance;
-                }
-            }
+            //Tab::Users => {
+            //    if direction == MoveTabDirection::Right {
+            //        self.selected_tab = Tab::Process;
+            //    }
+            //    else {
+            //        self.selected_tab = Tab::Performance;
+            //    }
+            //}
         }
     }
 }

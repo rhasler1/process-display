@@ -176,9 +176,9 @@ impl DrawableComponent for PerformanceComponent {
             self.draw_memory_graph(f, vertical_chunks[1])?;
             self.draw_memory_item(f, horizontal_chunks[1])?;
         }
-        else if matches!(self.vertical_tabs.selected_vert_tab, VerticalTab::Network) {
+        //else if matches!(self.vertical_tabs.selected_vert_tab, VerticalTab::Network) {
             //self.draw_network_graph(f, vertical_chunks[1])?;
-        }
+        //}
         self.vertical_tabs.draw(f, horizontal_chunks[0], false)?;
 
         Ok(())
@@ -207,8 +207,8 @@ fn draw_graph(
         .style(Style::default().white())
         .bounds([0.0, ((max_size - 1) * refresh_rate as usize) as f64])
         .labels(vec![
-            0.to_string().into(),
             ((max_size - 1) * refresh_rate as usize).to_string().into(),
+            0.to_string().into(),
         ]);
 
     let y_axis = Axis::default()
