@@ -18,10 +18,10 @@ impl ProcessListItem {
         }
     }
 
-    // This is a boolean function to determine if the name contained by the instance of ProcessListItem, &self,
-    // matches the parameter filter_text.
+    // filter by name or pid
     pub fn is_match(&self, filter_text: &str) -> bool {
-        self.name.contains(filter_text)
+        self.name.contains(filter_text) ||
+        self.pid.to_string().contains(filter_text)
     }
 
     // This function gets the pid of a ProcessListItem instance.
@@ -51,7 +51,7 @@ impl PartialEq for ProcessListItem {
     // This is a boolean function to determine if the ProcessListItem instance &self
     // is equal to the parameter other. The comparison is done by pid.
     fn eq(&self, other: &Self) -> bool {
-        return self.pid().eq(&other.pid())
+        return self.pid.eq(&other.pid)
     }
 }
 

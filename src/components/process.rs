@@ -52,7 +52,7 @@ impl ProcessComponent {
             // We first filter the new processes by the filter,
             let processes = ProcessListItems::new(new_processes);
             let filter_text = self.filter.input_str();
-            let filtered_processes = processes.filter(filter_text);
+            let filtered_processes = processes.filter(&filter_text);
             // then we update the filtered list with the new filtered processes.
             filtered_list.update(&filtered_processes.list_items)?;
         }
@@ -207,7 +207,7 @@ impl Component for ProcessComponent {
                 None
             }
             else {
-                Some(self.list.filter(self.filter.input_str()))
+                Some(self.list.filter(&self.filter.input_str()))
             };
         }
 

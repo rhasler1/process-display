@@ -59,13 +59,13 @@ impl ProcessList {
     //   filter_text: String -- text to filter processes by name
     // outputs:
     //    new ProcessList
-    pub fn filter(&self, filter_text: String) -> Self {
+    pub fn filter(&self, filter_text: &String) -> Self {
         let new_self = Self {
-            items: self.items.filter(filter_text.clone()),
+            items: self.items.filter(filter_text),
             sort: ListSortOrder::default(),
             follow_selection: false,
             selection:
-                if self.items.filter(filter_text.clone()).items_len() > 0 {
+                if self.items.filter(filter_text).items_len() > 0 {
                     Some(0)
                 }
                 else {
@@ -313,13 +313,13 @@ mod test {
 
         // Filter constructor case 1.
         let filter_string = String::from("c");
-        let filter_instance = instance.filter(filter_string);
+        let filter_instance = instance.filter(&filter_string);
         assert!(filter_instance.empty());
         assert_eq!(filter_instance.selection(), None);
 
         // Filter constructor case 2.
         let filter_string = String::from("b");
-        let filter_instance = instance.filter(filter_string);
+        let filter_instance = instance.filter(&filter_string);
         assert!(!filter_instance.empty());
         assert_eq!(filter_instance.selection(), Some(0));
     }

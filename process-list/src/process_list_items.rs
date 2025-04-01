@@ -10,43 +10,31 @@ pub struct ProcessListItems {
 }
 
 impl ProcessListItems {
-    // This function constructs a `new` instance of ProcessListItems and initializes field
-    // list_items by passing the parameter list to the instance function create_items(list).
+    // creator
     pub fn new(list: &Vec<ProcessListItem>) -> Self {
         Self {
             list_items: Self::create_items(list),
         }
     }
 
-    // This function populates a new vector of type ProcessListItem by cloning each item
-    // contained in the list parameter then pushing the cloned item onto the new vector.
-    // The new vector is returned.
+    // creator helper
     fn create_items(list: &Vec<ProcessListItem>) -> Vec<ProcessListItem> {
-        let list_len = list.len();
-        let mut items = Vec::with_capacity(list_len);
-        for e in list {
-            let item = e.clone();
-            items.push(item);
-        }
-        return items;
+        list.iter().cloned().collect()
     }
 
-    // This function constructs a new ProcessListItems instance by filtering items
-    // from the current ProcessListItems instance. Item's are filtered using the
-    // ProcessListItem instance function is_match(&filter_text: &str).
-    pub fn filter(&self, filter_text: String) -> Self {
+    // creator for filtered list, call on existing list
+    pub fn filter(&self, filter_text: &String) -> Self {
         Self {
-            list_items: self.list_items
-                .iter()
-                .filter(|item| {
-                    item.is_match(&filter_text)
-                })
-                .map(|item| {
-                    let item = item.clone();
-                    item
-                })
-                .collect::<Vec<ProcessListItem>>(),
+            list_items: self.create_filtered_items(filter_text)
         }
+    }
+
+    fn create_filtered_items(&self, filter_text: &String) -> Vec<ProcessListItem> {
+        self.list_items
+            .iter()
+            .filter(|item| {item.is_match(filter_text)})
+            .cloned()
+            .collect()
     }
 
     // This function updates the ProcessListItems instance field list_items by adding new items, updating fields of
@@ -233,7 +221,7 @@ mod test {
         let items = vec![item_0, item_1];
         let instance = ProcessListItems::new(&items);
 
-        let filtered_instance = instance.filter(String::from("a"));
+        let filtered_instance = instance.filter(&String::from("a"));
         assert_eq!(filtered_instance.items_len(), 1);
         assert_eq!(filtered_instance.get_item(0), Some(&clone_0));
         assert_eq!(filtered_instance.get_item(1), None);
