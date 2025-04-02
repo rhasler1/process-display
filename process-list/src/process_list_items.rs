@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use crate::process_list::ListSortOrder;
 use crate::process_list_item::ProcessListItem;
 use crate::list_items_iter::ListItemsIterator;
@@ -32,31 +31,15 @@ impl ProcessListItems {
     fn create_filtered_items(&self, filter_text: &String) -> Vec<ProcessListItem> {
         self.list_items
             .iter()
-            .filter(|item| {item.is_match(filter_text)})
+            .filter(|item| { item.is_match(filter_text) })
             .cloned()
             .collect()
     }
 
-    // updates existing items, removes old items, and adds new items
-    // sort order is ruined by this function, call sort after use
+    // simply replace old list with new list
+    // this function ruins sort order--call sort after using
     pub fn update_items(&mut self, new_list: &Vec<ProcessListItem>) {
-        let mut updated_list: Vec<ProcessListItem> = Vec::new();
-        let new_map: HashMap<_,_> = new_list.iter().map(|item| (item.pid(),item)).collect();
-
-        for item in &mut self.list_items {
-            if let Some(&updated_item) = new_map.get(&item.pid()) {
-                *item = updated_item.clone();
-                updated_list.push(item.clone());
-            }
-        }
-
-        for new_item in new_list {
-            if !updated_list.contains(new_item) {
-                updated_list.push(new_item.clone())
-            }
-        }
-
-        self.list_items = updated_list;
+        self.list_items = new_list.iter().cloned().collect();
     }
 
     // sort by list sort order
@@ -89,16 +72,9 @@ impl ProcessListItems {
         }
     }
 
-    // GETTERS
     // gets the reference to an item given an index
     pub fn get_item(&self, idx: usize) -> Option<&ProcessListItem> {
-        let list_len = self.items_len();
-        let max_idx = list_len.saturating_sub(1);
-        if list_len == 0 || max_idx < idx {
-            return None
-        }
-        let item = self.list_items.get(idx);
-        item
+        self.list_items.get(idx)
     }
 
     // gets the index of an item given the item's pid.
@@ -109,9 +85,7 @@ impl ProcessListItems {
         {
             return Some(idx);
         }
-        else {
-            return None;
-        }
+        None
     }
 
     // gets the length of the instance list.

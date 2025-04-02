@@ -1,3 +1,8 @@
+// todo:
+// 1. clean up code relating to process-list backend
+// 2. clean up code relating to FilterComponent
+// 3. work on/improve UI 
+
 use std::io;
 use crossterm::event::KeyEvent;
 use ratatui::{
@@ -12,9 +17,7 @@ use super::{filter::FilterComponent, Component, DrawableComponent, EventState};
 use super::utils::vertical_scroll::VerticalScroll;
 use crate::config::KeyConfig;
 
-// The ProcessComponent can be navigated to focus on
-// either a ProcessList <filtered/unfiltered> or
-// FilterComponent.
+// focus of process component, this can be on either a ProcessList or FilterComponent
 #[derive(PartialEq)]
 pub enum Focus {
     Filter,
@@ -46,21 +49,23 @@ impl ProcessComponent {
     // This function is used to update the process lists. Presumeably there will
     // will always be an unfiltered list, it is updated without any conditions.
     // The filtered list is only updated if there is some filtered list.
-    pub fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
+
+    // update process list
+    pub fn update(&mut self, new_processes: &Vec<ProcessListItem>) {
+        // it is assumed new_processes will never be empty, if it is, then
+        // check system component and sysinfo crate backend
         self.list.update(new_processes);
+
         if let Some(filtered_list) = self.filtered_list.as_mut() {
-            // We first filter the new processes by the filter,
+            // filter new processes
             let processes = ProcessListItems::new(new_processes);
             let filter_text = self.filter.input_str();
             let filtered_processes = processes.filter(&filter_text);
-            // then we update the filtered list with the new filtered processes.
             filtered_list.update(&filtered_processes.list_items);
         }
-        Ok(())
     }
 
-    // This function can be used to communicate the selected item's pid to the application.
-    // Note: The function will always return None if the focus is on the filter.
+    // gets the selected process pid
     pub fn selected_pid(&self) -> Option<u32> {
         if matches!(self.focus, Focus::List) {
             if let Some(list) = self.filtered_list.as_ref() {
@@ -98,7 +103,7 @@ impl ProcessComponent {
         );
 
         // Getting the boolean list.follow(); The follow_flag is used to differentiate between a selected item being followed(underlined) and not.
-        let follow_flag = list.follow();
+        let follow_flag = list.is_follow_selection();
         // Different styles used to visually differentiate between components and focus.
         let header_style = Style::default().fg(Color::Black).bg(Color::Gray);
         let select_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);

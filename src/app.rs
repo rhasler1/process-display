@@ -138,7 +138,7 @@ impl App {
     fn update_process(&mut self) -> io::Result<()> {
         //let new_processes = self.system.get_process_list();
         let new_processes = self.system.get_processes();
-        self.process.update(&new_processes)?;
+        self.process.update(&new_processes);
         Ok(())
     }
 
