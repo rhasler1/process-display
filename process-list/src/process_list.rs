@@ -1,4 +1,3 @@
-use std::io;
 use crate::process_list_items::ProcessListItems;
 use crate::process_list_item::ProcessListItem;
 use crate::list_iter::ListIterator;
@@ -92,6 +91,7 @@ impl ProcessList {
             self.selection = pid.and_then(|p| self.items.get_idx(p));
         }
         else {
+            // not following, keep the selection where it is, ensuring it is still in bounds
             if let Some(selection) = self.selection {
                 let max_idx = self.items.items_len().saturating_sub(1);
 
@@ -107,27 +107,85 @@ impl ProcessList {
         }
     }
 
-    // This function is called when there is a `ListSortOrder` key event. The items length should never change here.
-    pub fn sort(&mut self, sort: &ListSortOrder) -> io::Result<()> {
-        // Get the selected item, selected_item = Some(item) || None.
+    // sorts process list by list sort order
+    pub fn sort(&mut self, sort: &ListSortOrder) {
+        // get the selected item, selected_item = Some(item) || None.
         let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
 
-        // Get the selected item's pid, pid = Some(pid) || None.
+        // get the selected item's pid, pid = Some(pid) || None.
         let pid: Option<u32> = selected_item.map(|item| item.pid());
 
-        // Sort items.
+        // sort items
         self.items.sort_items(sort);
 
-        // If follow selection, then set self.selection to the new index of the selected item's pid.
+        // if follow selection, then set self.selection to the new index of the selected item's pid.
         if self.follow_selection {
             self.selection = pid.and_then(|p| self.items.get_idx(p));
         }
-
-        Ok(())
     }
 
-    // This function is responsible for changing the follow_selection field. If follow_selection is true,
-    // then set to false, else set to true.
+    // move selection based on MoveSelection variant
+    pub fn move_selection(&mut self, dir: MoveSelection) {
+        if let Some(selection) = self.selection() {
+            let new_idx = match dir {
+                MoveSelection::Down => self.selection_down(selection, 1),
+                MoveSelection::MultipleDown => self.selection_down(selection, 10),
+                MoveSelection::Up => self.selection_up(selection, 1),
+                MoveSelection::MultipleUp => self.selection_up(selection, 10),
+                MoveSelection::End => self.selection_end(selection),
+                MoveSelection::Top => self.selection_start(selection),       
+            };
+            self.selection = new_idx;
+        }
+    }
+
+    // calculates and returns new index after moving current down by lines
+    fn selection_down(&self, current_idx: usize, lines: usize) -> Option<usize> {
+        let mut new_idx = current_idx;
+        let max_idx = self.items.items_len().saturating_sub(1);
+
+        'a: for _ in 0..lines {
+            if new_idx >= max_idx {
+                break 'a;
+            }
+            new_idx = new_idx.saturating_add(1);
+        }
+
+        Some(new_idx)
+    }
+
+    // calculates and returns new index after moving current index up by lines
+    fn selection_up(&self, current_idx: usize, lines: usize) -> Option<usize> {
+        let mut new_idx = current_idx;
+        let min_idx = 0;
+
+        'a: for _ in 0..lines {
+            if new_idx == min_idx {
+                break 'a;
+            }
+            new_idx = new_idx.saturating_sub(1);
+        }
+
+        Some(new_idx)
+    }
+
+    // calculates and returns max index 
+    fn selection_end(&self, _current_idx: usize) -> Option<usize> {
+        let max_idx = self.items.items_len().saturating_sub(1);
+
+        Some(max_idx)
+
+    }
+
+    // returns min index
+    fn selection_start(&self, _current_idx: usize) -> Option<usize> {
+        let min_idx = 0;
+
+        Some(min_idx)
+    }
+
+    //todo: resume cleanup starting from here
+    // toggle follow selection
     pub fn change_follow_selection(&mut self) {
         if self.follow_selection {
             self.follow_selection = false;
@@ -135,107 +193,6 @@ impl ProcessList {
         else {
             self.follow_selection = true;
         }
-    }
-
-    // pub fn move_selection -- change self.selected_item given a direction
-    // inputs:
-    //   dir: MoveSelection
-    // outputs:
-    //   If selection was moved, then True, else False.
-    pub fn move_selection(&mut self, dir: MoveSelection) -> bool {
-        self.selection.map_or(false, |selection| {
-            let new_index = match dir {
-                MoveSelection::Down => self.selection_down(selection, 1),
-                MoveSelection::MultipleDown => self.selection_down(selection, 10),
-                MoveSelection::Up => self.selection_up(selection, 1),
-                MoveSelection::MultipleUp => self.selection_up(selection, 10),
-                MoveSelection::End => self.selection_end(selection),
-                MoveSelection::Top => self.selection_start(selection),
-            };
-
-            // Changed_index is true if index was moved.
-            let changed_index = new_index.map(|i| i != selection).unwrap_or_default();
-
-            if changed_index {
-                self.selection = new_index;
-            }
-
-            // "if changed index is true then new_index should always be some"
-            changed_index || new_index.is_some()
-        })
-    }
-
-    // fn selection_down -- move selection down
-    // inputs:
-    //   current_index: usize, lines: usize -- how many lines to move down from current_index
-    // outputs:
-    //   if the selection was moved, then Some(index), else none
-    fn selection_down(&self, current_index: usize, lines: usize) -> Option<usize> {
-        let mut new_index = current_index;
-        let items_max = self.items.items_len().saturating_sub(1);
-
-        'a: for _ in 0..lines {
-            if new_index >= items_max {
-                break 'a;
-            }
-            new_index = new_index.saturating_add(1);
-        }
-
-        if new_index == current_index {
-            None
-        }
-        else {
-            Some(new_index)
-        }
-    }
-
-    // fn selection_up -- move selection up
-    // inputs:
-    //   current_index: usize, lines: usize -- how many lines to move up from current_index
-    // outputs:
-    //   if the selection was moved, then Some(new_index), else None.
-    fn selection_up(&self, current_index: usize, lines: usize) -> Option<usize> {
-        let mut new_index = current_index;
-        // labeling loop `a` to break out of `a` from within nested loop
-        'a: for _ in 0..lines {
-            if new_index == 0 {
-                break 'a;
-            }
-            new_index = new_index.saturating_sub(1);
-        }
-
-        if new_index == current_index { None }
-        else { Some(new_index) }
-    }
-
-    // fn selection_end -- move selection to last item in list
-    // inputs:
-    //   current_index: usize
-    // outputs:
-    //   If selection was moved, then Some(new_index), else None.
-    fn selection_end(&self, current_index: usize) -> Option<usize> {
-        let items_max = self.items.items_len().saturating_sub(1);
-        let new_index = items_max;
-
-        if new_index == current_index { None }
-        else { Some(new_index) }
-
-    }
-
-    // fn selection_start -- move selection to first item in list
-    // inputs:
-    //   current_index: usize
-    // outputs:
-    //   If selection was moved, then Some(0), else None.
-    fn selection_start(&self, current_index: usize) -> Option<usize> {
-        if current_index == 0 { None }
-        else { Some(0) }
-    }
-
-    // Iterator
-    pub fn iterate(&self, start_index: usize, max_amount: usize) -> ListIterator<'_> {
-        let start = start_index;
-        ListIterator::new(self.items.iterate(start, max_amount), self.selection)
     }
     
     // BOOLS
@@ -273,6 +230,12 @@ impl ProcessList {
             else { return None }
         }
         None
+    }
+
+    // iterator
+    pub fn iterate(&self, start_index: usize, max_amount: usize) -> ListIterator<'_> {
+        let start = start_index;
+        ListIterator::new(self.items.iterate(start, max_amount), self.selection)
     }
 }
 
@@ -398,7 +361,7 @@ mod test {
     #[test]
     fn test_selection() {
         let mut empty_instance = ProcessList::default();
-        assert_eq!(empty_instance.move_selection(MoveSelection::Down), false);
+        empty_instance.move_selection(MoveSelection::Down);
         assert_eq!(empty_instance.selection(), None);
 
         let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2);
@@ -406,28 +369,28 @@ mod test {
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(&items);
         assert_eq!(instance.selection(), Some(0));
-        assert_eq!(instance.move_selection(MoveSelection::Down), true);
-        assert_eq!(instance.move_selection(MoveSelection::Down), false);
+        instance.move_selection(MoveSelection::Down);
+        instance.move_selection(MoveSelection::Down);
         assert_eq!(instance.selection(), Some(1));
 
-        assert_eq!(instance.move_selection(MoveSelection::Up), true);
-        assert_eq!(instance.move_selection(MoveSelection::Up), false);
+        instance.move_selection(MoveSelection::Up);
+        instance.move_selection(MoveSelection::Up);
         assert_eq!(instance.selection(), Some(0));
 
-        assert_eq!(instance.move_selection(MoveSelection::End), true);
-        assert_eq!(instance.move_selection(MoveSelection::End), false);
+        instance.move_selection(MoveSelection::End);
+        instance.move_selection(MoveSelection::End);
         assert_eq!(instance.selection(), Some(1));
 
-        assert_eq!(instance.move_selection(MoveSelection::Top), true);
-        assert_eq!(instance.move_selection(MoveSelection::Top), false);
+        instance.move_selection(MoveSelection::Top);
+        instance.move_selection(MoveSelection::Top);
         assert_eq!(instance.selection(), Some(0));
 
-        assert_eq!(instance.move_selection(MoveSelection::MultipleDown), true);
-        assert_eq!(instance.move_selection(MoveSelection::MultipleDown), false);
+        instance.move_selection(MoveSelection::MultipleDown);
+        instance.move_selection(MoveSelection::MultipleDown);
         assert_eq!(instance.selection(), Some(1));
 
-        assert_eq!(instance.move_selection(MoveSelection::MultipleUp), true);
-        assert_eq!(instance.move_selection(MoveSelection::MultipleUp), false);
+        instance.move_selection(MoveSelection::MultipleUp);
+        instance.move_selection(MoveSelection::MultipleUp);
         assert_eq!(instance.selection(), Some(0));
     }
 }

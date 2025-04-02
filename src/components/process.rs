@@ -279,7 +279,8 @@ impl Component for ProcessComponent {
 // Else return false.
 fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bool {
     if let Some(move_dir) = common_nav(key, key_config) {
-        list.move_selection(move_dir)
+        list.move_selection(move_dir);
+        true
     }
     else {
         false
@@ -291,7 +292,7 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
 // Else return false.
 fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> io::Result<bool> {
     if let Some(sort) = common_sort(key, key_config) {
-        list.sort(&sort)?;
+        list.sort(&sort);
         Ok(true)
     }
     else {
