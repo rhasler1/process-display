@@ -47,14 +47,14 @@ impl ProcessComponent {
     // will always be an unfiltered list, it is updated without any conditions.
     // The filtered list is only updated if there is some filtered list.
     pub fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> io::Result<()> {
-        self.list.update(new_processes)?;
+        self.list.update(new_processes);
         if let Some(filtered_list) = self.filtered_list.as_mut() {
             // We first filter the new processes by the filter,
             let processes = ProcessListItems::new(new_processes);
             let filter_text = self.filter.input_str();
             let filtered_processes = processes.filter(&filter_text);
             // then we update the filtered list with the new filtered processes.
-            filtered_list.update(&filtered_processes.list_items)?;
+            filtered_list.update(&filtered_processes.list_items);
         }
         Ok(())
     }
@@ -245,10 +245,10 @@ impl Component for ProcessComponent {
             // Check if the key is to change the follow_selection value.
             else if key.code == self.key_config.follow_selection {
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.change_follow_selection()?;
+                    filtered_list.change_follow_selection();
                 }
                 else {
-                    self.list.change_follow_selection()?;
+                    self.list.change_follow_selection();
                 }
 
                 return Ok(EventState::Consumed)
@@ -291,7 +291,7 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
 // Else return false.
 fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> io::Result<bool> {
     if let Some(sort) = common_sort(key, key_config) {
-        list.sort(sort)?;
+        list.sort(&sort)?;
         Ok(true)
     }
     else {

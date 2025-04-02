@@ -1,4 +1,3 @@
-// This structure contains pertinent information to a Process.
 #[derive(Default, Clone, Debug)]
 pub struct ProcessListItem {
     pid: u32,
@@ -8,7 +7,7 @@ pub struct ProcessListItem {
 }
 
 impl ProcessListItem {
-    // This function constructs a new instance of ProcessListItem with the parameters.
+    // constructor
     pub fn new(pid: u32, name: String, cpu_usage: f32, memory_usage: u64) -> Self {
         Self {
             pid,
@@ -45,11 +44,9 @@ impl ProcessListItem {
     }
 }
 
-// Here, I am implementing the trait Partial Equality for an instance of ProcessListItem.
-// This is done so that ProcessListItems in a Vector can be iterated over and compared.
+// PartialEq is needed for comparison, e.g., calling contains
 impl PartialEq for ProcessListItem {
-    // This is a boolean function to determine if the ProcessListItem instance &self
-    // is equal to the parameter other. The comparison is done by pid.
+    // comparing by pid
     fn eq(&self, other: &Self) -> bool {
         return self.pid.eq(&other.pid)
     }

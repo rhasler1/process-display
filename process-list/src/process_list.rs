@@ -40,11 +40,7 @@ pub struct ProcessList {
 }
 
 impl ProcessList {
-    // new Constructor
-    // inputs:
-    //   list: &Vec<ProcessListItem> -- Reference to a Vector of ProcessListItem
-    // outputs:
-    //   new ProcessList
+    // constructor
     pub fn new(list: &Vec<ProcessListItem>) -> Self {
         Self {
             items: ProcessListItems::new(list),
@@ -54,11 +50,7 @@ impl ProcessList {
         }
     }
 
-    // pub fn filter
-    // inputs:
-    //   filter_text: String -- text to filter processes by name
-    // outputs:
-    //    new ProcessList
+    // constructor for filtered list
     pub fn filter(&self, filter_text: &String) -> Self {
         let new_self = Self {
             items: self.items.filter(filter_text),
@@ -75,53 +67,48 @@ impl ProcessList {
         new_self
     }
 
-    // This function is called whenever there is a refresh event. The function is responsible for
-    // updating the instance items with the parameter new_list.
-    pub fn update(&mut self, new_list: &Vec<ProcessListItem>) -> io::Result<()> {
-        // Get the selected item, selected_item = Some(item) || None.
+    // update process list with new list
+    pub fn update(&mut self, new_list: &Vec<ProcessListItem>) {
+        // get the selected item, either some(item) or None
         let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
 
-        // Get the selected item's pid, pid = Some(pid) || None.
+        // get the selected item's pid, either some(pid) or None
         let pid: Option<u32> = selected_item.map(|item| item.pid());
 
-        // Update items with new list.
-        self.items.update_items(new_list, &self.sort)?;
+        // update items with new list.
+        self.items.update_items(new_list);
 
-        // If pid is some then set self.selection = pid, else self.selection = None. IE: If the item being followed
-        // is removed from the list on self.items.update_items(), then follow_selection is set to None.
+        // re-sort 
+        self.items.sort_items(&self.sort);
+
+        // if list is empty, set selection to None and return
+        if self.items.items_len() == 0 {
+            self.selection = None;
+            return
+        }
+
+        // if following, then set selection to selected item's new index
         if self.follow_selection {
             self.selection = pid.and_then(|p| self.items.get_idx(p));
         }
         else {
-            // since it is the case that the process list might
-            // change in size on update, we need to check if the
-            // selection is still in range of the list. If it is not,
-            // then set self.selection to the max_idx.
             if let Some(selection) = self.selection {
                 let max_idx = self.items.items_len().saturating_sub(1);
-                // If the are no items in the list after the update, then set selection to None.
-                if self.items.items_len() == 0 {
-                    self.selection = None
-                }
-                // Else if the length of items shrinks in size after the update and the selection is
-                // now greater than the max_idx, set selection to max_idx.
-                else if selection > max_idx {
+
+                if selection > max_idx {
                     self.selection = Some(max_idx)
                 }
             }
         }
 
-        // If selection is None prior to self.update being called or if selection is set to None because the followed item
-        // was removed from the list, then we need to check if the list is non-empty and set selection to Some(0).
-        if self.items.items_len() > 0 && self.selection.is_none() {
-            self.selection = Some(0);
+        // if selection is none at this point, set to 0
+        if self.selection.is_none() {
+            self.selection = Some(0)
         }
-
-        Ok(())
     }
 
     // This function is called when there is a `ListSortOrder` key event. The items length should never change here.
-    pub fn sort(&mut self, sort: ListSortOrder) -> io::Result<()> {
+    pub fn sort(&mut self, sort: &ListSortOrder) -> io::Result<()> {
         // Get the selected item, selected_item = Some(item) || None.
         let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
 
@@ -129,8 +116,7 @@ impl ProcessList {
         let pid: Option<u32> = selected_item.map(|item| item.pid());
 
         // Sort items.
-        self.sort = sort.clone();
-        self.items.sort_items(&sort)?;
+        self.items.sort_items(sort);
 
         // If follow selection, then set self.selection to the new index of the selected item's pid.
         if self.follow_selection {
@@ -142,14 +128,13 @@ impl ProcessList {
 
     // This function is responsible for changing the follow_selection field. If follow_selection is true,
     // then set to false, else set to true.
-    pub fn change_follow_selection(&mut self) -> io::Result<()> {
+    pub fn change_follow_selection(&mut self) {
         if self.follow_selection {
             self.follow_selection = false;
         }
         else {
             self.follow_selection = true;
         }
-        Ok(())
     }
 
     // pub fn move_selection -- change self.selected_item given a direction
@@ -394,7 +379,7 @@ mod test {
         assert!(instance.sort == ListSortOrder::CpuUsageDec);
         assert!(!instance.follow());
         assert_eq!(instance.selection(), Some(0));
-        let _ = instance.sort(ListSortOrder::CpuUsageInc);
+        let _ = instance.sort(&ListSortOrder::CpuUsageInc);
         assert_eq!(instance.selection(), Some(0));
 
 
@@ -406,7 +391,7 @@ mod test {
         let _ = instance.change_follow_selection();
         assert!(instance.follow());
         assert_eq!(instance.selection(), Some(0));
-        let _ = instance.sort(ListSortOrder::CpuUsageInc);
+        let _ = instance.sort(&ListSortOrder::CpuUsageInc);
         assert_eq!(instance.selection(), Some(1));
     }
 
