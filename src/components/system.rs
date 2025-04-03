@@ -1,4 +1,4 @@
-use std::io;
+use anyhow::Result;
 use crossterm::event::KeyEvent;
 use sysinfo::{System, Pid};
 use process_list::ProcessListItem;
@@ -12,7 +12,7 @@ use super::{Component, EventState};
 pub struct SystemComponent {
     system: System,
     //network: Networks,
-    _config: Config
+    pub _config: Config
 }
 
 impl SystemComponent {
@@ -24,10 +24,9 @@ impl SystemComponent {
         }
     }
 
-    pub async fn refresh_all(&mut self) -> io::Result<EventState> {
-        self.system.refresh_all(); // 1. refresh system
-        //self.network.refresh_list(); // 2. refresh network interfaces list
-        //self.network.refresh(); // 3. refresh network interfaces' content
+    pub fn refresh_all(&mut self) -> Result<EventState> {
+        self.system.refresh_all();
+        
         Ok(EventState::Consumed)
     }
 
@@ -78,7 +77,7 @@ impl SystemComponent {
         }
     }
 
-    pub fn terminate_process(&mut self, pid: u32) -> io::Result<bool> {
+    pub fn terminate_process(&mut self, pid: u32) -> Result<bool> {
         if let Some(process) = self.system.process(Pid::from_u32(pid)) {
             process.kill();
         }
@@ -87,7 +86,7 @@ impl SystemComponent {
 }
 
 impl Component for SystemComponent {
-    fn event(&mut self, _key: KeyEvent) -> io::Result<EventState> {
+    fn event(&mut self, _key: KeyEvent) -> Result<EventState> {
         Ok(EventState::NotConsumed)
     }
 }

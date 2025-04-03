@@ -1,4 +1,4 @@
-use std::io;
+use anyhow::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
 use process_list::{ListSortOrder, MoveSelection};
@@ -15,11 +15,11 @@ pub mod command;
 pub mod vertical_tabs;
 
 pub trait DrawableComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> io::Result<()>;
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()>;
 }
 
 pub trait Component {
-    fn event(&mut self, key: KeyEvent) -> io::Result<EventState>;
+    fn event(&mut self, key: KeyEvent) -> Result<EventState>;
 }
 
 #[derive(PartialEq)]

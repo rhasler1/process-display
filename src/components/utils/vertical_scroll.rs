@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::cell::Cell;
 use ratatui::{
     Frame,
@@ -55,7 +56,7 @@ const fn calc_scroll_top(
 }
 
 impl DrawableComponent for VerticalScroll {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> std::io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
         draw_scrollbar(
             f,
             area,

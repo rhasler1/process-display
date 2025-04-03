@@ -1,3 +1,4 @@
+use anyhow::Result;
 use ratatui::{
     Frame,
     prelude::*,
@@ -22,7 +23,7 @@ pub enum Tab {
 
 pub struct TabComponent {
     pub selected_tab: Tab,
-    config: Config,
+    pub config: Config,
 }
 
 impl TabComponent {
@@ -80,7 +81,7 @@ impl TabComponent {
 }
 
 impl Component for TabComponent {
-    fn event(&mut self, key: crossterm::event::KeyEvent) -> std::io::Result<EventState> {
+    fn event(&mut self, key: crossterm::event::KeyEvent) -> Result<EventState> {
         if key.code == self.config.key_config.tab_right {
             self.update_selected_tab(MoveTabDirection::Right);
             return Ok(EventState::Consumed);
@@ -94,7 +95,7 @@ impl Component for TabComponent {
 }
 
 impl DrawableComponent for TabComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> std::io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([

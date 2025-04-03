@@ -1,4 +1,4 @@
-use std::io;
+use anyhow::Result;
 use crossterm::event::KeyEvent;
 use ratatui::widgets::Dataset;
 use ratatui::{
@@ -18,7 +18,7 @@ pub struct PerformanceComponent {
     cpu_info: PerformanceQueue<CpuItem>,
     memory_info: PerformanceQueue<MemoryItem>,
     vertical_tabs: VerticalTabComponent,
-    config: Config,
+    pub config: Config,
 }
 
 impl PerformanceComponent {
@@ -31,13 +31,13 @@ impl PerformanceComponent {
         }
     }
 
-    pub fn update(&mut self, cpu_item: &CpuItem, memory_item: &MemoryItem) -> io::Result<()> {
+    pub fn update(&mut self, cpu_item: &CpuItem, memory_item: &MemoryItem) -> Result<()> {
         self.cpu_info.add_item(cpu_item)?;
         self.memory_info.add_item(memory_item)?;
         Ok(())
     }
 
-    fn draw_memory_graph(&self, f: &mut Frame, area: Rect) -> io::Result<()> {
+    fn draw_memory_graph(&self, f: &mut Frame, area: Rect) -> Result<()> {
         let refresh_rate = (self.config.refresh_rate() / 1000) as usize; // Converting ms to s.
         let data_points = self.memory_info.performance_items
             .iter()
@@ -51,7 +51,7 @@ impl PerformanceComponent {
         Ok(())
     }
 
-    fn draw_cpu_graph(&self, f: &mut Frame, area: Rect) -> io::Result<()> {
+    fn draw_cpu_graph(&self, f: &mut Frame, area: Rect) -> Result<()> {
         let refresh_rate = (self.config.refresh_rate() / 1000) as usize; // Converting ms to s.
         let data_points = self.cpu_info.performance_items
             .iter()
@@ -65,7 +65,7 @@ impl PerformanceComponent {
         Ok(())
     }
 
-    fn draw_cpu_item(&self, f: &mut Frame, area: Rect) -> io::Result<()> {
+    fn draw_cpu_item(&self, f: &mut Frame, area: Rect) -> Result<()> {
         //TODO
         if let Some(item) = self.cpu_info.back() {
             let info = vec![
@@ -102,7 +102,7 @@ impl PerformanceComponent {
         Ok(())
     }
 
-    fn draw_memory_item(&self, f: &mut Frame, area: Rect) -> io::Result<()> {
+    fn draw_memory_item(&self, f: &mut Frame, area: Rect) -> Result<()> {
         if let Some(item) = self.memory_info.back() {
             let info = vec![
                 Line::from(vec![
@@ -142,7 +142,7 @@ impl PerformanceComponent {
 }
 
 impl Component for PerformanceComponent {
-    fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
+    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
         //todo
         self.vertical_tabs.event(key)?;
         Ok(EventState::NotConsumed)  
@@ -150,7 +150,7 @@ impl Component for PerformanceComponent {
 }
 
 impl DrawableComponent for PerformanceComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -193,7 +193,7 @@ fn draw_graph(
     data_points: Vec<(f64, f64)>,
     y_axis_title: String,
     y_bounds: [f64; 2],
-) -> io::Result<()> {
+) -> Result<()> {
     let data_set = vec![
         Dataset::default()
             .marker(Marker::Dot)

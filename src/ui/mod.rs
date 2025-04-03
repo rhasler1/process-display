@@ -1,1 +1,1 @@
-pub mod process_list_widget;
+pub mod process_list_ui;

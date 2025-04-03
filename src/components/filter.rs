@@ -1,18 +1,27 @@
-use std::io;
+use anyhow::Result;
 use crossterm::event::{KeyEvent, KeyCode};
 use ratatui::{
     Frame,
     prelude::*,
     widgets::{block::*, *},
 };
+use crate::config::Config;
 use super::{EventState, DrawableComponent, Component};
 
 #[derive(Default)]
 pub struct FilterComponent {
     input_str: String,
+    pub config: Config,
 }
 
 impl FilterComponent {
+    pub fn new(config: Config) -> Self {
+        Self {
+            input_str: String::new(),
+            config: config,
+        }
+    }
+
     pub fn reset(&mut self) {
         self.input_str.clear();
     }
@@ -27,7 +36,7 @@ impl FilterComponent {
 }
 
 impl Component for FilterComponent {
-    fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
+    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
         match key.code {
             KeyCode::Char(c) => {
                 self.input_str.push(c);
@@ -43,15 +52,15 @@ impl Component for FilterComponent {
 }
 
 impl DrawableComponent for FilterComponent {
-    fn draw(&mut self, f: &mut Frame, area: ratatui::prelude::Rect, focused: bool) -> io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: ratatui::prelude::Rect, focused: bool) -> Result<()> {
         let title: &str = "Filter";
 
         let style: Style =
         if focused {
-            Style::default().fg(Color::White)
+            self.config.theme_config.component_in_focus
         }
         else {
-            Style::default().fg(Color::DarkGray)
+            self.config.theme_config.component_out_of_focus
         };
 
         let filter_text: &str = self.input_str.as_str();

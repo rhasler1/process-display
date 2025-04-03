@@ -1,33 +1,25 @@
-//todo: determine what is needed to render process list widget
-// 1. chunk of list
 use process_list::ListIterator;
-use crate::{components::process::Focus, config::ThemeConfig};
+use crate::config::ThemeConfig;
 use ratatui::{
     Frame,
     prelude::*,
     widgets::{block::*, *},
 };
 
-pub struct ProcessListWidget<'a> {
+pub struct ProcessListUI<'a> {
     pub visible_items: ListIterator<'a>,
-    pub focus: Focus,
     pub follow_selection: bool,
     pub theme_config: ThemeConfig,
 }
 
-impl<'a> ProcessListWidget<'a> {
-    pub fn draw(self, f: &mut Frame, area: Rect, _focus: bool) {
+impl<'a> ProcessListUI<'a> {
+    pub fn draw(self, f: &mut Frame, area: Rect, focus: bool) {
         let follow_flag = self.follow_selection;
         let header_style = self.theme_config.list_header;
-        //let header_style = Style::default().fg(Color::Black).bg(Color::Gray);
         let select_style = self.theme_config.item_select;
-        //let select_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
         let select_follow_style = self.theme_config.item_select_follow;
-        //let select_follow_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
         let default_style = self.theme_config.item_style;
-        //let default_style = Style::default().fg(Color::White);
         let out_of_focus_style = self.theme_config.component_out_of_focus;
-        //let out_of_focus_style = Style::default().fg(Color::DarkGray);
 
         // setting header
         let header = ["", "Pid", "Name", "CPU Usage (%)", "Memory Usage (Bytes)"]
@@ -35,7 +27,7 @@ impl<'a> ProcessListWidget<'a> {
             .map(Cell::from)
             .collect::<Row>()
             .style(
-                if matches!(self.focus, Focus::List) {
+                if focus {
                     header_style
                 }
                 else {
@@ -48,13 +40,13 @@ impl<'a> ProcessListWidget<'a> {
         let rows = self.visible_items
             .map(|(item, selected)| {
                 let style =
-                    if matches!(self.focus, Focus::List) && selected && follow_flag {
+                    if focus && selected && follow_flag {
                         select_follow_style
                     }
-                    else if matches!(self.focus, Focus::List) && selected && !follow_flag {
+                    else if focus && selected && !follow_flag {
                         select_style
                     }
-                    else if matches!(self.focus, Focus::List) {
+                    else if focus {
                         default_style
                     }
                     else {
@@ -90,7 +82,7 @@ impl<'a> ProcessListWidget<'a> {
         // Setting block information.
         let block_title: &str = "Process List";
         let block_style =
-            if matches!(self.focus, Focus::List) {
+            if focus {
                 Style::default().fg(Color::White)
             }
             else {

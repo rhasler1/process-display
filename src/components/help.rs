@@ -1,4 +1,4 @@
-use std::io;
+use anyhow::Result;
 use itertools::Itertools;
 use crossterm::event::KeyEvent;
 use ratatui::{
@@ -16,7 +16,7 @@ pub struct HelpComponent {
     cmds: Vec<CommandInfo>,
     visible: bool,
     selection: u16,
-    config: Config,
+    pub config: Config,
 }
 
 impl HelpComponent {
@@ -93,7 +93,7 @@ impl HelpComponent {
         self.visible = false;
     }
 
-    fn show(&mut self) -> io::Result<()> {
+    fn show(&mut self) -> Result<()> {
         self.visible = true;
 
         Ok(())
@@ -102,7 +102,7 @@ impl HelpComponent {
 }
 
 impl Component for HelpComponent {
-    fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
+    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
         if self.visible {
             if key.code == self.config.key_config.exit_popup {
                 self.hide();
@@ -126,7 +126,7 @@ impl Component for HelpComponent {
 }
 
 impl DrawableComponent for HelpComponent {
-    fn draw(&mut self, f: &mut Frame, _area: Rect, _focused: bool) -> io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, _area: Rect, _focused: bool) -> Result<()> {
         if self.visible {
             const SIZE: (u16, u16) = (65, 24);
             let scroll_threshold = SIZE.1 / 3;

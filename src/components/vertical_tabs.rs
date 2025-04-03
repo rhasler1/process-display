@@ -1,3 +1,4 @@
+use anyhow::Result;
 use ratatui::{
     Frame,
     prelude::*,
@@ -84,7 +85,7 @@ impl VerticalTabComponent {
 }
 
 impl Component for VerticalTabComponent {
-    fn event(&mut self, key: crossterm::event::KeyEvent) -> std::io::Result<EventState> {
+    fn event(&mut self, key: crossterm::event::KeyEvent) -> Result<EventState> {
         if key.code == self.key_config.move_up {
             self.update_selected_tab(MoveTabDirection::Up);
             return Ok(EventState::Consumed);
@@ -98,7 +99,7 @@ impl Component for VerticalTabComponent {
 }
 
 impl DrawableComponent for VerticalTabComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> std::io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
         let selected_tab = self.selected_vert_tab.clone() as usize;
         let selected_style = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
         let default_style = Style::default().fg(Color::DarkGray);

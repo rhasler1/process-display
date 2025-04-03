@@ -1,5 +1,5 @@
+use anyhow::Result;
 use std::io;
-use std::error::Error;
 use crossterm::ExecutableCommand;
 use crossterm::{
     execute,
@@ -20,8 +20,7 @@ pub mod components;
 pub mod ui;
 pub mod events;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
 
     // terminal setup
     setup_terminal()?;
@@ -39,7 +38,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut app = App::new(config);
 
 
-    app.refresh().await?;
+    app.init()?;
 
     // clear terminal
     terminal.clear()?;
@@ -59,7 +58,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
         // process next event
         match events.next()? {
-            Event::Input(key) => match app.event(key).await {
+            Event::Input(key) => match app.event(key) {
                 Ok(state) => {
                     if !state.is_consumed() && key.code == app.config.key_config.exit_popup {
                         break;
@@ -69,7 +68,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     app.error.set(err.to_string())?;
                 }
             }
-            Event::Refresh => match app.refresh().await {
+            Event::Refresh => match app.refresh() {
                 Ok(_state) => {}
                 Err(err) => {
                     app.error.set(err.to_string())?;
@@ -91,7 +90,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn setup_terminal() -> Result<(), Box<dyn Error>> {
+fn setup_terminal() -> Result<()> {
     enable_raw_mode()?;
     io::stdout().execute(EnterAlternateScreen)?;
     Ok(())

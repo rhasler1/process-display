@@ -103,32 +103,11 @@ pub struct ThemeConfig {
     pub item_style: Style,      //default
     pub item_select: Style,
     pub item_select_follow: Style,
-    pub component_out_of_focus: Style,  
+    pub component_out_of_focus: Style,
+    pub component_in_focus: Style,
 }
 
 impl ThemeConfig {
-    pub fn dark_theme() -> Self {
-        Self {
-            theme_variant: ThemeVariant::Dark,
-            list_header: Style::default().fg(Color::Black).bg(Color::Gray),
-            item_style: Style::default().fg(Color::White),
-            item_select: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD),
-            item_select_follow: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED),
-            component_out_of_focus: Style::default().fg(Color::DarkGray),
-        }
-    }
-
-    pub fn light_theme() -> Self {
-        Self {
-            theme_variant: ThemeVariant::Light,
-            list_header: Style::default().fg(Color::White).bg(Color::Black),
-            item_style: Style::default().fg(Color::Black),
-            item_select: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD),
-            item_select_follow: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED),
-            component_out_of_focus: Style::default().fg(Color::DarkGray),
-        }
-    }
-
     fn set_dark_theme(&mut self) {
         self.theme_variant = ThemeVariant::Dark;
         self.list_header = Style::default().fg(Color::Black).bg(Color::Gray);
@@ -136,6 +115,7 @@ impl ThemeConfig {
         self.item_select = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
         self.item_select_follow = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
         self.component_out_of_focus = Style::default().fg(Color::DarkGray);
+        self.component_in_focus = Style::default().fg(Color::White);
     }
 
     fn set_light_theme(&mut self) {
@@ -145,6 +125,7 @@ impl ThemeConfig {
         self.item_select = Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD);
         self.item_select_follow = Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
         self.component_out_of_focus = Style::default().fg(Color::DarkGray);
+        self.component_in_focus = Style::default().fg(Color::White);
     }
 
     pub fn toggle_themes(&mut self) {
@@ -158,6 +139,14 @@ impl ThemeConfig {
 
 impl Default for ThemeConfig {
     fn default() -> Self {
-        ThemeConfig::dark_theme()
+        Self {
+            theme_variant: ThemeVariant::Dark,
+            list_header: Style::default().fg(Color::Black).bg(Color::Gray),
+            item_style: Style::default().fg(Color::White),
+            item_select: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD),
+            item_select_follow: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED),
+            component_out_of_focus: Style::default().fg(Color::DarkGray),
+            component_in_focus: Style::default().fg(Color::White),
+        }
     }
 }

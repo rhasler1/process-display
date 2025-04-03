@@ -1,9 +1,4 @@
-// todo:
-// 1. clean up code relating to process-list backend
-// 2. clean up code relating to FilterComponent
-// 3. work on/improve UI 
-
-use std::io;
+use anyhow::{Ok, Result};
 use crossterm::event::KeyEvent;
 use ratatui::{
     Frame,
@@ -15,7 +10,7 @@ use super::{common_nav, common_sort};
 use super::{filter::FilterComponent, Component, DrawableComponent, EventState};
 use super::utils::vertical_scroll::VerticalScroll;
 use crate::config::Config;
-use crate::{config::KeyConfig, ui::process_list_widget::ProcessListWidget};
+use crate::{config::KeyConfig, ui::process_list_ui::ProcessListUI};
 
 // focus of process component, this can be on either a ProcessList or FilterComponent
 #[derive(PartialEq, Clone)]
@@ -39,7 +34,7 @@ impl ProcessComponent {
         Self {
             focus: Focus::List,
             list: ProcessList::default(),
-            filter: FilterComponent::default(),
+            filter: FilterComponent::new(config.clone()),
             filtered_list: None,
             scroll: VerticalScroll::new(),
             config: config,
@@ -80,7 +75,7 @@ impl ProcessComponent {
 
 impl Component for ProcessComponent {
     // Handle key events for ProcessComponent.
-    fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
+    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
         //  If they key event is filter and the ProcessComponent Focus is on the List, then move the focus to Filter and return.
         if key.code == self.config.key_config.filter && self.focus == Focus::List {
             self.focus = Focus::Filter;
@@ -179,7 +174,7 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
 // Function calls common_sort, common_sort checks if key can be consumed, if so,
 // Some(ListSortOrder) is returned and list.sort(ListSortOrder) is called.
 // Else return false.
-fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> io::Result<bool> {
+fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> Result<bool> {
     if let Some(sort) = common_sort(key, key_config) {
         list.sort(&sort);
         Ok(true)
@@ -190,7 +185,7 @@ fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> i
 }
 
 impl DrawableComponent for ProcessComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
         // splitting the parameter area into two vertical chunks
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -233,9 +228,9 @@ impl DrawableComponent for ProcessComponent {
 
         let list_iterator = list.iterate(self.scroll.get_top(), visible_list_height);
 
-        let process_list_widget = ProcessListWidget {
+        // re-creating process list ui on every draw event--this can be optimized--add UI state to process component
+        let process_list_widget = ProcessListUI {
             visible_items: list_iterator,
-            focus: self.focus.clone(),
             follow_selection: list.is_follow_selection(),
             theme_config: self.config.theme_config.clone(), 
         };
@@ -244,22 +239,11 @@ impl DrawableComponent for ProcessComponent {
 
         process_list_widget.draw(f, vertical_chunks[1], matches!(self.focus, Focus::List));
 
-
-
-
-
-
-        // Draw process list
-        //self.draw_process_list(f, vertical_chunks[1], matches!(self.focus, Focus::List))?;
-
-        // Draw scrollbar
         self.scroll.draw(f, vertical_chunks[1], false)?;
 
         Ok(())
     }
 }
-
-
 
 #[cfg(test)]
 mod test {
