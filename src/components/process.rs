@@ -8,17 +8,17 @@ use crossterm::event::KeyEvent;
 use ratatui::{
     Frame,
     prelude::*,
-    widgets::{block::*, *},
 };
-use process_list::{ProcessList, ProcessListItems, ProcessListItem};
+use process_list::{ProcessList, ProcessListItem, ProcessListItems};
 
 use super::{common_nav, common_sort};
 use super::{filter::FilterComponent, Component, DrawableComponent, EventState};
 use super::utils::vertical_scroll::VerticalScroll;
-use crate::config::KeyConfig;
+use crate::config::Config;
+use crate::{config::KeyConfig, ui::process_list_widget::ProcessListWidget};
 
 // focus of process component, this can be on either a ProcessList or FilterComponent
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum Focus {
     Filter,
     List,
@@ -30,31 +30,29 @@ pub struct ProcessComponent {
     filter: FilterComponent,
     filtered_list: Option<ProcessList>,
     scroll: VerticalScroll,
-    key_config: KeyConfig,
+    pub config: Config,
 }
 
 impl ProcessComponent {
-    // New constructor.
-    pub fn new(key_config: KeyConfig) -> Self {
+    // constructor
+    pub fn new(config: Config) -> Self {
         Self {
             focus: Focus::List,
             list: ProcessList::default(),
             filter: FilterComponent::default(),
             filtered_list: None,
             scroll: VerticalScroll::new(),
-            key_config: key_config.clone(),
+            config: config,
         }
     }
 
-    // This function is used to update the process lists. Presumeably there will
-    // will always be an unfiltered list, it is updated without any conditions.
-    // The filtered list is only updated if there is some filtered list.
-
-    // update process list
-    pub fn update(&mut self, new_processes: &Vec<ProcessListItem>) {
-        // it is assumed new_processes will never be empty, if it is, then
-        // check system component and sysinfo crate backend
-        self.list.update(new_processes);
+    // update process list, return true if new processes is non empty
+    pub fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> bool {
+        if new_processes.is_empty() {
+            return false
+        }
+        
+        self.list.update(new_processes);   
 
         if let Some(filtered_list) = self.filtered_list.as_mut() {
             // filter new processes
@@ -63,13 +61,14 @@ impl ProcessComponent {
             let filtered_processes = processes.filter(&filter_text);
             filtered_list.update(&filtered_processes.list_items);
         }
+        true
     }
 
-    // gets the selected process pid
+    // gets the selected process pid, returns Some(pid) or None
     pub fn selected_pid(&self) -> Option<u32> {
         if matches!(self.focus, Focus::List) {
-            if let Some(list) = self.filtered_list.as_ref() {
-                return list.selected_pid()
+            if let Some(filtered_list) = self.filtered_list.as_ref() {
+                return filtered_list.selected_pid()
             }
             else {
                 return self.list.selected_pid()
@@ -77,129 +76,13 @@ impl ProcessComponent {
         }
         None
     }
-
-    fn draw_process_list(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
-        // Setting the list height to the height of the vertical chunk for the process list; We are subtracting
-        // three from the height to account for the area that will be taken up by the border around the list.
-        let visual_list_height = (area.height.saturating_sub(3)) as usize;
-
-        // Getting the list to display; If there is some filtered list display it, else display the unfiltered list.
-        let list = if let Some(list) = self.filtered_list.as_ref() {
-            list
-        }
-        else {
-            &self.list
-        };
-
-        // Updating the scroll struct which calculates the position at the top of the displayed list.
-        list.selection().map_or_else(
-            { ||
-                self.scroll.reset()
-            }, |selection| {
-                self.scroll.update(
-                    selection,list.len(), visual_list_height
-                );
-            },
-        );
-
-        // Getting the boolean list.follow(); The follow_flag is used to differentiate between a selected item being followed(underlined) and not.
-        let follow_flag = list.is_follow_selection();
-        // Different styles used to visually differentiate between components and focus.
-        let header_style = Style::default().fg(Color::Black).bg(Color::Gray);
-        let select_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
-        let select_follow_style = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
-        let default_style = Style::default().fg(Color::White);
-        let out_of_focus_style = Style::default().fg(Color::DarkGray);
-
-        // Setting the header.
-        let header = ["", "Pid", "Name", "CPU Usage (%)", "Memory Usage (Bytes)"]
-            .into_iter()
-            .map(Cell::from)
-            .collect::<Row>()
-            .style(
-                if matches!(self.focus, Focus::List) {
-                    header_style
-                }
-                else {
-                    out_of_focus_style
-                }
-            )
-            .height(1);
-
-        // Setting the rows to display; The iterate function iterates starting from the value self.scroll.get_top() and a list_height number of times.
-        // We don't iterate over the entire list everytime we draw the list, instead we only iterate over the portion that is being displayed.
-        // See process_structs::list_items_iter::next for the implementation.
-        let rows = list
-            .iterate(self.scroll.get_top(), visual_list_height)
-            .map(|(item, selected)| {
-                let style =
-                    if matches!(self.focus, Focus::List) && selected && follow_flag {
-                        select_follow_style
-                    }
-                    else if matches!(self.focus, Focus::List) && selected && !follow_flag {
-                        select_style
-                    }
-                    else if matches!(self.focus, Focus::List) {
-                        default_style
-                    }
-                    else {
-                        out_of_focus_style
-                    };
-
-                let cells: Vec<Cell> = vec![
-                    if style == select_style || style == select_follow_style {
-                        Cell::from(String::from("->"))
-                    }
-                    else {
-                        Cell::from(String::from(""))
-                    },
-                    Cell::from(item.pid().to_string()),
-                    Cell::from(item.name().to_string()),
-                    Cell::from(item.cpu_usage().to_string()),
-                    Cell::from(item.memory_usage().to_string()),
-                ];
-                Row::new(cells).style(style)
-            })
-            .collect::<Vec<_>>();
-
-        // Setting the width constraints.
-        let widths =
-            vec![
-                Constraint::Length(2),
-                Constraint::Length(10),
-                Constraint::Length(50),
-                Constraint::Length(20),
-                Constraint::Length(20),
-            ];
-
-        // Setting block information.
-        let block_title: &str = "Process List";
-        let block_style =
-            if matches!(self.focus, Focus::List) {
-                Style::default().fg(Color::White)
-            }
-            else {
-                Style::default().fg(Color::DarkGray)
-            };
-
-        // Setting the table.
-        let table = Table::new(rows, widths)
-            .header(header)
-            .block(Block::default().borders(Borders::ALL).title(block_title))
-            .style(block_style);
-
-        // Render.
-        f.render_widget(table, area);
-
-        Ok(())
-    }
 }
 
 impl Component for ProcessComponent {
     // Handle key events for ProcessComponent.
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         //  If they key event is filter and the ProcessComponent Focus is on the List, then move the focus to Filter and return.
-        if key.code == self.key_config.filter && self.focus == Focus::List {
+        if key.code == self.config.key_config.filter && self.focus == Focus::List {
             self.focus = Focus::Filter;
             return Ok(EventState::Consumed)
         }
@@ -217,7 +100,7 @@ impl Component for ProcessComponent {
         }
 
         // If the key event is enter and the focus is on the Filter, then change the focus to List and return.
-        if key.code == self.key_config.enter && matches!(self.focus, Focus::Filter) {
+        if key.code == self.config.key_config.enter && matches!(self.focus, Focus::Filter) {
             self.focus = Focus::List;
             return Ok(EventState::Consumed)
         }
@@ -242,13 +125,13 @@ impl Component for ProcessComponent {
                     &mut self.list
                 },
                 key,
-                &self.key_config
+                &self.config.key_config
             ) {
                 return Ok(EventState::Consumed);
             }
 
             // Check if the key is to change the follow_selection value.
-            else if key.code == self.key_config.follow_selection {
+            else if key.code == self.config.key_config.follow_selection {
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
                     filtered_list.change_follow_selection();
                 }
@@ -269,7 +152,7 @@ impl Component for ProcessComponent {
                     &mut self.list
                 },
                 key,
-                &self.key_config
+                &self.config.key_config
             )? {
                 return Ok(EventState::Consumed);
             }
@@ -278,6 +161,7 @@ impl Component for ProcessComponent {
         Ok(EventState::NotConsumed)
     }
 }
+
 
 // Function calls common_nav, common_nav checks if key can be consumed, if so,
 // Some(MoveSelection) is returned and list.move_selection(MoveSelection) is called.
@@ -307,7 +191,7 @@ fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> i
 
 impl DrawableComponent for ProcessComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> io::Result<()> {
-        // Splitting the parameter area into two vertical chunks.
+        // splitting the parameter area into two vertical chunks
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -316,7 +200,7 @@ impl DrawableComponent for ProcessComponent {
             ].as_ref())
             .split(area);
 
-        // Splitting the vertical chunk for the TabComponent and FilterComponent into two horizontal chunks.
+        // splitting the vertical chunk for the TabComponent and FilterComponent into two horizontal chunks
         let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
@@ -325,18 +209,57 @@ impl DrawableComponent for ProcessComponent {
             ].as_ref())
             .split(vertical_chunks[0]);
 
-        // Drawing the filter component.
+        // calculate list
+        let visible_list_height = vertical_chunks[1].height.saturating_sub(3) as usize;
+
+        // determine list to display
+        let list = if let Some(filtered_list) = self.filtered_list.as_ref() {
+            filtered_list
+        }
+        else {
+            &self.list
+        };
+
+        // updating the scroll struct which calculates the position at the top of the displayed list.
+        list.selection().map_or_else(
+            { ||
+                self.scroll.reset()
+            }, |selection| {
+                self.scroll.update(
+                    selection,list.len(), visible_list_height
+                );
+            },
+        );
+
+        let list_iterator = list.iterate(self.scroll.get_top(), visible_list_height);
+
+        let process_list_widget = ProcessListWidget {
+            visible_items: list_iterator,
+            focus: self.focus.clone(),
+            follow_selection: list.is_follow_selection(),
+            theme_config: self.config.theme_config.clone(), 
+        };
+
         self.filter.draw(f, horizontal_chunks[1], matches!(self.focus, Focus::Filter))?;
 
-        // Draw process list.
-        self.draw_process_list(f, vertical_chunks[1], matches!(self.focus, Focus::List))?;
+        process_list_widget.draw(f, vertical_chunks[1], matches!(self.focus, Focus::List));
 
-        // Draw scrollbar.
+
+
+
+
+
+        // Draw process list
+        //self.draw_process_list(f, vertical_chunks[1], matches!(self.focus, Focus::List))?;
+
+        // Draw scrollbar
         self.scroll.draw(f, vertical_chunks[1], false)?;
 
         Ok(())
     }
 }
+
+
 
 #[cfg(test)]
 mod test {

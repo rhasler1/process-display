@@ -3,8 +3,8 @@ use crossterm::event::KeyEvent;
 use sysinfo::{System, Pid};
 use process_list::ProcessListItem;
 use performance_queue::{CpuItem, MemoryItem};
+use crate::config::Config;
 use super::{Component, EventState};
-use super::KeyConfig;
 
 // See here for refreshing system: https://crates.io/crates/sysinfo#:~:text=use%20sysinfo%3A%3ASystem,(sysinfo%3A%3AMINIMUM_CPU_UPDATE_INTERVAL)%3B%0A%7D
 // note: sysinfo::MINIMUM_CPU_UPDATE_INTERVAL = 200 ms
@@ -12,15 +12,15 @@ use super::KeyConfig;
 pub struct SystemComponent {
     system: System,
     //network: Networks,
-    _key_config: KeyConfig
+    _config: Config
 }
 
 impl SystemComponent {
-    pub fn new(key_config: KeyConfig) -> Self  {
+    pub fn new(config: Config) -> Self  {
         Self {
             system: System::new_all(),
             //network: Networks::new_with_refreshed_list(),
-            _key_config: key_config,
+            _config: config
         }
     }
 

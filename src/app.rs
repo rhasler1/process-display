@@ -31,18 +31,24 @@ impl App {
     // New constructor.
     pub fn new(config: Config) -> Self {
         Self {
-            system: SystemComponent::new(config.key_config.clone()),
-            process: ProcessComponent::new(config.key_config.clone()),
+            system: SystemComponent::new(config.clone()),
+            process: ProcessComponent::new(config.clone()),
             performance: PerformanceComponent::new(config.clone(), 10),
-            tab: TabComponent::new(config.key_config.clone()),
-            help: HelpComponent::new(config.key_config.clone()),
-            error: ErrorComponent::new(config.key_config.clone()),
+            tab: TabComponent::new(config.clone()),
+            help: HelpComponent::new(config.clone()),
+            error: ErrorComponent::new(config.clone()),
             config: config.clone(),
         }
     }
 
     pub async fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         self.update_commands();
+
+        if key.code == self.config.key_config.toggle_themes {
+            self.config.theme_config.toggle_themes();
+            self.process.config.theme_config.toggle_themes();
+            return Ok(EventState::Consumed)
+        }
 
         if self.components_event(key).await?.is_consumed() {
             return Ok(EventState::Consumed);
@@ -128,18 +134,18 @@ impl App {
         // Refresh system structure.
         self.system.refresh_all().await?;
         // Update process component.
-        self.update_process()?;
+        self.update_process();
         // Update performance component.
         self.update_performance()?;
 
         Ok(())
     }
 
-    fn update_process(&mut self) -> io::Result<()> {
-        //let new_processes = self.system.get_process_list();
+    // return result of process update
+    fn update_process(&mut self) -> bool {
         let new_processes = self.system.get_processes();
-        self.process.update(&new_processes);
-        Ok(())
+        let res = self.process.update(&new_processes);
+        res
     }
 
     fn update_performance(&mut self) -> io::Result<()> {

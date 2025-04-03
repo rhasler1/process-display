@@ -5,7 +5,7 @@ use ratatui::{
     text::Span,
 };
 use super::{DrawableComponent, Component, EventState};
-use crate::config::KeyConfig;
+use crate::config::Config;
 
 #[derive(Clone, PartialEq)]
 enum MoveTabDirection {
@@ -22,22 +22,22 @@ pub enum Tab {
 
 pub struct TabComponent {
     pub selected_tab: Tab,
-    key_config: KeyConfig,
+    config: Config,
 }
 
 impl TabComponent {
     // default constructor
-    pub fn new(key_config: KeyConfig) -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
             selected_tab: Tab::Process,
-            key_config: key_config,
+            config: config,
         }
     }
 
     // set internal TabComponent State to default
     pub fn reset(&mut self) {
         self.selected_tab = Tab::Process;
-        self.key_config = KeyConfig::default();
+        self.config = Config::default();
     }
 
     // String representation of Tab variants used in self.draw()
@@ -81,11 +81,11 @@ impl TabComponent {
 
 impl Component for TabComponent {
     fn event(&mut self, key: crossterm::event::KeyEvent) -> std::io::Result<EventState> {
-        if key.code == self.key_config.tab_right {
+        if key.code == self.config.key_config.tab_right {
             self.update_selected_tab(MoveTabDirection::Right);
             return Ok(EventState::Consumed);
         }
-        else if key.code == self.key_config.tab_left {
+        else if key.code == self.config.key_config.tab_left {
             self.update_selected_tab(MoveTabDirection::Left);
             return Ok(EventState::Consumed);
         }

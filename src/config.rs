@@ -1,9 +1,10 @@
 use crossterm::event::KeyCode;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize,Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct Config {
     pub key_config: KeyConfig,
+    pub theme_config: ThemeConfig,
     refresh_rate: u64,
     tick_rate: u64,
 }
@@ -12,6 +13,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             key_config: KeyConfig::default(),
+            theme_config: ThemeConfig::default(),
             refresh_rate: 5000,
             tick_rate: 250,
         }
@@ -51,6 +53,7 @@ pub struct KeyConfig {
     pub sort_memory_usage_inc: KeyCode,
     pub sort_memory_usage_dec: KeyCode,
     pub follow_selection: KeyCode,
+    pub toggle_themes: KeyCode,
 }
 
 impl Default for KeyConfig {
@@ -81,6 +84,80 @@ impl Default for KeyConfig {
             sort_memory_usage_inc: KeyCode::Char('m'),
             sort_memory_usage_dec: KeyCode::Char('M'),
             follow_selection: KeyCode::Char('f'),
+            toggle_themes: KeyCode::Char('t'),
         }
+    }
+}
+
+#[derive(Clone,PartialEq,Serialize,Deserialize)]
+pub enum ThemeVariant {
+    Dark,
+    Light,
+}
+
+use ratatui::prelude::{Style,Color,Modifier};
+#[derive(Clone,PartialEq,Serialize,Deserialize)]
+pub struct ThemeConfig {
+    pub theme_variant: ThemeVariant,
+    pub list_header: Style,
+    pub item_style: Style,      //default
+    pub item_select: Style,
+    pub item_select_follow: Style,
+    pub component_out_of_focus: Style,  
+}
+
+impl ThemeConfig {
+    pub fn dark_theme() -> Self {
+        Self {
+            theme_variant: ThemeVariant::Dark,
+            list_header: Style::default().fg(Color::Black).bg(Color::Gray),
+            item_style: Style::default().fg(Color::White),
+            item_select: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD),
+            item_select_follow: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED),
+            component_out_of_focus: Style::default().fg(Color::DarkGray),
+        }
+    }
+
+    pub fn light_theme() -> Self {
+        Self {
+            theme_variant: ThemeVariant::Light,
+            list_header: Style::default().fg(Color::White).bg(Color::Black),
+            item_style: Style::default().fg(Color::Black),
+            item_select: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD),
+            item_select_follow: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED),
+            component_out_of_focus: Style::default().fg(Color::DarkGray),
+        }
+    }
+
+    fn set_dark_theme(&mut self) {
+        self.theme_variant = ThemeVariant::Dark;
+        self.list_header = Style::default().fg(Color::Black).bg(Color::Gray);
+        self.item_style = Style::default().fg(Color::White);
+        self.item_select = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
+        self.item_select_follow = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
+        self.component_out_of_focus = Style::default().fg(Color::DarkGray);
+    }
+
+    fn set_light_theme(&mut self) {
+        self.theme_variant = ThemeVariant::Light;
+        self.list_header = Style::default().fg(Color::White).bg(Color::Black);
+        self.item_style = Style::default().fg(Color::Black);
+        self.item_select = Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD);
+        self.item_select_follow = Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
+        self.component_out_of_focus = Style::default().fg(Color::DarkGray);
+    }
+
+    pub fn toggle_themes(&mut self) {
+        if self.theme_variant == ThemeVariant::Dark {
+            self.set_light_theme();
+            return
+        }
+        self.set_dark_theme();
+    }
+}
+
+impl Default for ThemeConfig {
+    fn default() -> Self {
+        ThemeConfig::dark_theme()
     }
 }

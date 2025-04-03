@@ -1,10 +1,8 @@
 use std::io;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
-
 use process_list::{ListSortOrder, MoveSelection};
 use super::config::KeyConfig;
-
 pub mod system;
 pub mod filter;
 pub mod help;

@@ -6,7 +6,7 @@ use ratatui::{
     prelude::*,
     widgets::*,
 };
-use crate::config::KeyConfig;
+use crate::config::Config;
 use super::command::CommandInfo;
 use super::EventState;
 use super::DrawableComponent;
@@ -16,16 +16,16 @@ pub struct HelpComponent {
     cmds: Vec<CommandInfo>,
     visible: bool,
     selection: u16,
-    key_config: KeyConfig,
+    config: Config,
 }
 
 impl HelpComponent {
-    pub const fn new(key_config: KeyConfig) -> Self {
+    pub const fn new(config: Config) -> Self {
         Self {
             cmds: vec![],
             visible: false,
             selection: 0,
-            key_config,
+            config: config,
         }
     }
 
@@ -104,20 +104,20 @@ impl HelpComponent {
 impl Component for HelpComponent {
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         if self.visible {
-            if key.code == self.key_config.exit_popup {
+            if key.code == self.config.key_config.exit_popup {
                 self.hide();
                 return Ok(EventState::Consumed);
             }
-            else if key.code == self.key_config.move_down {
+            else if key.code == self.config.key_config.move_down {
                 self.scroll_selection(true);
                 return Ok(EventState::Consumed);
             }
-            else if key.code == self.key_config.move_up {
+            else if key.code == self.config.key_config.move_up {
                 self.scroll_selection(false);
                 return Ok(EventState::Consumed);
             }
         }
-        else if key.code == self.key_config.open_help {
+        else if key.code == self.config.key_config.open_help {
             self.show()?;
             return Ok(EventState::Consumed);
         }

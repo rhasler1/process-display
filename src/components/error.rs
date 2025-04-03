@@ -5,22 +5,22 @@ use ratatui::{
     prelude::*,
     widgets::*,
 };
-use crate::config::KeyConfig;
+use crate::config::Config;
 use crate::components::Component;
 use super::{DrawableComponent, EventState};
 
 pub struct ErrorComponent {
     pub error: String,
     visible: bool,
-    key_config: KeyConfig,
+    config: Config,
 }
 
 impl ErrorComponent {
-    pub fn new(key_config: KeyConfig) -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
             error: String::new(),
             visible: false,
-            key_config: key_config,
+            config: config,
         }
     }
 }
@@ -45,7 +45,7 @@ impl ErrorComponent {
 impl Component for ErrorComponent {
     fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
         if self.visible {
-            if key.code == self.key_config.exit_popup {
+            if key.code == self.config.key_config.exit_popup {
                 self.error = String::new();
                 self.hide()?;
                 return Ok(EventState::Consumed);
