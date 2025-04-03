@@ -5,6 +5,7 @@ use process_list::ProcessListItem;
 use performance_queue::{CpuItem, MemoryItem};
 use crate::config::Config;
 use super::{Component, EventState};
+use process_list::ProcessItemInfo;
 
 // See here for refreshing system: https://crates.io/crates/sysinfo#:~:text=use%20sysinfo%3A%3ASystem,(sysinfo%3A%3AMINIMUM_CPU_UPDATE_INTERVAL)%3B%0A%7D
 // note: sysinfo::MINIMUM_CPU_UPDATE_INTERVAL = 200 ms
@@ -43,7 +44,7 @@ impl SystemComponent {
         }
         let global_cpu_usage = self.system.global_cpu_usage();
         let brand_cpu = String::from(brand_cpu);
-        let num_cores = self.system.physical_core_count();
+        let num_cores = sysinfo::System::physical_core_count();
         let item = CpuItem::new(global_cpu_usage, num_cores, cpu_frequency, brand_cpu);
         item
     }
@@ -82,6 +83,23 @@ impl SystemComponent {
             process.kill();
         }
         Ok(true)
+    }
+
+    pub fn detailed_process_info(&mut self, pid: u32) -> Option<ProcessItemInfo> {
+        if let Some(process) = self.system.process(Pid::from_u32(pid)) {
+            let start_time = process.start_time();
+            let run_time = process.run_time();
+            let accumulated_cpu_time = process.accumulated_cpu_time();
+            let status = process.status().to_string();
+            // should be a better way to do this lol
+            //todo: let path = process.exe();
+            //todo: let env_vars = process.environ();
+            
+            let item_info = ProcessItemInfo::new(start_time, run_time, accumulated_cpu_time, status);
+            
+            return Some(item_info)
+        }
+        None
     }
 }
 

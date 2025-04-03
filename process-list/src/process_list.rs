@@ -122,6 +122,9 @@ impl ProcessList {
         // sort items
         self.items.sort_items(sort);
 
+        // set sort field
+        self.sort = sort.clone();
+
         // if follow selection, then set self.selection to the new index of the selected item's pid.
         if self.follow_selection {
             self.selection = pid.and_then(|p| self.items.get_idx(p));
