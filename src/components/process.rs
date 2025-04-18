@@ -186,17 +186,17 @@ fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> R
 }
 
 impl DrawableComponent for ProcessComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()> {
         // split for filter
         let horizontal_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Percentage(70),
+                Constraint::Fill(1),
                 Constraint::Length(3),
             ]).split(area);
 
         // calculate visible list height
-        let visible_list_height = area.height.saturating_sub(3) as usize;
+        let visible_list_height = horizontal_chunks[0].height.saturating_sub(3) as usize;
 
         // determine list to display
         let list = if let Some(filtered_list) = self.filtered_list.as_ref() {
@@ -223,21 +223,36 @@ impl DrawableComponent for ProcessComponent {
             f, 
             horizontal_chunks[0], 
             visible_items, 
-            self.list.is_follow_selection(), 
-            matches!(self.focus, Focus::List), 
+            self.list.is_follow_selection(),
+            if focused {
+                matches!(self.focus, Focus::List)
+            } 
+            else {
+                false
+            },
             self.config.theme_config.clone()
         );
 
         self.scroll.draw(
             f, 
-            horizontal_chunks[0], 
-            false
+            horizontal_chunks[0],
+            if focused {
+                matches!(self.focus, Focus::List)
+            } 
+            else {
+                false
+            },
         )?;
                 
         self.filter.draw(
             f, 
-            horizontal_chunks[1], 
-            matches!(self.focus, Focus::Filter)
+            horizontal_chunks[1],
+            if focused {
+                matches!(self.focus, Focus::Filter)
+            } 
+            else {
+                false
+            },
         )?;
 
         Ok(())

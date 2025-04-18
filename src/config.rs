@@ -6,6 +6,7 @@ pub struct Config {
     pub key_config: KeyConfig,
     pub theme_config: ThemeConfig,
     refresh_rate: u64,
+    min_as_s: u64,
     events_per_min: u64,
     tick_rate: u64,
 }
@@ -16,6 +17,7 @@ impl Default for Config {
             key_config: KeyConfig::default(),
             theme_config: ThemeConfig::default(),
             refresh_rate: 5000,
+            min_as_s: 60000/ 1000,
             events_per_min: 60000 / 5000,
             tick_rate: 250,
         }
@@ -31,6 +33,10 @@ impl Config {
         self.tick_rate
     }
 
+    pub fn min_as_s(&self) -> u64 {
+        self.min_as_s
+    }
+ 
     pub fn events_per_min(&self) -> u64 {
         self.events_per_min
     }
@@ -61,6 +67,7 @@ pub struct KeyConfig {
     pub follow_selection: KeyCode,
     pub toggle_themes: KeyCode,
     pub process_info: KeyCode,
+    pub expand: KeyCode,
 }
 
 impl Default for KeyConfig {
@@ -93,6 +100,7 @@ impl Default for KeyConfig {
             follow_selection: KeyCode::Char('f'),
             toggle_themes: KeyCode::Char('t'),
             process_info: KeyCode::Enter,
+            expand: KeyCode::Char('e'),
         }
     }
 }
@@ -123,7 +131,7 @@ impl ThemeConfig {
         self.item_select = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
         self.item_select_follow = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
         self.component_out_of_focus = Style::default().fg(Color::DarkGray);
-        self.component_in_focus = Style::default().fg(Color::White);
+        self.component_in_focus = Style::default().fg(Color::LightGreen);
     }
 
     fn set_light_theme(&mut self) {
@@ -133,7 +141,7 @@ impl ThemeConfig {
         self.item_select = Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD);
         self.item_select_follow = Style::default().fg(Color::Black).bg(Color::Cyan).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
         self.component_out_of_focus = Style::default().fg(Color::DarkGray);
-        self.component_in_focus = Style::default().fg(Color::White);
+        self.component_in_focus = Style::default().fg(Color::LightGreen);
     }
 
     pub fn toggle_themes(&mut self) {
@@ -154,7 +162,7 @@ impl Default for ThemeConfig {
             item_select: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD),
             item_select_follow: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED),
             component_out_of_focus: Style::default().fg(Color::DarkGray),
-            component_in_focus: Style::default().fg(Color::White),
+            component_in_focus: Style::default().fg(Color::LightGreen),
         }
     }
 }

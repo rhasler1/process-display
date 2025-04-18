@@ -97,16 +97,29 @@ impl App {
     //   Ok(())
     //}
 
+    fn toggle_expand(&mut self) {
+        if self.expand == true {
+            self.expand = false;
+        }
+        else {
+            self.expand = true;
+        }
+    }
+
     // top level key event processor
     pub fn event(&mut self, key: KeyEvent) -> Result<EventState> {
-        if key.code == self.config.key_config.toggle_themes {
-            self.update_component_themes();
-            return Ok(EventState::Consumed)
-        }
-        else if self.components_event(key)?.is_consumed() {
+        //if key.code == self.config.key_config.toggle_themes {
+        //    self.update_component_themes();
+        //    return Ok(EventState::Consumed)
+        //}
+        if self.components_event(key)?.is_consumed() {
             return Ok(EventState::Consumed);
         }
         else if self.move_focus(key)?.is_consumed() {
+            return Ok(EventState::Consumed);
+        }
+        else if key.code == self.config.key_config.expand {
+            self.toggle_expand();
             return Ok(EventState::Consumed);
         }
 
@@ -114,14 +127,14 @@ impl App {
     }
 
     // toggle color scheme
-    fn update_component_themes(&mut self) {
-        self.config.theme_config.toggle_themes();
-        self.process.config.theme_config.toggle_themes();
-        //self.performance.config.theme_config.toggle_themes();
-        self.help.config.theme_config.toggle_themes();
-        self.system._config.theme_config.toggle_themes();
-        self.tab.config.theme_config.toggle_themes();
-    }
+    //fn update_component_themes(&mut self) {
+    //    self.config.theme_config.toggle_themes();
+    //    self.process.config.theme_config.toggle_themes();
+    //    //self.performance.config.theme_config.toggle_themes();
+    //    self.help.config.theme_config.toggle_themes();
+    //    self.system._config.theme_config.toggle_themes();
+    //    self.tab.config.theme_config.toggle_themes();
+    //}
     
     // update help dialogue--commands
     fn update_commands(&mut self) {
@@ -227,6 +240,12 @@ impl App {
 
         if self.expand {
             // split screen to draw only focused component
+            if matches!(self.focus, MainFocus::Process) {
+                self.process.draw(f, chunks[0], true)?;
+            }
+            if matches!(self.focus, MainFocus::CPU) {
+                self.cpu.draw(f, chunks[0], true)?;
+            }
         }
         else {
             // draw all components
@@ -254,8 +273,8 @@ impl App {
                 horizontal_chunks.push(horizontal_chunk);
             }
 
-            self.process.draw(f, horizontal_chunks[3][1], false)?;
-            self.cpu.draw(f, vertical_chunks[0], false)?;
+            self.process.draw(f, horizontal_chunks[3][1], matches!(self.focus, MainFocus::Process))?;
+            self.cpu.draw(f, vertical_chunks[0], matches!(self.focus, MainFocus::CPU))?;
         }
 
         // if help--help component state determines if anything is drawn

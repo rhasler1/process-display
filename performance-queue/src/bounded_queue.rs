@@ -3,30 +3,30 @@ use std::{collections::VecDeque, io};
 #[derive(Default)]
 pub struct PerformanceQueue<T> {
     pub performance_items: VecDeque<T>,
-    max_size: usize,
+    capacity: usize,
 }
 
 // Clone trait is required for T to clone elements when adding items.
 impl<T: Clone> PerformanceQueue<T> {
-    pub fn new(max_size: usize) -> Self {
+    pub fn new(capacity: usize) -> Self {
         Self {
-            performance_items: VecDeque::with_capacity(max_size),
-            max_size,
+            performance_items: VecDeque::with_capacity(capacity),
+            capacity,
         }
     }
     
     pub fn add_item(&mut self, item: &T) {
-        if self.performance_items.len() < self.max_size {
+        if self.performance_items.len() < self.capacity {
             let item = item.clone();
             self.performance_items.push_back(item);
         }
-        else if self.performance_items.len() == self.max_size {
+        else if self.performance_items.len() == self.capacity {
             self.performance_items.pop_front();
             let item = item.clone();
             self.performance_items.push_back(item);
         }
         else {
-            while self.performance_items.len() >= self.max_size {
+            while self.performance_items.len() >= self.capacity {
                 self.performance_items.pop_front();
             }
             let item = item.clone();
@@ -42,8 +42,8 @@ impl<T: Clone> PerformanceQueue<T> {
         return self.performance_items.back()
     }
 
-    pub fn max_size(&self) -> usize {
-        self.max_size.clone()
+    pub fn capacity(&self) -> usize {
+        self.capacity
     }
 
     pub fn iter(&self) -> std::collections::vec_deque::Iter<'_, T> {

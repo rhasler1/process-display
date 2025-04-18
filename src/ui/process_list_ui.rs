@@ -30,7 +30,7 @@ pub mod process_list_ui {
             .collect::<Row>()
             .style(
                 if focus {
-                    header_style
+                    in_focus_style
                 }
                 else {
                     out_of_focus_style

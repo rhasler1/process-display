@@ -56,22 +56,30 @@ const fn calc_scroll_top(
 }
 
 impl DrawableComponent for VerticalScroll {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()> {
         draw_scrollbar(
             f,
             area,
             self.top.get(),
             self.count.get(),
+            focused,
         );
         Ok(())
     }
 }
 
-fn draw_scrollbar(f: &mut Frame, area: Rect, top: usize, count: usize) {
+fn draw_scrollbar(f: &mut Frame, area: Rect, top: usize, count: usize, focused: bool) {
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .begin_symbol(Some("↑"))
         .end_symbol(Some("↓"))
-        .style(Color::White);
+        .style({
+            if focused {
+                Color::LightGreen
+            }
+            else {
+                Color::DarkGray
+            }
+        });
 
     let mut scrollbar_state = ScrollbarState::new(count).position(top);
     f.render_stateful_widget(scrollbar,

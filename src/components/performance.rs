@@ -47,7 +47,7 @@ impl PerformanceComponent {
 
         let y_axis_title = String::from("Used Memory (GB)");
         let y_bounds = [0.0, self.memory_info.back().unwrap().total_memory_gb() as f64];
-        draw_graph(f, area, refresh_rate, self.memory_info.max_size(), data_points, y_axis_title, y_bounds)?;
+        draw_graph(f, area, refresh_rate, self.memory_info.capacity(), data_points, y_axis_title, y_bounds)?;
         Ok(())
     }
 
@@ -61,7 +61,7 @@ impl PerformanceComponent {
 
         let y_axis_title = String::from("Global CPU Usage (%)");
         let y_bounds = [0.0, 100.0];
-        draw_graph(f, area, refresh_rate, self.cpu_info.max_size(), data_points, y_axis_title, y_bounds)?;
+        draw_graph(f, area, refresh_rate, self.cpu_info.capacity(), data_points, y_axis_title, y_bounds)?;
         Ok(())
     }
 

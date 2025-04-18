@@ -1,10 +1,9 @@
 use std::collections::BTreeMap;
-use std::{collections::HashMap, hash::Hash};
 
-use crossterm::style::style;
 use ratatui::prelude::*;
-use ratatui::style::palette::material::YELLOW;
 use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, ListState};
+
+use std::str::FromStr;
 
 use anyhow::Ok;
 use performance_queue::{PerformanceQueue, CpuItem};
@@ -15,8 +14,61 @@ use super::{Component, DrawableComponent};
 #[derive(Default)]
 pub struct CPUComponent {
     cpus: BTreeMap<usize, PerformanceQueue<CpuItem>>,
-    selection: usize,
+    ui_selection: usize,
     config: Config,
+}
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum ColorWheel {
+    Red,
+    Blue,
+    Cyan,
+    Green,
+    LightGreen,
+    Magenta,
+}
+
+impl Default for ColorWheel {
+    fn default() -> Self {
+        ColorWheel::Red
+    }
+}
+
+impl ColorWheel {
+    const ALL: [ColorWheel; 6] = [
+        ColorWheel::Red,
+        ColorWheel::Blue,
+        ColorWheel::Cyan,
+        ColorWheel::Green,
+        ColorWheel::LightGreen,
+        ColorWheel::Magenta,
+    ];
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ColorWheel::Red => "red",
+            ColorWheel::Blue => "blue",
+            ColorWheel::Cyan => "cyan",
+            ColorWheel::Green => "green",
+            ColorWheel::LightGreen => "lightgreen",
+            ColorWheel::Magenta => "magenta",
+        }
+    }
+
+    pub fn rotate(&mut self) {
+        if let Some(idx) = Self::ALL.iter().position(|c| c == self) {
+            let next_idx = (idx + 1) % Self::ALL.len();
+            *self = Self::ALL[next_idx];
+        }
+    }
+
+    pub fn from_index(index: usize) -> Self {
+        Self::ALL[index % Self::ALL.len()]
+    }
+
+    pub fn reset(&mut self) {
+        *self = Self::default();
+    }
 }
 
 impl CPUComponent {
@@ -36,13 +88,13 @@ impl CPUComponent {
 impl Component for CPUComponent {
     fn event(&mut self, key: crossterm::event::KeyEvent) -> anyhow::Result<super::EventState> {
         if key.code == self.config.key_config.move_down {
-            if self.selection < self.cpus.len() { // this works b/c we prepend ALL to the drawn list
-                self.selection = self.selection.saturating_add(1);
+            if self.ui_selection < self.cpus.len() { // this works b/c we prepend ALL to the drawn list
+                self.ui_selection = self.ui_selection.saturating_add(1);
             }
             return Ok(super::EventState::Consumed);
         }
         if key.code == self.config.key_config.move_up {
-            self.selection = self.selection.saturating_sub(1);
+            self.ui_selection = self.ui_selection.saturating_sub(1);
             return Ok(super::EventState::Consumed);
         }
         
@@ -50,83 +102,91 @@ impl Component for CPUComponent {
     }
 }
 
-/*
-if selection = 0 display all
-if selection = 1 display global
-if selection = 2 display cpu 0
-...
-
-*/
-
 impl DrawableComponent for CPUComponent {
-    fn draw(&mut self, f: &mut ratatui::Frame, area: ratatui::prelude::Rect, _focused: bool) -> anyhow::Result<()> {
+    fn draw(&mut self, f: &mut ratatui::Frame, area: ratatui::prelude::Rect, focused: bool) -> anyhow::Result<()> {
+        // split screen
         let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(90),
-                Constraint::Fill(1),
+                Constraint::Percentage(90),         // chart
+                Constraint::Fill(1),                // list
             ]).split(area);
 
-        let mut all_data: Vec<Vec<(f64, f64)>> = Vec::new();
-        let mut datasets: Vec<Dataset> = Vec::new(); // holds references to data to be drawn
+        // containers
+        let mut all_data: Vec<(u32, Vec<(f64, f64)>)> = Vec::new();        // collect all data ensuring references live long enough to be drawn by `datasets`
+        let mut datasets: Vec<Dataset> = Vec::new();                // holds references to data to be drawn
 
-        if self.selection == 0 {
-            // display all
-            for (_id, queue) in self.cpus.iter() {
-                let data: Vec<(f64, f64)> = queue
-                    .iter()
-                    .enumerate()
-                    .map(|(i, item)| (i as f64, item.usage() as f64))
-                    .collect();
-    
-                all_data.push(data);
-            }
+        // get max index of a queue (they are all the same)
+        let perf_q_max_idx = self.cpus
+            .get(&0)
+            .map(|q| q.capacity().saturating_sub(1))
+            .unwrap_or(0); 
+
+        // The UICPUList will look like:
+        // All              ui_selection=0      cpu_selection=None
+        // Global Usage     ui_selection=1      cpu_selection=0
+        // CPU 0            ui_selection=2      cpu_selection=1
+        // CPU 1            ui_selection=3      cpu_selection=2
+        // ...              ...
+        // This means len(UICPUList) = 1 + len(cpus)
+
+        // set cpu selection
+        let cpu_selection = if self.ui_selection == 0 {
+            None
         }
         else {
-            // display selection-1 : accounting for All
-            if let Some(queue) = self.cpus.get(&self.selection.saturating_sub(1)) {
+            Some(self.ui_selection.saturating_sub(1))
+        };
+
+
+        // iterate over cpus
+        if self.ui_selection == 0 {
+            // display all
+            for (id, queue) in self.cpus
+                .iter()
+                {
+                    let data: Vec<(f64, f64)> = queue
+                        .iter()
+                        .rev()
+                        .enumerate()
+                        .map(|(i, item)| ((perf_q_max_idx - i) as f64, item.usage() as f64))
+                        .collect();
+                    
+                    all_data.push((*id as u32, data));
+                }
+        }
+        else {
+            let id = cpu_selection.unwrap();            // unwrap should be safe here
+
+            if let Some(queue) = self.cpus.get(&id) {
                 let data: Vec<(f64, f64)> = queue
                     .iter()
+                    .rev()
                     .enumerate()
-                    .map(|(i, item)| (i as f64, item.usage() as f64))
+                    .map(|(i, item)| ((perf_q_max_idx - i) as f64, item.usage() as f64))
                     .collect();
 
-                all_data.push(data);
+                all_data.push((id as u32, data));
             }
         }
 
-        for data in all_data.iter() {
+        // TODO: colors should match between these two
+        // datasets can be 1..len(cpus)
+        // names is always len(cpus) + 1(All)
+
+
+        // populate datasets for drawing chart
+        for (id, data) in all_data.iter() {
             datasets.push(
                 Dataset::default()
-                    .name(format!("CPU"))
                     .data(data)
                     .graph_type(GraphType::Line)
-                    .marker(symbols::Marker::Braille),
+                    .marker(symbols::Marker::Braille)
+                    .style(Color::from_str(ColorWheel::from_index(*id as usize).as_str())?)
             );
         }
 
-        let chart = Chart::new(datasets)
-            .block(Block::default().borders(Borders::ALL).title("CPU Usage"))
-            .x_axis(
-                Axis::default()
-                    .title("Time")
-                    .bounds([0.0, self.config.events_per_min() as f64])
-                    .labels(vec![Span::raw("0"), Span::raw("now")]),
-            )
-            .y_axis(
-                Axis::default()
-                    .title("%")
-                    .bounds([0.0, 100.0])
-                    .labels(vec![
-                        Span::raw("0"),
-                        Span::raw("50"),
-                        Span::raw("100"),
-                    ]),
-            );
-
-        f.render_widget(chart, horizontal_chunks[0]);
-        
-        // cpu list
+        // populate names for UIList to draw cpu list
         let mut names: Vec<ListItem> = self.cpus
             .iter()
             .map(|(key, _queue)| {
@@ -136,24 +196,67 @@ impl DrawableComponent for CPUComponent {
                 else {
                     format!("CPU {}", key.saturating_sub(1).to_string())
                 };
-                ListItem::new(title)
+                ListItem::new(title).style(Color::from_str(ColorWheel::from_index(*key).as_str()).unwrap())
             })
             .collect();
 
+        // insert All option into UI list
         names.insert(0, ListItem::new(String::from("All")));
 
+        // render chart
+        let chart = Chart::new(datasets)
+            .block(
+                {
+                    if !focused {
+                        Block::default().borders(Borders::ALL).title(" CPU % ").style(Color::DarkGray)
+                    }
+                    else {
+                        Block::default().borders(Borders::ALL).title(" CPU % ").style(Color::LightGreen)
+                    }
+                }
+            )
+
+            .x_axis(
+                Axis::default()
+                    .bounds([0.0, self.config.events_per_min().saturating_sub(1) as f64])
+                    .labels(vec![Span::raw(format!("-{}s",self.config.min_as_s())), Span::raw("now")])
+                    .labels_alignment(Alignment::Right),
+            )
+            .y_axis(
+                Axis::default()
+                    .bounds([0.0, 100.0])
+                    .labels(vec![
+                        Span::raw("0"),
+                        Span::raw("50"),
+                        Span::raw("100"),
+                    ])
+                    .labels_alignment(Alignment::Right),
+            );
+            
+        f.render_widget(chart, horizontal_chunks[0]);
+
+        // render cpu list
         let mut list_state = ListState::default();
-        list_state.select(Some(self.selection));
-
-
+        list_state.select(Some(self.ui_selection));
         let cpu_list = List::new(names)
             .scroll_padding(horizontal_chunks[1].height as usize / 2)
-            .block(Block::default().title("CPU List").borders(Borders::ALL))
-            .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-        );
-        
-        f.render_stateful_widget(cpu_list, horizontal_chunks[1], &mut list_state);
+            .block(
+                {
+                    if !focused {
+                        Block::default().borders(Borders::ALL).style(Color::DarkGray)
+                    }
+                    else {
+                        Block::default().borders(Borders::ALL).style(Color::LightGreen)
+                    }
+                }
+            )
+            .highlight_style(
+                Style::default()
+                    .bg(Color::LightBlue)
+                    .add_modifier(Modifier::BOLD)
+            );
 
+        f.render_stateful_widget(cpu_list, horizontal_chunks[1], &mut list_state);
 
         Ok(())
     }
