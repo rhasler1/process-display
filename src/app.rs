@@ -1,11 +1,11 @@
 use anyhow::{Ok, Result};
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
+use crate::components::cpu::CPUComponent;
 use crate::config::Config;
 use crate::components::{
     tab::TabComponent,
     process::ProcessComponent,
-    performance::PerformanceComponent,
     system::SystemComponent,
     error::ErrorComponent,
     Component,
@@ -17,10 +17,20 @@ use crate::components::{
     command::CommandInfo,
 };
 
+pub enum MainFocus {
+    CPU,
+    Memory,
+    Network,
+    Temperature,
+    Process,
+}
+
 pub struct App {
+    focus: MainFocus,
+    expand: bool,
     system: SystemComponent,
     process: ProcessComponent,
-    performance: PerformanceComponent,
+    cpu: CPUComponent,
     tab: TabComponent,
     help: HelpComponent,
     pub error: ErrorComponent,
@@ -31,9 +41,11 @@ impl App {
     // constructor.
     pub fn new(config: Config) -> Self {
         Self {
+            focus: MainFocus::Process,
+            expand: false,
             system: SystemComponent::new(config.clone()),
             process: ProcessComponent::new(config.clone()),
-            performance: PerformanceComponent::new(config.clone(), 10),
+            cpu: CPUComponent::default(),
             tab: TabComponent::new(config.clone()),
             help: HelpComponent::new(config.clone()),
             error: ErrorComponent::new(config.clone()),
@@ -45,7 +57,8 @@ impl App {
     pub fn init(&mut self) -> Result<()> {
         self.system.refresh_all()?;
         self.update_process();
-        self.update_performance()?;
+        self.update_cpu();
+        //self.update_performance()?;
         self.update_commands();
 
         Ok(())
@@ -55,9 +68,16 @@ impl App {
     pub fn refresh(&mut self) -> Result<()>{
         self.system.refresh_all()?;
         self.update_process();
-        self.update_performance()?;
+        self.update_cpu();
+        //self.update_performance()?;
 
         Ok(())
+    }
+
+    fn update_cpu(&mut self) -> bool {
+        let new_cpus = self.system.get_cpus();
+        self.cpu.update(&new_cpus);
+        true
     }
 
     // return result of process update
@@ -69,19 +89,18 @@ impl App {
     }
 
     // fix return type
-    fn update_performance(&mut self) -> Result<()> {
-        let new_cpu_info = self.system.get_cpu_info();
-        let new_memory_info = self.system.get_memory_info();
-        self.performance.update(&new_cpu_info, &new_memory_info)?;
+    //fn update_performance(&mut self) -> Result<()> {
+    //    let new_cpu_info = self.system.get_cpu_info();
+    //    let new_memory_info = self.system.get_memory_info();
+    //    self.performance.update(&new_cpu_info, &new_memory_info)?;
 
-        Ok(())
-    }
+    //   Ok(())
+    //}
 
     // top level key event processor
     pub fn event(&mut self, key: KeyEvent) -> Result<EventState> {
         if key.code == self.config.key_config.toggle_themes {
             self.update_component_themes();
-
             return Ok(EventState::Consumed)
         }
         else if self.components_event(key)?.is_consumed() {
@@ -98,7 +117,7 @@ impl App {
     fn update_component_themes(&mut self) {
         self.config.theme_config.toggle_themes();
         self.process.config.theme_config.toggle_themes();
-        self.performance.config.theme_config.toggle_themes();
+        //self.performance.config.theme_config.toggle_themes();
         self.help.config.theme_config.toggle_themes();
         self.system._config.theme_config.toggle_themes();
         self.tab.config.theme_config.toggle_themes();
@@ -129,6 +148,8 @@ impl App {
         res
     }
 
+    /* */
+
     // component key event processor
     fn components_event(&mut self, key: KeyEvent) -> Result<EventState> {
         if self.error.event(key)?.is_consumed() {
@@ -139,27 +160,20 @@ impl App {
             return Ok(EventState::Consumed)
         }
 
-        match self.tab.selected_tab {
-            Tab::Process => {
-                // see if key event is processed by process component
+        match self.focus {
+            MainFocus::CPU => {
+                if self.cpu.event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
+            MainFocus::Memory => {}
+            MainFocus::Network => {}
+            MainFocus::Temperature => {}
+            MainFocus::Process => {
                 if self.process.event(key)?.is_consumed() {
                     return Ok(EventState::Consumed)
                 }
-                // terminate system process
-                else if key.code == self.config.key_config.terminate {
-                    if let Some(pid) = self.process.selected_pid() {
-                        self.system.terminate_process(pid)?;
-
-                        return Ok(EventState::Consumed)
-                    }
-                }
             }
-            Tab::Performance => {
-                if self.performance.event(key)?.is_consumed() {
-                    return Ok(EventState::Consumed)
-                }
-            }
-            //Tab::Users => {}
         }
 
         if self.tab.event(key)?.is_consumed() {
@@ -169,9 +183,33 @@ impl App {
         Ok(EventState::NotConsumed)
     }
 
-    // not being used, implement if there is a need for focus control outside of tab
-    fn move_focus(&mut self, _key: KeyEvent) -> Result<EventState> {
-        return Ok(EventState::NotConsumed);
+
+    /*
+    Control with Tab
+    CPU -> Memory -> Network -> Temperature -> Process -> ...
+     */
+    fn move_focus(&mut self, key: KeyEvent) -> Result<EventState> {
+        if key.code == self.config.key_config.tab {
+            match self.focus {
+                MainFocus::CPU => {
+                    self.focus = MainFocus::Memory
+                }
+                MainFocus::Memory => {
+                    self.focus = MainFocus::Network
+                }
+                MainFocus::Network => {
+                    self.focus = MainFocus::Temperature
+                }
+                MainFocus::Temperature => {
+                    self.focus = MainFocus::Process
+                }
+                MainFocus::Process => {
+                    self.focus = MainFocus::CPU
+                }
+            }
+            return Ok(EventState::Consumed)
+        }
+        Ok(EventState::NotConsumed)
     }
 
     // draw the app
@@ -185,19 +223,39 @@ impl App {
 
         // if error always draw--error component state determines if anything is drawn
         self.error.draw(f, chunks[0], false)?;
-        
-        // always draw tab--identifies tab state
-        self.tab.draw(f, chunks[0], false)?;
 
-        // only draw selected tab
-        match self.tab.selected_tab {
-            Tab::Process => {
-                self.process.draw(f, chunks[0], false)?;
+
+        if self.expand {
+            // split screen to draw only focused component
+        }
+        else {
+            // draw all components
+            // split screen
+            let vertical_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                ].as_ref())
+                .split(chunks[0]);
+            
+            let mut horizontal_chunks = Vec::new();
+            for chunk in vertical_chunks.iter() {
+                let horizontal_chunk = Layout::default()
+                    .direction(Direction::Horizontal)
+                    .constraints([
+                        Constraint::Percentage(60),
+                        Constraint::Fill(1), 
+                    ])
+                    .split(*chunk);
+
+                horizontal_chunks.push(horizontal_chunk);
             }
-            Tab::Performance => {
-                self.performance.draw(f, chunks[0], false)?;
-            }
-            //Tab::Users => {}
+
+            self.process.draw(f, horizontal_chunks[3][1], false)?;
+            self.cpu.draw(f, vertical_chunks[0], false)?;
         }
 
         // if help--help component state determines if anything is drawn

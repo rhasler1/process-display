@@ -154,3 +154,13 @@ pub fn follow_selection(key: &KeyConfig) -> CommandText {
         CMD_GROUP_GENERAL
     )
 }
+
+pub fn more_process_info(key: &KeyConfig) -> CommandText {
+    CommandText::new(
+        format!(
+            "Get more process information [{:?}]",
+            key.process_info,
+        ),
+        CMD_GROUP_GENERAL
+    )
+}

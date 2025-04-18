@@ -1,6 +1,8 @@
+use std::vec;
+
 use anyhow::Result;
 use crossterm::event::KeyEvent;
-use sysinfo::{System, Pid};
+use sysinfo::{Cpu, Pid, System};
 use process_list::ProcessListItem;
 use performance_queue::{CpuItem, MemoryItem};
 use crate::config::Config;
@@ -12,7 +14,6 @@ use process_list::ProcessItemInfo;
 
 pub struct SystemComponent {
     system: System,
-    //network: Networks,
     pub _config: Config
 }
 
@@ -20,7 +21,6 @@ impl SystemComponent {
     pub fn new(config: Config) -> Self  {
         Self {
             system: System::new_all(),
-            //network: Networks::new_with_refreshed_list(),
             _config: config
         }
     }
@@ -31,51 +31,73 @@ impl SystemComponent {
         Ok(EventState::Consumed)
     }
 
-    //pub fn get_network_info(&self) -> NetworkItem {
+    pub fn get_cpus(&self) -> Vec<CpuItem> {
+        let mut cpus: Vec<CpuItem> = Vec::new();
 
-    //}
+        // dummy item for global cpu usage
+        cpus.push(CpuItem::new(
+            0,
+            self.system.global_cpu_usage(),
+            0, String::from("Global"),
+            String::from(""),
+            String::from("")
+        ));
 
-    pub fn get_cpu_info(&self) -> CpuItem {
-        let mut brand_cpu: &str = "";
-        let mut cpu_frequency: u64 = 0;
-        for cpu in self.system.cpus() {
-            brand_cpu = cpu.brand();
-            cpu_frequency = cpu.frequency();
+        for (id, cpu) in self.system.cpus().iter().enumerate() {
+            let cpu_item = CpuItem::new(
+                id + 1, // id=0 reserved for global cpu usage                   
+                cpu.cpu_usage(),
+                cpu.frequency(),
+                String::from(cpu.name()),
+                String::from(cpu.brand()),
+                String::from(cpu.vendor_id()),
+            );
+
+            cpus.push(cpu_item);
         }
-        let global_cpu_usage = self.system.global_cpu_usage();
-        let brand_cpu = String::from(brand_cpu);
-        let num_cores = sysinfo::System::physical_core_count();
-        let item = CpuItem::new(global_cpu_usage, num_cores, cpu_frequency, brand_cpu);
-        item
+
+        cpus
     }
 
-    pub fn get_memory_info(&self) -> MemoryItem {
-        let total_memory = self.system.total_memory();
-        let used_memory = self.system.used_memory();
-        let free_memory = self.system.free_memory();
-        let available_memory = self.system.available_memory();
-        let memory_info = MemoryItem::new(total_memory, used_memory, free_memory, available_memory);
-        memory_info
+    pub fn get_global_cpu_info(&self) -> f32 {
+        self.system.global_cpu_usage()
     }
 
     pub fn get_processes(&self) -> Vec<ProcessListItem> {
         let mut processes: Vec<ProcessListItem> = Vec::new();
+
         for (pid, process) in self.system.processes() {
-            let name = self.get_process_name(*pid);
-            let cpu_usage = process.cpu_usage();
+            let name = if let Some(name) = process.name().to_str() {
+                String::from(name)
+            }
+            else {
+                String::from("No name")
+            };
+            let cpu_usage = if let Some(core_count) = sysinfo::System::physical_core_count() {
+                process.cpu_usage() / core_count as f32 // normalizing process cpu usage by the number of cores
+            }
+            else {
+                process.cpu_usage()
+            };
             let memory_usage = process.memory();
-            let item = ProcessListItem::new(pid.as_u32(), name, cpu_usage, memory_usage);
+            let start_time = process.start_time();
+            let run_time = process.run_time();
+            let accumulated_cpu_time = process.accumulated_cpu_time();
+            let status = process.status().to_string();
+            let item = ProcessListItem::new(
+                pid.as_u32(),
+                name, cpu_usage,
+                memory_usage,
+                start_time,
+                run_time,
+                accumulated_cpu_time,
+                status
+            );
+
             processes.push(item);
         }
-        return processes;
-    }
 
-    fn get_process_name(&self, pid: Pid) -> String {
-        match self.system.process(pid) {
-            //Some(p) => return String::from(p.name()),
-            Some(p) => return String::from(p.name().to_str().unwrap_or_default()),
-            None => return String::from("No Process given pid"),
-        }
+        processes
     }
 
     pub fn terminate_process(&mut self, pid: u32) -> Result<bool> {
@@ -85,22 +107,20 @@ impl SystemComponent {
         Ok(true)
     }
 
-    pub fn detailed_process_info(&mut self, pid: u32) -> Option<ProcessItemInfo> {
-        if let Some(process) = self.system.process(Pid::from_u32(pid)) {
-            let start_time = process.start_time();
-            let run_time = process.run_time();
-            let accumulated_cpu_time = process.accumulated_cpu_time();
-            let status = process.status().to_string();
-            // should be a better way to do this lol
-            //todo: let path = process.exe();
-            //todo: let env_vars = process.environ();
-            
-            let item_info = ProcessItemInfo::new(start_time, run_time, accumulated_cpu_time, status);
-            
-            return Some(item_info)
-        }
-        None
+    /*
+    pub fn get_memory_info(&self) -> MemoryItem {
+        let total_memory = self.system.total_memory();
+        let used_memory = self.system.used_memory();
+        let free_memory = self.system.free_memory();
+        let available_memory = self.system.available_memory();
+        let memory_info = MemoryItem::new(total_memory, used_memory, free_memory, available_memory);
+        memory_info
     }
+*/
+
+    //pub fn get_network_info(&self) -> NetworkItem {
+
+    //}
 }
 
 impl Component for SystemComponent {

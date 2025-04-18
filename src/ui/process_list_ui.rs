@@ -1,25 +1,27 @@
-use process_list::ListIterator;
-use crate::config::ThemeConfig;
-use ratatui::{
-    Frame,
-    prelude::*,
-    widgets::{block::*, *},
-};
+pub mod process_list_ui {
+    use ratatui::{
+        Frame,
+        prelude::*,
+        widgets::{block::*, *},
+    };
+    use process_list::ListIterator;
+    use crate::config::ThemeConfig;
 
-pub struct ProcessListUI<'a> {
-    pub visible_items: ListIterator<'a>,
-    pub follow_selection: bool,
-    pub theme_config: ThemeConfig,
-}
-
-impl<'a> ProcessListUI<'a> {
-    pub fn draw(self, f: &mut Frame, area: Rect, focus: bool) {
-        let follow_flag = self.follow_selection;
-        let header_style = self.theme_config.list_header;
-        let select_style = self.theme_config.item_select;
-        let select_follow_style = self.theme_config.item_select_follow;
-        let default_style = self.theme_config.item_style;
-        let out_of_focus_style = self.theme_config.component_out_of_focus;
+    pub fn draw_process_list<'a>(
+        f: &mut Frame,
+        area: Rect,
+        visible_items: ListIterator<'a>,
+        follow_selection: bool,
+        focus: bool,
+        theme_config: ThemeConfig,
+    ) {
+        let follow_flag = follow_selection;
+        let header_style = theme_config.list_header;
+        let select_style = theme_config.item_select;
+        let select_follow_style = theme_config.item_select_follow;
+        let default_style = theme_config.item_style;
+        let out_of_focus_style = theme_config.component_out_of_focus;
+        let in_focus_style = theme_config.component_in_focus;
 
         // setting header
         let header = ["", "Pid", "Name", "CPU Usage (%)", "Memory Usage (Bytes)"]
@@ -37,7 +39,7 @@ impl<'a> ProcessListUI<'a> {
             .height(1);
 
         // setting rows
-        let rows = self.visible_items
+        let rows = visible_items
             .map(|(item, selected)| {
                 let style =
                     if focus && selected && follow_flag {
@@ -69,7 +71,7 @@ impl<'a> ProcessListUI<'a> {
             })
             .collect::<Vec<_>>();
 
-        // Setting the width constraints.
+        // setting the width constraints.
         let widths =
         vec![
             Constraint::Length(2),
@@ -79,23 +81,24 @@ impl<'a> ProcessListUI<'a> {
             Constraint::Length(20),
         ];
 
-        // Setting block information.
+        // setting block information
         let block_title: &str = "Process List";
         let block_style =
             if focus {
-                Style::default().fg(Color::White)
+                in_focus_style
             }
             else {
-                Style::default().fg(Color::DarkGray)
+                out_of_focus_style
             };
 
-        // Setting the table.
+        // setting the table
         let table = Table::new(rows, widths)
             .header(header)
             .block(Block::default().borders(Borders::ALL).title(block_title))
             .style(block_style);
 
-        // Render.
+        // render
         f.render_widget(table, area);
     }
+
 }

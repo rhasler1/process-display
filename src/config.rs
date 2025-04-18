@@ -6,6 +6,7 @@ pub struct Config {
     pub key_config: KeyConfig,
     pub theme_config: ThemeConfig,
     refresh_rate: u64,
+    events_per_min: u64,
     tick_rate: u64,
 }
 
@@ -15,6 +16,7 @@ impl Default for Config {
             key_config: KeyConfig::default(),
             theme_config: ThemeConfig::default(),
             refresh_rate: 5000,
+            events_per_min: 60000 / 5000,
             tick_rate: 250,
         }
     }
@@ -22,11 +24,15 @@ impl Default for Config {
 
 impl Config {
     pub fn refresh_rate(&self) -> u64 {
-        return self.refresh_rate.clone()
+        self.refresh_rate
     }
 
     pub fn tick_rate(&self) -> u64 {
-        return self.tick_rate.clone()
+        self.tick_rate
+    }
+
+    pub fn events_per_min(&self) -> u64 {
+        self.events_per_min
     }
 }
 
@@ -54,6 +60,7 @@ pub struct KeyConfig {
     pub sort_memory_usage_dec: KeyCode,
     pub follow_selection: KeyCode,
     pub toggle_themes: KeyCode,
+    pub process_info: KeyCode,
 }
 
 impl Default for KeyConfig {
@@ -85,6 +92,7 @@ impl Default for KeyConfig {
             sort_memory_usage_dec: KeyCode::Char('M'),
             follow_selection: KeyCode::Char('f'),
             toggle_themes: KeyCode::Char('t'),
+            process_info: KeyCode::Enter,
         }
     }
 }

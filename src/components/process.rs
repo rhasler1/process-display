@@ -10,7 +10,8 @@ use super::{common_nav, common_sort};
 use super::{filter::FilterComponent, Component, DrawableComponent, EventState};
 use super::utils::vertical_scroll::VerticalScroll;
 use crate::config::Config;
-use crate::{config::KeyConfig, ui::process_list_ui::ProcessListUI};
+use crate::config::KeyConfig;
+use crate::ui::process_list_ui::process_list_ui::draw_process_list;
 
 // focus of process component, this can be on either a ProcessList or FilterComponent
 #[derive(PartialEq, Clone)]
@@ -186,26 +187,16 @@ fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> R
 
 impl DrawableComponent for ProcessComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
-        // splitting the parameter area into two vertical chunks
-        let vertical_chunks = Layout::default()
+        // split for filter
+        let horizontal_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // vertical chunk for TabComponent and FilterComponent : vertical_chunks[0]
-                Constraint::Min(1), // vertical chunk for the ProcessList : vertical_chunks[1]
-            ].as_ref())
-            .split(area);
+                Constraint::Percentage(70),
+                Constraint::Length(3),
+            ]).split(area);
 
-        // splitting the vertical chunk for the TabComponent and FilterComponent into two horizontal chunks
-        let horizontal_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(50), // horizontal chunk for TabComponent : horizontal_chunks[0]
-                Constraint::Percentage(50), // horizontal chunk for FilterComponent : horizontal_chunks[1]
-            ].as_ref())
-            .split(vertical_chunks[0]);
-
-        // calculate list
-        let visible_list_height = vertical_chunks[1].height.saturating_sub(3) as usize;
+        // calculate visible list height
+        let visible_list_height = area.height.saturating_sub(3) as usize;
 
         // determine list to display
         let list = if let Some(filtered_list) = self.filtered_list.as_ref() {
@@ -215,7 +206,7 @@ impl DrawableComponent for ProcessComponent {
             &self.list
         };
 
-        // updating the scroll struct which calculates the position at the top of the displayed list.
+        // updating the scroll struct--calculates the position at the top of the displayed list
         list.selection().map_or_else(
             { ||
                 self.scroll.reset()
@@ -226,20 +217,28 @@ impl DrawableComponent for ProcessComponent {
             },
         );
 
-        let list_iterator = list.iterate(self.scroll.get_top(), visible_list_height);
+        let visible_items = list.iterate(self.scroll.get_top(), visible_list_height);
 
-        // re-creating process list ui on every draw event--this can be optimized--add UI state to process component
-        let process_list_widget = ProcessListUI {
-            visible_items: list_iterator,
-            follow_selection: list.is_follow_selection(),
-            theme_config: self.config.theme_config.clone(), 
-        };
+        draw_process_list(
+            f, 
+            horizontal_chunks[0], 
+            visible_items, 
+            self.list.is_follow_selection(), 
+            matches!(self.focus, Focus::List), 
+            self.config.theme_config.clone()
+        );
 
-        self.filter.draw(f, horizontal_chunks[1], matches!(self.focus, Focus::Filter))?;
-
-        process_list_widget.draw(f, vertical_chunks[1], matches!(self.focus, Focus::List));
-
-        self.scroll.draw(f, vertical_chunks[1], false)?;
+        self.scroll.draw(
+            f, 
+            horizontal_chunks[0], 
+            false
+        )?;
+                
+        self.filter.draw(
+            f, 
+            horizontal_chunks[1], 
+            matches!(self.focus, Focus::Filter)
+        )?;
 
         Ok(())
     }

@@ -32,8 +32,8 @@ impl PerformanceComponent {
     }
 
     pub fn update(&mut self, cpu_item: &CpuItem, memory_item: &MemoryItem) -> Result<()> {
-        self.cpu_info.add_item(cpu_item)?;
-        self.memory_info.add_item(memory_item)?;
+        self.cpu_info.add_item(cpu_item);
+        self.memory_info.add_item(memory_item);
         Ok(())
     }
 
@@ -80,11 +80,11 @@ impl PerformanceComponent {
                     Span::raw(item.brand().to_string()),
                 ])
                 .style(Color::White),
-                Line::from(vec![
-                    Span::raw("Number of Cores: "),
-                    Span::raw(item.num_cores().unwrap_or_default().to_string()),
-                ])
-                .style(Color::White),
+                //Line::from(vec![
+                //    Span::raw("Number of Cores: "),
+                //    Span::raw(item.num_cores().unwrap_or_default().to_string()),
+                //])
+                //.style(Color::White),
                 Line::from(vec![
                     Span::raw("Frequency: "),
                     Span::raw(item.frequency().to_string()),

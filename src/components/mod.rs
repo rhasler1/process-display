@@ -13,6 +13,7 @@ pub mod tab;
 pub mod utils;
 pub mod command;
 pub mod vertical_tabs;
+pub mod cpu;
 
 pub trait DrawableComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()>;
