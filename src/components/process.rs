@@ -212,12 +212,18 @@ impl DrawableComponent for ProcessComponent {
                 self.scroll.reset()
             }, |selection| {
                 self.scroll.update(
-                    selection,list.len(), visible_list_height
+                    selection,
+                    list.len(),
+                    visible_list_height,
                 );
             },
         );
 
-        let visible_items = list.iterate(self.scroll.get_top(), visible_list_height);
+        let visible_items = list
+            .iterate(
+                self.scroll.get_top(),
+                visible_list_height,
+            );
 
         draw_process_list(
             f, 

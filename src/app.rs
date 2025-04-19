@@ -6,12 +6,12 @@ use crate::config::Config;
 use crate::components::{
     tab::TabComponent,
     process::ProcessComponent,
-    system::SystemComponent,
+    system_wrapper::SystemWrapper,
+    system_component::SystemComponent,
     error::ErrorComponent,
     Component,
     EventState,
     DrawableComponent,
-    tab::Tab,
     help::HelpComponent,
     command,
     command::CommandInfo,
@@ -19,6 +19,7 @@ use crate::components::{
 
 pub enum MainFocus {
     CPU,
+    System,
     Memory,
     Network,
     Temperature,
@@ -28,7 +29,8 @@ pub enum MainFocus {
 pub struct App {
     focus: MainFocus,
     expand: bool,
-    system: SystemComponent,
+    system_wrapper: SystemWrapper,
+    system_component: SystemComponent,
     process: ProcessComponent,
     cpu: CPUComponent,
     tab: TabComponent,
@@ -43,7 +45,8 @@ impl App {
         Self {
             focus: MainFocus::Process,
             expand: false,
-            system: SystemComponent::new(config.clone()),
+            system_wrapper: SystemWrapper::new(config.clone()),
+            system_component: SystemComponent::default(),
             process: ProcessComponent::new(config.clone()),
             cpu: CPUComponent::default(),
             tab: TabComponent::new(config.clone()),
@@ -55,7 +58,8 @@ impl App {
 
     // call after constructor
     pub fn init(&mut self) -> Result<()> {
-        self.system.refresh_all()?;
+        self.system_wrapper.refresh_all()?;
+        self.init_system_component();
         self.update_process();
         self.update_cpu();
         //self.update_performance()?;
@@ -64,9 +68,14 @@ impl App {
         Ok(())
     }
 
+    fn init_system_component(&mut self) {
+        let vec: Vec<String> = SystemWrapper::get_static_sysinfo();
+        self.system_component.init(vec); // transfer ownership
+    }
+
     // refresh system and dependencies
     pub fn refresh(&mut self) -> Result<()>{
-        self.system.refresh_all()?;
+        self.system_wrapper.refresh_all()?;
         self.update_process();
         self.update_cpu();
         //self.update_performance()?;
@@ -75,14 +84,14 @@ impl App {
     }
 
     fn update_cpu(&mut self) -> bool {
-        let new_cpus = self.system.get_cpus();
+        let new_cpus = self.system_wrapper.get_cpus();
         self.cpu.update(&new_cpus);
         true
     }
 
     // return result of process update
     fn update_process(&mut self) -> bool {
-        let new_processes = self.system.get_processes();
+        let new_processes = self.system_wrapper.get_processes();
         let res = self.process.update(&new_processes);
 
         res
@@ -179,6 +188,11 @@ impl App {
                     return Ok(EventState::Consumed)
                 }
             }
+            MainFocus::System => {
+                if self.system_component.event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
             MainFocus::Memory => {}
             MainFocus::Network => {}
             MainFocus::Temperature => {}
@@ -217,6 +231,9 @@ impl App {
                     self.focus = MainFocus::Process
                 }
                 MainFocus::Process => {
+                    self.focus = MainFocus::System
+                }
+                MainFocus::System => {
                     self.focus = MainFocus::CPU
                 }
             }
@@ -241,10 +258,27 @@ impl App {
         if self.expand {
             // split screen to draw only focused component
             if matches!(self.focus, MainFocus::Process) {
-                self.process.draw(f, chunks[0], true)?;
+                self.process.draw(
+                    f,
+                    chunks[0],
+                    true,
+                )?;
             }
+
             if matches!(self.focus, MainFocus::CPU) {
-                self.cpu.draw(f, chunks[0], true)?;
+                self.cpu.draw(
+                    f,
+                    chunks[0],
+                    true,
+                )?;
+            }
+
+            if matches!(self.focus, MainFocus::System) {
+                self.system_component.draw(
+                    f,
+                    chunks[0],
+                    true,
+                )?;
             }
         }
         else {
@@ -265,16 +299,31 @@ impl App {
                 let horizontal_chunk = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([
-                        Constraint::Percentage(60),
-                        Constraint::Fill(1), 
+                        Constraint::Fill(1),
+                        Constraint::Percentage(80), 
                     ])
                     .split(*chunk);
 
                 horizontal_chunks.push(horizontal_chunk);
             }
 
-            self.process.draw(f, horizontal_chunks[3][1], matches!(self.focus, MainFocus::Process))?;
-            self.cpu.draw(f, vertical_chunks[0], matches!(self.focus, MainFocus::CPU))?;
+            self.process.draw(
+                f,
+                horizontal_chunks[3][1],
+                matches!(self.focus, MainFocus::Process)
+            )?;
+
+            self.system_component.draw(
+                f,
+                horizontal_chunks[3][0],
+                matches!(self.focus, MainFocus::System)
+            )?;
+
+            self.cpu.draw(
+                f,
+                vertical_chunks[0],
+                matches!(self.focus, MainFocus::CPU)
+            )?;
         }
 
         // if help--help component state determines if anything is drawn

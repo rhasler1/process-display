@@ -24,7 +24,7 @@ pub mod process_list_ui {
         let in_focus_style = theme_config.component_in_focus;
 
         // setting header
-        let header = ["", "Pid", "Name", "CPU Usage (%)", "Memory Usage (Bytes)"]
+        let header = ["", "Pid", "Name", "CPU (%)", "Memory (B)", "Runtime (s)", "Status"]
             .into_iter()
             .map(Cell::from)
             .collect::<Row>()
@@ -66,6 +66,8 @@ pub mod process_list_ui {
                     Cell::from(item.name().to_string()),
                     Cell::from(item.cpu_usage().to_string()),
                     Cell::from(item.memory_usage().to_string()),
+                    Cell::from(item.run_time().to_string()),
+                    Cell::from(item.status()),
                 ];
                 Row::new(cells).style(style)
             })
@@ -75,14 +77,16 @@ pub mod process_list_ui {
         let widths =
         vec![
             Constraint::Length(2),
-            Constraint::Length(10),
-            Constraint::Length(50),
-            Constraint::Length(20),
-            Constraint::Length(20),
+            Constraint::Length(10), // pid
+            Constraint::Length(50), // name
+            Constraint::Length(20), // cpu usage
+            Constraint::Length(20), // memory usage
+            Constraint::Length(20), // run time
+            Constraint::Length(20), // status
         ];
 
         // setting block information
-        let block_title: &str = "Process List";
+        let block_title: &str = " Process List ";
         let block_style =
             if focus {
                 in_focus_style

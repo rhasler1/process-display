@@ -28,13 +28,19 @@ impl VerticalScroll {
         self.top.set(0);
     }
 
-    pub fn update(&self, selection: usize, selection_count: usize, visual_height: usize) -> usize {
-        let new_top = calc_scroll_top(self.get_top(), visual_height, selection);
-        self.count.set(selection_count);
-        self.top.set(new_top);
-        new_top
+    pub fn update(
+        &self,
+        selection: usize,
+        selection_len: usize,
+        visual_height: usize)
+        -> usize {
+            let new_top = calc_scroll_top(self.get_top(), visual_height, selection);
+            self.count.set(selection_len);
+            self.top.set(new_top);
+
+            new_top
+        }
     }
-}
 
 const fn calc_scroll_top(
     current_top: usize,
@@ -44,14 +50,18 @@ const fn calc_scroll_top(
     if visual_height == 0 {
         return 0;
     }
-    if current_top + visual_height <= selection {
-        return selection;
+
+    let padding = visual_height / 2;
+    let min_top = selection.saturating_sub(padding);
+
+    if selection < current_top + padding {
+        min_top
     }
-    else if current_top > selection {
-        return selection;
+    else if selection >= current_top + visual_height - padding {
+        min_top
     }
     else {
-        return current_top;
+        current_top
     }
 }
 

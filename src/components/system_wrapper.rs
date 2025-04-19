@@ -1,5 +1,5 @@
 use std::vec;
-
+use sysinfo::*;
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 use sysinfo::{Cpu, Pid, System};
@@ -12,12 +12,12 @@ use process_list::ProcessItemInfo;
 // See here for refreshing system: https://crates.io/crates/sysinfo#:~:text=use%20sysinfo%3A%3ASystem,(sysinfo%3A%3AMINIMUM_CPU_UPDATE_INTERVAL)%3B%0A%7D
 // note: sysinfo::MINIMUM_CPU_UPDATE_INTERVAL = 200 ms
 
-pub struct SystemComponent {
+pub struct SystemWrapper {
     system: System,
     pub _config: Config
 }
 
-impl SystemComponent {
+impl SystemWrapper {
     pub fn new(config: Config) -> Self  {
         Self {
             system: System::new_all(),
@@ -57,6 +57,38 @@ impl SystemComponent {
         }
 
         cpus
+    }
+
+    pub fn get_static_sysinfo() -> Vec<String> {
+        let vec: Vec<String> = vec![
+            sysinfo::System::kernel_long_version(),
+            if let Some(name) = sysinfo::System::host_name() {
+                name
+            }
+            else {
+                String::from("None")
+            },
+            sysinfo::System::cpu_arch(),
+            if let Some(count) = sysinfo::System::physical_core_count() {
+                format!("{count}")
+            }
+            else {
+                String::from("None")
+            },
+            if let Some(version) = sysinfo::System::long_os_version() {
+                version
+            }
+            else {
+                String::from("None")
+            },
+            format!("{}", sysinfo::System::uptime())
+        ];
+
+        vec
+    }
+
+    pub fn update_sys_info() -> String {
+        format!("{}", sysinfo::System::uptime())
     }
 
     pub fn get_global_cpu_info(&self) -> f32 {
@@ -121,10 +153,4 @@ impl SystemComponent {
     //pub fn get_network_info(&self) -> NetworkItem {
 
     //}
-}
-
-impl Component for SystemComponent {
-    fn event(&mut self, _key: KeyEvent) -> Result<EventState> {
-        Ok(EventState::NotConsumed)
-    }
 }
