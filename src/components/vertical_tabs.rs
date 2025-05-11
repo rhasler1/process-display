@@ -1,3 +1,4 @@
+use anyhow::Result;
 use ratatui::{
     Frame,
     prelude::*,
@@ -17,7 +18,7 @@ pub enum MoveTabDirection {
 pub enum VerticalTab {
     Cpu,
     Memory,
-    Network,
+    //Network,
 }
 
 impl Default for VerticalTab {
@@ -49,7 +50,7 @@ impl VerticalTabComponent {
         vec![
             String::from("CPU"),
             String::from("Memory"),
-            String::from("Network"),
+            //String::from("Network"),
         ]
     }
 
@@ -57,7 +58,7 @@ impl VerticalTabComponent {
         match self.selected_vert_tab {
             VerticalTab::Cpu => {
                 if direction == MoveTabDirection::Up {
-                    self.selected_vert_tab = VerticalTab::Network;
+                    self.selected_vert_tab = VerticalTab::Memory;
                 }
                 else {
                     self.selected_vert_tab = VerticalTab::Memory;
@@ -68,23 +69,23 @@ impl VerticalTabComponent {
                     self.selected_vert_tab = VerticalTab::Cpu;
                 }
                 else {
-                    self.selected_vert_tab = VerticalTab::Network;
-                }
-            }
-            VerticalTab::Network => {
-                if direction == MoveTabDirection::Up {
-                    self.selected_vert_tab = VerticalTab::Memory;
-                }
-                else {
                     self.selected_vert_tab = VerticalTab::Cpu;
                 }
             }
+            //VerticalTab::Network => {
+            //    if direction == MoveTabDirection::Up {
+            //        self.selected_vert_tab = VerticalTab::Memory;
+            //    }
+            //    else {
+            //        self.selected_vert_tab = VerticalTab::Cpu;
+            //    }
+            //}
         }
     }   
 }
 
 impl Component for VerticalTabComponent {
-    fn event(&mut self, key: crossterm::event::KeyEvent) -> std::io::Result<EventState> {
+    fn event(&mut self, key: crossterm::event::KeyEvent) -> Result<EventState> {
         if key.code == self.key_config.move_up {
             self.update_selected_tab(MoveTabDirection::Up);
             return Ok(EventState::Consumed);
@@ -98,7 +99,7 @@ impl Component for VerticalTabComponent {
 }
 
 impl DrawableComponent for VerticalTabComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> std::io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
         let selected_tab = self.selected_vert_tab.clone() as usize;
         let selected_style = Style::default().fg(Color::White).add_modifier(Modifier::BOLD);
         let default_style = Style::default().fg(Color::DarkGray);

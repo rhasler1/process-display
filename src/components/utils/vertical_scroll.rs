@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::cell::Cell;
 use ratatui::{
     Frame,
@@ -27,13 +28,19 @@ impl VerticalScroll {
         self.top.set(0);
     }
 
-    pub fn update(&self, selection: usize, selection_count: usize, visual_height: usize) -> usize {
-        let new_top = calc_scroll_top(self.get_top(), visual_height, selection);
-        self.count.set(selection_count);
-        self.top.set(new_top);
-        new_top
+    pub fn update(
+        &self,
+        selection: usize,
+        selection_len: usize,
+        visual_height: usize)
+        -> usize {
+            let new_top = calc_scroll_top(self.get_top(), visual_height, selection);
+            self.count.set(selection_len);
+            self.top.set(new_top);
+
+            new_top
+        }
     }
-}
 
 const fn calc_scroll_top(
     current_top: usize,
@@ -43,34 +50,46 @@ const fn calc_scroll_top(
     if visual_height == 0 {
         return 0;
     }
-    if current_top + visual_height <= selection {
-        return selection;
+
+    let padding = visual_height / 2;
+    let min_top = selection.saturating_sub(padding);
+
+    if selection < current_top + padding {
+        min_top
     }
-    else if current_top > selection {
-        return selection;
+    else if selection >= current_top + visual_height - padding {
+        min_top
     }
     else {
-        return current_top;
+        current_top
     }
 }
 
 impl DrawableComponent for VerticalScroll {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> std::io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()> {
         draw_scrollbar(
             f,
             area,
             self.top.get(),
             self.count.get(),
+            focused,
         );
         Ok(())
     }
 }
 
-fn draw_scrollbar(f: &mut Frame, area: Rect, top: usize, count: usize) {
+fn draw_scrollbar(f: &mut Frame, area: Rect, top: usize, count: usize, focused: bool) {
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
         .begin_symbol(Some("↑"))
         .end_symbol(Some("↓"))
-        .style(Color::White);
+        .style({
+            if focused {
+                Color::LightGreen
+            }
+            else {
+                Color::DarkGray
+            }
+        });
 
     let mut scrollbar_state = ScrollbarState::new(count).position(top);
     f.render_stateful_widget(scrollbar,

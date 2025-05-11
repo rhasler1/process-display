@@ -1,51 +1,51 @@
-use std::io;
+use anyhow::Result;
 use crossterm::event::KeyEvent;
 use ratatui::{
     Frame,
     prelude::*,
     widgets::*,
 };
-use crate::config::KeyConfig;
+use crate::config::Config;
 use crate::components::Component;
 use super::{DrawableComponent, EventState};
 
 pub struct ErrorComponent {
     pub error: String,
     visible: bool,
-    key_config: KeyConfig,
+    config: Config,
 }
 
 impl ErrorComponent {
-    pub fn new(key_config: KeyConfig) -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
             error: String::new(),
             visible: false,
-            key_config: key_config,
+            config: config,
         }
     }
 }
 
 impl ErrorComponent {
-    pub fn set(&mut self, error: String) -> io::Result<()> {
+    pub fn set(&mut self, error: String) -> Result<()> {
         self.error = error;
         self.show()
     }
 
-    fn hide(&mut self) -> io::Result<()> {
+    fn hide(&mut self) -> Result<()> {
         self.visible = false;
         Ok(())
     }
 
-    fn show(&mut self) -> io::Result<()> {
+    fn show(&mut self) -> Result<()> {
         self.visible = true;
         Ok(())
     }
 }
 
 impl Component for ErrorComponent {
-    fn event(&mut self, key: KeyEvent) -> io::Result<EventState> {
+    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
         if self.visible {
-            if key.code == self.key_config.exit_popup {
+            if key.code == self.config.key_config.exit_popup {
                 self.error = String::new();
                 self.hide()?;
                 return Ok(EventState::Consumed);
@@ -57,7 +57,7 @@ impl Component for ErrorComponent {
 }
 
 impl DrawableComponent for ErrorComponent {
-    fn draw(&mut self, f: &mut Frame, _area: Rect, _focused: bool) -> io::Result<()> {
+    fn draw(&mut self, f: &mut Frame, _area: Rect, _focused: bool) -> Result<()> {
         if self.visible {
             let width = 60;
             let height = 10;
