@@ -21,7 +21,6 @@ pub mod ui;
 pub mod events;
 
 fn main() -> Result<()> {
-
     // terminal setup
     setup_terminal()?;
     let backend = CrosstermBackend::new(io::stdout());
@@ -38,7 +37,7 @@ fn main() -> Result<()> {
     let mut app = App::new(config);
 
 
-    app.init()?;
+    //app.init()?;
 
     // clear terminal
     terminal.clear()?;
@@ -58,7 +57,7 @@ fn main() -> Result<()> {
 
         // process next event
         match events.next()? {
-            Event::Input(key) => match app.event(key) {
+            Event::Input(key) => match app.key_event(key) {
                 Ok(state) => {
                     if !state.is_consumed() && key.code == app.config.key_config.exit_popup {
                         break;
@@ -68,7 +67,7 @@ fn main() -> Result<()> {
                     app.error.set(err.to_string())?;
                 }
             }
-            Event::Refresh => match app.refresh() {
+            Event::Refresh => match app.refresh_event() {
                 Ok(_state) => {}
                 Err(err) => {
                     app.error.set(err.to_string())?;

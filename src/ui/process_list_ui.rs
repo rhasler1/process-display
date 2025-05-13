@@ -7,16 +7,15 @@ pub mod process_list_ui {
     use process_list::ListIterator;
     use crate::config::ThemeConfig;
 
-    pub fn draw_process_list<'a>(
+    pub fn draw_process_list(
         f: &mut Frame,
         area: Rect,
-        visible_items: ListIterator<'a>,
+        visible_items: ListIterator<'_>,
         follow_selection: bool,
         focus: bool,
         theme_config: ThemeConfig,
     ) {
         let follow_flag = follow_selection;
-        let header_style = theme_config.list_header;
         let select_style = theme_config.item_select;
         let select_follow_style = theme_config.item_select_follow;
         let default_style = theme_config.item_style;

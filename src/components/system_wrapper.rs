@@ -1,13 +1,9 @@
 use std::vec;
-use sysinfo::*;
 use anyhow::Result;
-use crossterm::event::KeyEvent;
-use sysinfo::{Cpu, Pid, System};
+use sysinfo::{Pid, System};
 use process_list::ProcessListItem;
-use performance_queue::{CpuItem, MemoryItem};
+use bounded_queue::CpuItem;
 use crate::config::Config;
-use super::{Component, EventState};
-use process_list::ProcessItemInfo;
 
 // See here for refreshing system: https://crates.io/crates/sysinfo#:~:text=use%20sysinfo%3A%3ASystem,(sysinfo%3A%3AMINIMUM_CPU_UPDATE_INTERVAL)%3B%0A%7D
 // note: sysinfo::MINIMUM_CPU_UPDATE_INTERVAL = 200 ms
@@ -25,10 +21,8 @@ impl SystemWrapper {
         }
     }
 
-    pub fn refresh_all(&mut self) -> Result<EventState> {
+    pub fn refresh_all(&mut self) {
         self.system.refresh_all();
-        
-        Ok(EventState::Consumed)
     }
 
     pub fn get_cpus(&self) -> Vec<CpuItem> {
@@ -138,19 +132,4 @@ impl SystemWrapper {
         }
         Ok(true)
     }
-
-    /*
-    pub fn get_memory_info(&self) -> MemoryItem {
-        let total_memory = self.system.total_memory();
-        let used_memory = self.system.used_memory();
-        let free_memory = self.system.free_memory();
-        let available_memory = self.system.available_memory();
-        let memory_info = MemoryItem::new(total_memory, used_memory, free_memory, available_memory);
-        memory_info
-    }
-*/
-
-    //pub fn get_network_info(&self) -> NetworkItem {
-
-    //}
 }

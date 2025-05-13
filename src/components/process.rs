@@ -30,33 +30,39 @@ pub struct ProcessComponent {
 }
 
 impl ProcessComponent {
-    // constructor
-    pub fn new(config: Config) -> Self {
+    pub fn new(config: Config, processes: Vec<ProcessListItem>) -> Self {
         Self {
             focus: Focus::List,
-            list: ProcessList::default(),
+            list: ProcessList::new(processes),
             filter: FilterComponent::new(config.clone()),
             filtered_list: None,
             scroll: VerticalScroll::new(),
-            config: config,
+            config,
         }
     }
 
     // update process list, return true if new processes is non empty
-    pub fn update(&mut self, new_processes: &Vec<ProcessListItem>) -> bool {
-        if new_processes.is_empty() {
-            return false
-        }
+    // given ownersip
+    pub fn update(&mut self, new_processes: Vec<ProcessListItem>) -> bool {
+        // should never be empty
+        assert!(!new_processes.is_empty());
+
+        // two vectors are needed to update list and filtered list
+        let dup = new_processes.clone();
         
+        // Must pass by reference to update both lists
         self.list.update(new_processes);   
 
         if let Some(filtered_list) = self.filtered_list.as_mut() {
+            // implement a better way to update the filtered list
             // filter new processes
-            let processes = ProcessListItems::new(new_processes);
-            let filter_text = self.filter.input_str();
-            let filtered_processes = processes.filter(&filter_text);
-            filtered_list.update(&filtered_processes.list_items);
+            let processes = ProcessListItems::new(dup);
+            //let filter_text = self.filter.input_str();
+            let filtered_processes = processes.filter(self.filter.input_str());
+            // transfer ownership
+            filtered_list.update(filtered_processes.list_items);
         }
+
         true
     }
 
@@ -91,7 +97,7 @@ impl Component for ProcessComponent {
                 None
             }
             else {
-                Some(self.list.filter(&self.filter.input_str()))
+                Some(self.list.filter(self.filter.input_str()))
             };
         }
 

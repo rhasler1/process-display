@@ -17,35 +17,35 @@ impl MemoryItem {
     }
 
     pub fn total_memory(&self) -> u64 {
-        return self.total_memory.clone()
+        self.total_memory
     }
 
     pub fn used_memory(&self) -> u64 {
-        return self.used_memory.clone()
+        self.used_memory
     }
 
     pub fn free_memory(&self) -> u64 {
-        return self.free_memory.clone()
+        self.free_memory
     }
 
     pub fn available_memory(&self) -> u64 {
-        return self.available_memory.clone()
+        self.available_memory
     }
     
     pub fn total_memory_gb(&self) -> f64 {
-        self.total_memory as f64 / 1000000000 as f64 
+        self.total_memory as f64 / 1000000000_f64 
     }
 
     pub fn used_memory_gb(&self) -> f64 {
-        self.used_memory as f64 / 1000000000 as f64 
+        self.used_memory as f64 / 1000000000_f64 
     }
 
     pub fn free_memory_gb(&self) -> f64 {
-        self.free_memory as f64 / 1000000000 as f64 
+        self.free_memory as f64 / 1000000000_f64 
     }
 
     pub fn available_memory_gb(&self) -> f64 {
-        self.available_memory as f64 / 1000000000 as f64 
+        self.available_memory as f64 / 1000000000_f64 
     }
 }
 

@@ -18,7 +18,7 @@ impl FilterComponent {
     pub fn new(config: Config) -> Self {
         Self {
             input_str: String::new(),
-            config: config,
+            config,
         }
     }
 
@@ -26,12 +26,12 @@ impl FilterComponent {
         self.input_str.clear();
     }
 
-    pub fn input_str(&mut self) -> String {
-        return self.input_str.clone();
+    pub fn input_str(&mut self) -> &str {
+        &self.input_str
     }
 
     pub fn is_filter_empty(&mut self) -> bool {
-        return self.input_str.is_empty();
+        self.input_str.is_empty()
     }
 }
 
@@ -53,7 +53,7 @@ impl Component for FilterComponent {
 
 impl DrawableComponent for FilterComponent {
     fn draw(&mut self, f: &mut Frame, area: ratatui::prelude::Rect, focused: bool) -> Result<()> {
-        let title: &str = "Filter";
+        let title: &str = " Filter ";
 
         let style: Style =
         if focused {
@@ -73,6 +73,6 @@ impl DrawableComponent for FilterComponent {
 
         f.render_widget(widget, area);
 
-        return Ok(())
+        Ok(())
     }
 }

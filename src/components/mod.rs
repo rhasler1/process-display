@@ -8,13 +8,11 @@ pub mod filter;
 pub mod help;
 pub mod error;
 pub mod process;
-pub mod performance;
-pub mod tab;
 pub mod utils;
 pub mod command;
-pub mod vertical_tabs;
 pub mod cpu;
 pub mod system_component;
+pub mod command_new;
 
 pub trait DrawableComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()>;

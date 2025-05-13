@@ -92,10 +92,15 @@ fn draw_scrollbar(f: &mut Frame, area: Rect, top: usize, count: usize, focused: 
         });
 
     let mut scrollbar_state = ScrollbarState::new(count).position(top);
-    f.render_stateful_widget(scrollbar,
-        area.inner(&Margin {
-        vertical: 1,
-        horizontal: 0,
-    }),
-    &mut scrollbar_state)
+    
+    f.render_stateful_widget(
+        scrollbar,
+        area.inner(
+            &Margin {
+                vertical: 1,
+                horizontal: 0,
+            }
+        ),
+        &mut scrollbar_state
+    );
 }

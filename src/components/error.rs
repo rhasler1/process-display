@@ -20,7 +20,7 @@ impl ErrorComponent {
         Self {
             error: String::new(),
             visible: false,
-            config: config,
+            config,
         }
     }
 }

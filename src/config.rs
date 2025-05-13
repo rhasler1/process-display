@@ -16,9 +16,9 @@ impl Default for Config {
         Self {
             key_config: KeyConfig::default(),
             theme_config: ThemeConfig::default(),
-            refresh_rate: 5000,
+            refresh_rate: 1000,
             min_as_s: 60000/ 1000,
-            events_per_min: 60000 / 5000,
+            events_per_min: 60000 / 1000,
             tick_rate: 250,
         }
     }
