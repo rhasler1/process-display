@@ -5,7 +5,7 @@ use crate::config::Config;
 use crate::components::{
     cpu::CPUComponent,
     process::ProcessComponent,
-    system_wrapper::SystemWrapper,
+    sysinfo_wrapper::SysInfoWrapper,
     error::ErrorComponent,
     Component,
     EventState,
@@ -23,7 +23,7 @@ enum MainFocus {
 pub struct App {
     focus: MainFocus,
     expand: bool,
-    system_wrapper: SystemWrapper,
+    system_wrapper: SysInfoWrapper,
     process: ProcessComponent,
     cpu: CPUComponent,
     help: HelpComponent,
@@ -33,7 +33,7 @@ pub struct App {
 
 impl App {
     pub fn new(config: Config) -> Self {
-        let mut system_wrapper = SystemWrapper::new(config.clone());
+        let mut system_wrapper = SysInfoWrapper::new(config.clone());
         
         system_wrapper.refresh_all();
         
@@ -139,7 +139,7 @@ impl App {
 
             return Ok(EventState::Consumed)
         }
-        
+
         Ok(EventState::NotConsumed)
     }
 
