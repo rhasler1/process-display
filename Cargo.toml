@@ -6,7 +6,8 @@ edition = "2021"
 [workspace]
 members = [
     "process-list",
-    "performance-queue"
+    "bounded-queue",
+    "dynamic-list"
 ]
 
 authours = ["rhasler1 <rhasler@luc.edu>"]
@@ -19,4 +20,6 @@ serde = { version = "1.0.188", features = ["derive"] }
 anyhow = "1.0.97"
 itertools = "0.10.0"
 process-list = {path = "./process-list", version = "0.1.0"}
-performance-queue = {path = "./performance-queue", version = "0.1.0"}
+bounded-queue = {path = "./bounded-queue", version = "0.1.0"}
+dynamic-list = {path = "./dynamic-list", version = "0.1.0"}
+clippy = "0.0.302"

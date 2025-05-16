@@ -1,45 +1,44 @@
 use std::{collections::VecDeque, io};
 
 #[derive(Default)]
-pub struct PerformanceQueue<T> {
-    pub performance_items: VecDeque<T>,
+pub struct BoundedQueue<T> {
+    pub items: VecDeque<T>,
     capacity: usize,
 }
 
 // Clone trait is required for T to clone elements when adding items.
-impl<T: Clone> PerformanceQueue<T> {
+impl<T: Clone> BoundedQueue<T> {
     pub fn new(capacity: usize) -> Self {
         Self {
-            performance_items: VecDeque::with_capacity(capacity),
+            items: VecDeque::with_capacity(capacity),
             capacity,
         }
     }
     
-    pub fn add_item(&mut self, item: &T) {
-        if self.performance_items.len() < self.capacity {
-            let item = item.clone();
-            self.performance_items.push_back(item);
+    pub fn add_item(&mut self, item: T) {
+        let len = self.items.len();
+
+        if len < self.capacity {
+            self.items.push_back(item);
         }
-        else if self.performance_items.len() == self.capacity {
-            self.performance_items.pop_front();
-            let item = item.clone();
-            self.performance_items.push_back(item);
+        else if len == self.capacity {
+            self.items.pop_front();
+            self.items.push_back(item);
         }
-        else {
-            while self.performance_items.len() >= self.capacity {
-                self.performance_items.pop_front();
+        else { // should never occur 
+            while len >= self.capacity {
+                self.items.pop_front();
             }
-            let item = item.clone();
-            self.performance_items.push_back(item);
+            self.items.push_back(item);
         }
     }
 
     pub fn front(&self) -> Option<&T> {
-        return self.performance_items.front()
+        self.items.front()
     }
 
     pub fn back(&self) -> Option<&T> {
-        return self.performance_items.back()
+        self.items.back()
     }
 
     pub fn capacity(&self) -> usize {
@@ -47,13 +46,13 @@ impl<T: Clone> PerformanceQueue<T> {
     }
 
     pub fn iter(&self) -> std::collections::vec_deque::Iter<'_, T> {
-        self.performance_items.iter()
+        self.items.iter()
     }
 }
 
 #[cfg(test)]
 mod test {
-    use super::PerformanceQueue;
+    use super::BoundedQueue;
     use crate::CpuItem;
 
     /*#[test]

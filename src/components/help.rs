@@ -25,7 +25,7 @@ impl HelpComponent {
             cmds: vec![],
             visible: false,
             selection: 0,
-            config: config,
+            config,
         }
     }
 

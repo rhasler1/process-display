@@ -11,7 +11,6 @@ pub struct ProcessListItem {
 }
 
 impl ProcessListItem {
-    // constructor
     pub fn new(
         pid: u32,
         name: String,
@@ -35,17 +34,17 @@ impl ProcessListItem {
     }
 
     // match by name or pid
-    pub fn is_match(&self, filter_text: &str) -> bool {
-        self.name.contains(filter_text) ||
-        self.pid.to_string().contains(filter_text)
-    }
+    //pub fn is_match(&self, filter_text: &str) -> bool {
+    //    self.name.contains(filter_text) ||
+    //    self.pid.to_string().contains(filter_text)
+    //}
 
     pub fn pid(&self) -> u32 {
         self.pid
     }
 
-    pub fn name(&self) -> String {
-        self.name.clone()
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn cpu_usage(&self) -> f32 {
@@ -75,9 +74,8 @@ impl ProcessListItem {
 
 // PartialEq is needed for comparison, e.g., calling contains
 impl PartialEq for ProcessListItem {
-    // comparing by pid
     fn eq(&self, other: &Self) -> bool {
-        return self.pid.eq(&other.pid)
+        self.pid.eq(&other.pid)
     }
 }
 
@@ -122,9 +120,9 @@ pub mod test {
         assert_eq!(instance_0.run_time(), instance_0.run_time);
         assert_eq!(instance_0.accumulated_cpu_time(), instance_0.accumulated_cpu_time);
         assert_eq!(instance_0.status(), instance_0.status);
-        assert_eq!(instance_0.is_match(""), true);
-        assert_eq!(instance_0.is_match("a"), false);
-        assert_eq!(instance_0.is_match(&instance_0.pid.to_string()), true);
+        //assert_eq!(instance_0.is_match(""), true);
+        //assert_eq!(instance_0.is_match("a"), false);
+        //assert_eq!(instance_0.is_match(&instance_0.pid.to_string()), true);
 
         assert_eq!(instance_1.pid(), instance_1.pid);
         assert_eq!(instance_1.name(), instance_1.name);
@@ -134,8 +132,8 @@ pub mod test {
         assert_eq!(instance_0.run_time(), instance_0.run_time);
         assert_eq!(instance_0.accumulated_cpu_time(), instance_0.accumulated_cpu_time);
         assert_eq!(instance_0.status(), instance_0.status);
-        assert_eq!(instance_1.is_match("a"), true);
-        assert_eq!(instance_1.is_match("aa"), false);
-        assert_eq!(instance_1.is_match(&instance_1.pid.to_string()), true);
+        //assert_eq!(instance_1.is_match("a"), true);
+        //assert_eq!(instance_1.is_match("aa"), false);
+        //assert_eq!(instance_1.is_match(&instance_1.pid.to_string()), true);
     }
 }

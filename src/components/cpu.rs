@@ -6,14 +6,14 @@ use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, Li
 use std::str::FromStr;
 
 use anyhow::Ok;
-use performance_queue::{PerformanceQueue, CpuItem};
+use bounded_queue::{BoundedQueue, CpuItem};
 use crate::config::Config;
 
 use super::{Component, DrawableComponent};
 
 #[derive(Default)]
 pub struct CPUComponent {
-    cpus: BTreeMap<usize, PerformanceQueue<CpuItem>>,
+    cpus: BTreeMap<usize, BoundedQueue<CpuItem>>,
     ui_selection: usize,
     config: Config,
 }
@@ -72,14 +72,16 @@ impl ColorWheel {
 }
 
 impl CPUComponent {
-    pub fn update(&mut self, cpus: &Vec<CpuItem>) {
+    // has ownership
+    pub fn update(&mut self, cpus: Vec<CpuItem>) {
         for cpu in cpus {
             let id = cpu.id();
 
             let perf_q = self.cpus.entry(id).or_insert_with(|| {
-                PerformanceQueue::new(self.config.events_per_min() as usize)
+                BoundedQueue::new(self.config.events_per_min() as usize)
             });
 
+            // passes ownership
             perf_q.add_item(cpu);
         }
     }

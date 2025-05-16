@@ -1,9 +1,8 @@
 [package]
-name = "process-list"
+name = "bounded-queue"
 version = "0.1.0"
 edition = "2021"
 
 authours = ["rhasler1 <rhasler@luc.edu>"]
 
 [dependencies]
-itertools = "0.10.0"

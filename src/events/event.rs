@@ -1,4 +1,4 @@
-use crossterm::event::{self, KeyEvent, KeyCode};
+use crossterm::event::{self, KeyEvent, KeyCode, Event as CEvent, KeyEventKind};
 use std::sync::mpsc;
 use std::{thread, time::Duration};
 
@@ -57,8 +57,12 @@ impl Events {
         let input_tx = tx.clone();
         thread::spawn(move || loop {
             if event::poll(config.tick_rate).unwrap() {
-                if let event::Event::Key(key) = event::read().unwrap() {
-                    input_tx.send(Event::Input(key)).unwrap();
+                if let Ok(event) = event::read() {
+                    if let CEvent::Key(key) = event {
+                        if key.kind == KeyEventKind::Press {
+                            input_tx.send(Event::Input(key)).unwrap();
+                        }
+                    }
                 }
             }
             input_tx.send(Event::Tick).unwrap();
