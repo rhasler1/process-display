@@ -1,5 +1,5 @@
 use anyhow::{Ok, Result};
-use crossterm::event::{KeyEvent};
+use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
 use crate::config::Config;
 use crate::components::{
@@ -96,6 +96,13 @@ impl App {
             self.toggle_expand();
 
             return Ok(EventState::Consumed);
+        }
+        else if key.code == self.config.key_config.terminate {
+            if let Some(pid) = self.process.selected_pid() {
+                self.system_wrapper.terminate_process(pid);
+            }
+
+            return Ok(EventState::Consumed)
         }
 
         Ok(EventState::NotConsumed)
@@ -238,4 +245,3 @@ impl App {
         res
     }
 }
-

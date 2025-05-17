@@ -101,21 +101,17 @@ impl Component for ProcessComponent {
             };
         }
 
-        // If the key event is enter and the focus is on the Filter, then change the focus to List and return.
-        if key.code == self.config.key_config.enter && matches!(self.focus, Focus::Filter) {
-            self.focus = Focus::List;
-            return Ok(EventState::Consumed)
-        }
-
-        // The following if block contains key event tasks for when the filter is in focus.
         if matches!(self.focus, Focus::Filter) {
-            // Check if the key input is to modify the filter.
             if self.filter.event(key)?.is_consumed() {
+                return Ok(EventState::Consumed)
+            }
+            
+            if key.code == self.config.key_config.enter {
+                self.focus = Focus::List;
                 return Ok(EventState::Consumed)
             }
         }
 
-        //  The following if block contains key event tasks for when the process list is in focus.
         if matches!(self.focus, Focus::List) {
             // Check if the key input is to navigate the list. If there is some filtered list, then that is the
             // list we want to interact with, else interact with the unfiltered list.
@@ -135,10 +131,10 @@ impl Component for ProcessComponent {
             // Check if the key is to change the follow_selection value.
             else if key.code == self.config.key_config.follow_selection {
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.change_follow_selection();
+                    filtered_list.toggle_follow_selection();
                 }
                 else {
-                    self.list.change_follow_selection();
+                    self.list.toggle_follow_selection();
                 }
 
                 return Ok(EventState::Consumed)
@@ -235,7 +231,7 @@ impl DrawableComponent for ProcessComponent {
             f, 
             horizontal_chunks[0], 
             visible_items, 
-            self.list.is_follow_selection(),
+            list.is_follow_selection(),
             if focused {
                 matches!(self.focus, Focus::List)
             } 

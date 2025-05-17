@@ -42,10 +42,10 @@ pub mod process_list_ui {
             .map(|(item, selected)| {
                 let style =
                     if focus && selected && follow_flag {
-                        select_follow_style
+                         Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED)
                     }
                     else if focus && selected && !follow_flag {
-                        select_style
+                         Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD)
                     }
                     else if focus {
                         default_style
