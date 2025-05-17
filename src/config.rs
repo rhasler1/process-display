@@ -16,9 +16,9 @@ impl Default for Config {
         Self {
             key_config: KeyConfig::default(),
             theme_config: ThemeConfig::default(),
-            refresh_rate: 1000,
+            refresh_rate: 2000,
             min_as_s: 60000/ 1000,
-            events_per_min: 60000 / 1000,
+            events_per_min: 60000 / 2000,
             tick_rate: 250,
         }
     }
@@ -131,7 +131,8 @@ impl ThemeConfig {
         self.item_select = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD);
         self.item_select_follow = Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED);
         self.component_out_of_focus = Style::default().fg(Color::DarkGray);
-        self.component_in_focus = Style::default().fg(Color::LightGreen);
+        //self.component_in_focus = Style::default().fg(Color::LightGreen);
+        self.component_in_focus = Style::default().fg(Color::White);
     }
 
     fn set_light_theme(&mut self) {
@@ -163,6 +164,7 @@ impl Default for ThemeConfig {
             item_select_follow: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED),
             component_out_of_focus: Style::default().fg(Color::DarkGray),
             component_in_focus: Style::default().fg(Color::LightGreen),
+            //component_in_focus: Style::default().fg(Color::White),
         }
     }
 }

@@ -31,7 +31,7 @@ pub struct ProcessList {
     follow_selection: bool,
     pub selection: Option<usize>,
 }
-/*IMPORTANT: there is a problem with the interaction between change_follow_selection and update*/
+
 impl ProcessList {
     pub fn new(list: Vec<ProcessListItem>) -> Self {
         assert!(!list.is_empty());
@@ -90,27 +90,20 @@ impl ProcessList {
         }
     }
 
-    // sorts process list by list sort order
     pub fn sort(&mut self, sort: &ListSortOrder) {
-        // get the selected item, selected_item = Some(item) || None.
         let selected_item: Option<&ProcessListItem> = self.items.get_item_ref(self.selection.unwrap_or_default());
 
-        // get the selected item's pid, pid = Some(pid) || None.
         let pid: Option<u32> = selected_item.map(|item| item.pid());
 
-        // sort items
         self.items.sort_items(sort);
 
-        // set sort field
         self.sort = sort.clone();
 
-        // if follow selection, then set self.selection to the new index of the selected item's pid.
         if self.follow_selection {
             self.selection = pid.and_then(|p| self.items.get_idx(p));
         }
     }
 
-    // move selection based on MoveSelection variant
     pub fn move_selection(&mut self, dir: MoveSelection) {
         if let Some(selection) = self.selection() {
             let new_idx = match dir {
@@ -121,11 +114,11 @@ impl ProcessList {
                 MoveSelection::End => self.selection_end(selection),
                 MoveSelection::Top => self.selection_start(selection),       
             };
+
             self.selection = new_idx;
         }
     }
 
-    // calculates and returns new index after moving current down by lines
     fn selection_down(&self, current_idx: usize, lines: usize) -> Option<usize> {
         let mut new_idx = current_idx;
         let max_idx = self.items.items_len().saturating_sub(1);
@@ -140,7 +133,6 @@ impl ProcessList {
         Some(new_idx)
     }
 
-    // calculates and returns new index after moving current index up by lines
     fn selection_up(&self, current_idx: usize, lines: usize) -> Option<usize> {
         let mut new_idx = current_idx;
         let min_idx = 0;
@@ -155,7 +147,6 @@ impl ProcessList {
         Some(new_idx)
     }
 
-    // calculates and returns max index 
     fn selection_end(&self, _current_idx: usize) -> Option<usize> {
         let max_idx = self.items.items_len().saturating_sub(1);
 
@@ -163,15 +154,13 @@ impl ProcessList {
 
     }
 
-    // returns min index
     fn selection_start(&self, _current_idx: usize) -> Option<usize> {
         let min_idx = 0;
 
         Some(min_idx)
     }
 
-    // toggle follow selection
-    pub fn change_follow_selection(&mut self) {
+    pub fn toggle_follow_selection(&mut self) {
         self.follow_selection = !self.follow_selection
     }
     
@@ -187,7 +176,6 @@ impl ProcessList {
         self.items.items_len()
     }
 
-    // gets selection index
     pub fn selection(&self) -> Option<usize> {
         self.selection
     }
@@ -214,7 +202,6 @@ impl ProcessList {
         None
     }
 
-    // iterator
     pub fn iterate(&self, start_index: usize, max_amount: usize) -> ListIterator<'_> {
         let start = start_index;
         ListIterator::new(self.items.iterate(start, max_amount), self.selection)
@@ -257,14 +244,14 @@ mod test {
     #[test]
     fn test_update() {
         // Update with empty list of items.
-        //let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
-        //let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
-        //let items = vec![item_0, item_1];
-        //let mut instance = ProcessList::new(items);
-        //let empty_items = vec![];
-        //let _ = instance.update(empty_items);
-        //assert!(instance.is_empty());
-        //assert!(instance.selection().is_none());
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
+        let items = vec![item_0, item_1];
+        let mut instance = ProcessList::new(items);
+        let empty_items = vec![];
+        let _ = instance.update(empty_items);
+        assert!(instance.is_empty());
+        assert!(instance.selection().is_none());
 
         // Update with non-empty list of items.
         let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
@@ -278,22 +265,22 @@ mod test {
         assert_eq!(instance.selection(), Some(0));
 
         // Update with empty list of items and follow_selection set to true.
-        //let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
-        //let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
-        //let items = vec![item_0, item_1];
-        //let mut instance = ProcessList::new(items);
-        //let _ = instance.change_follow_selection();
-        //let empty_items = vec![];
-        //let _ = instance.update(empty_items);
-        //assert!(instance.is_empty());
-        //assert!(instance.selection().is_none());
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
+        let items = vec![item_0, item_1];
+        let mut instance = ProcessList::new(items);
+        let _ = instance.toggle_follow_selection();
+        let empty_items = vec![];
+        let _ = instance.update(empty_items);
+        assert!(instance.is_empty());
+        assert!(instance.selection().is_none());
 
         // Update with non-empty list of items and follow_selection set to true case 1.
         let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
         let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
-        //let _ =  instance.change_follow_selection();
+        let _ =  instance.toggle_follow_selection();
         let item_2 = ProcessListItem::new(3, String::from("c"), 3.0, 3, 0, 10, 10, String::from("test"));
         let new_items = vec![item_2];
         let _ = instance.update(new_items);
@@ -305,7 +292,7 @@ mod test {
         let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
-        //let _ =  instance.change_follow_selection();
+        let _ =  instance.toggle_follow_selection();
         let item_2 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
         let item_3 = ProcessListItem::new(3, String::from("c"), 3.0, 3, 0, 10, 10, String::from("test"));
         let new_items = vec![item_2, item_3];
@@ -333,7 +320,7 @@ mod test {
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
         assert!(instance.sort == ListSortOrder::CpuUsageDec);
-        let _ = instance.change_follow_selection();
+        let _ = instance.toggle_follow_selection();
         assert!(instance.is_follow_selection());
         assert_eq!(instance.selection(), Some(0));
         let _ = instance.sort(&ListSortOrder::CpuUsageInc);
