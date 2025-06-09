@@ -1,6 +1,8 @@
-use sysinfo::{Pid, System};
+use sysinfo::{Pid, System, Components};
 use process_list::ProcessListItem;
-use bounded_queue::CpuItem;
+use bounded_queue::MemoryItem;
+use bounded_queue::TempItem;
+use bounded_queue::{CpuItem};
 use crate::config::Config;
 
 // See here for refreshing system: https://crates.io/crates/sysinfo#:~:text=use%20sysinfo%3A%3ASystem,(sysinfo%3A%3AMINIMUM_CPU_UPDATE_INTERVAL)%3B%0A%7D
@@ -29,9 +31,6 @@ impl SysInfoWrapper {
             0,
             self.system.global_cpu_usage(),
             0,
-            String::from("Global"),
-            String::from(""),
-            String::from("")
         ));
 
         for (id, cpu) in self.system.cpus().iter().enumerate() {
@@ -39,9 +38,6 @@ impl SysInfoWrapper {
                 id + 1,                         // id=0 reserved for global cpu usage                   
                 cpu.cpu_usage(),
                 cpu.frequency(),
-                String::from(cpu.name()),
-                String::from(cpu.brand()),
-                String::from(cpu.vendor_id()),
             );
 
             cpus.push(cpu_item);
@@ -77,14 +73,28 @@ impl SysInfoWrapper {
 
             let status = process.status().to_string();
 
+            let path = if let Some(path) = process.exe() {
+                if let Some(path) = path.to_str() {
+                    path.to_string()
+                }
+                else {
+                    String::from("Non-valid Unicode")
+                }
+            }
+            else {
+                String::from("Permission Denied")
+            };
+
             let item = ProcessListItem::new(
                 pid.as_u32(),
-                name, cpu_usage,
+                name,
+                cpu_usage,
                 memory_usage,
                 start_time,
                 run_time,
                 accumulated_cpu_time,
-                status
+                status,
+                path,
             );
 
             processes.push(item);
@@ -92,6 +102,56 @@ impl SysInfoWrapper {
 
         processes
     }
+
+    pub fn get_memory(&self) -> MemoryItem {
+        let total_memory = self.system.total_memory();          // total memory is size of RAM in bytes
+        let used_memory = self.system.used_memory();            // used memory is allocated memory
+        let total_swap = self.system.total_swap();
+        let used_swap = self.system.used_swap();
+
+        let memory_item = MemoryItem::new(total_memory, used_memory, total_swap, used_swap);
+
+        memory_item
+    }
+
+    pub fn get_temps(&self) -> Vec<TempItem> {
+        let mut temps: Vec<TempItem> = Vec::new();
+
+        let components = Components::new_with_refreshed_list();             // it seems that this is separate from system, might need to add as Struct field, although, there is no refresh method?
+
+        for component in &components {
+            let temp = if let Some(temp) = component.temperature() {
+                temp
+            }
+            else {
+                0_f32
+            };
+
+            let max_temp = if let Some(max_temp) = component.max() {
+                max_temp
+            }
+            else {
+                0_f32
+            };
+
+            let critical_temp = if let Some(critical_temp) = component.critical() {
+                critical_temp
+            }
+            else {
+                0_f32
+            };
+
+            let label = component.label().to_string();
+
+
+            let item = TempItem::new(temp, max_temp, critical_temp, label);
+
+            temps.push(item);
+        }
+
+        temps
+    }
+
 
     pub fn terminate_process(&mut self, pid: u32) -> bool {
         let mut res = false;

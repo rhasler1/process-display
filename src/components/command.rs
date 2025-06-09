@@ -75,7 +75,7 @@ pub fn exit_popup(key: &KeyConfig) -> CommandText {
     CommandText::new(
         format!(
             "Exit current screen [{:?}]",
-            key.exit_popup,
+            key.exit,
         ),
         CMD_GROUP_GENERAL
     )

@@ -202,6 +202,10 @@ impl ProcessList {
         None
     }
 
+    pub fn get_sort_order(&self) -> &ListSortOrder {
+        &self.sort
+    }
+
     pub fn iterate(&self, start_index: usize, max_amount: usize) -> ListIterator<'_> {
         let start = start_index;
         ListIterator::new(self.items.iterate(start, max_amount), self.selection)
@@ -221,8 +225,8 @@ mod test {
         assert_eq!(empty_instance.selection(), None);
 
         // New constructor.
-        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
-        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
         let items = vec![item_0, item_1];
         let instance = ProcessList::new(items);
         assert!(!instance.is_empty());
@@ -244,8 +248,8 @@ mod test {
     #[test]
     fn test_update() {
         // Update with empty list of items.
-        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
-        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
         let empty_items = vec![];
@@ -254,19 +258,19 @@ mod test {
         assert!(instance.selection().is_none());
 
         // Update with non-empty list of items.
-        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
-        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
-        let item_2 = ProcessListItem::new(3, String::from("c"), 3.0, 3, 0, 10, 10, String::from("test"));
+        let item_2 = ProcessListItem::new(3, String::from("c"), 3.0, 3, 0, 10, 10, String::from("test"), String::from("test"));
         let new_items = vec![item_2];
         let _ = instance.update(new_items);
         assert!(!instance.is_empty());
         assert_eq!(instance.selection(), Some(0));
 
         // Update with empty list of items and follow_selection set to true.
-        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
-        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
         let _ = instance.toggle_follow_selection();
@@ -276,25 +280,25 @@ mod test {
         assert!(instance.selection().is_none());
 
         // Update with non-empty list of items and follow_selection set to true case 1.
-        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
-        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
         let _ =  instance.toggle_follow_selection();
-        let item_2 = ProcessListItem::new(3, String::from("c"), 3.0, 3, 0, 10, 10, String::from("test"));
+        let item_2 = ProcessListItem::new(3, String::from("c"), 3.0, 3, 0, 10, 10, String::from("test"), String::from("test"));
         let new_items = vec![item_2];
         let _ = instance.update(new_items);
         assert!(!instance.is_empty());
         assert_eq!(instance.selection(), Some(0));
 
         // Update with non-empty list of items and follow_selection set to true case 2.
-        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
-        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
+        let item_0 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
         let _ =  instance.toggle_follow_selection();
-        let item_2 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"));
-        let item_3 = ProcessListItem::new(3, String::from("c"), 3.0, 3, 0, 10, 10, String::from("test"));
+        let item_2 = ProcessListItem::new(2, String::from("b"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_3 = ProcessListItem::new(3, String::from("c"), 3.0, 3, 0, 10, 10, String::from("test"), String::from("test"));
         let new_items = vec![item_2, item_3];
         let _ = instance.update(new_items);
         assert!(!instance.is_empty());
@@ -304,8 +308,8 @@ mod test {
     #[test]
     fn test_sort() {
         // Test sort when follow_selection = false.
-        let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2, 0, 10, 10, String::from("test"));
-        let item_1 = ProcessListItem::new(2, String::from("b"), 1.0, 1, 0, 10, 10, String::from("test"));
+        let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
         let items = vec![item_1, item_0];
         let mut instance = ProcessList::new(items);
         assert!(instance.sort == ListSortOrder::CpuUsageDec);
@@ -315,8 +319,8 @@ mod test {
         assert_eq!(instance.selection(), Some(0));
 
 
-        let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2, 0, 10, 10, String::from("test"));
-        let item_1 = ProcessListItem::new(2, String::from("b"), 1.0, 1, 0, 10, 10, String::from("test"));
+        let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
         assert!(instance.sort == ListSortOrder::CpuUsageDec);
@@ -333,8 +337,8 @@ mod test {
         empty_instance.move_selection(MoveSelection::Down);
         assert_eq!(empty_instance.selection(), None);
 
-        let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2, 0, 10, 10, String::from("test"));
-        let item_1 = ProcessListItem::new(2, String::from("b"), 1.0, 1, 0, 10, 10, String::from("test"));
+        let item_0 = ProcessListItem::new(1, String::from("a"), 2.0, 2, 0, 10, 10, String::from("test"), String::from("test"));
+        let item_1 = ProcessListItem::new(2, String::from("b"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
         let items = vec![item_0, item_1];
         let mut instance = ProcessList::new(items);
         assert_eq!(instance.selection(), Some(0));

@@ -8,6 +8,7 @@ pub struct ProcessListItem {
     run_time: u64,
     accumulated_cpu_time: u64,
     status: String,
+    path: String,
 }
 
 impl ProcessListItem {
@@ -20,6 +21,7 @@ impl ProcessListItem {
         run_time: u64,
         accumulated_cpu_time: u64,
         status: String,
+        path: String,
     ) -> Self {
         Self {
             pid,
@@ -30,6 +32,7 @@ impl ProcessListItem {
             run_time,
             accumulated_cpu_time,
             status,
+            path,
         }
     }
 
@@ -63,12 +66,26 @@ impl ProcessListItem {
         self.run_time
     }
 
+    pub fn run_time_hh_mm_ss(&self) -> String {
+        let time_in_s = self.run_time;
+
+        let ss =  time_in_s % 60;
+        let mm = (time_in_s / 60) % 60;
+        let hh = (time_in_s / 60) / 60;
+
+        format!("{:0>2}:{:0>2}:{:0>2}", hh, mm, ss)
+    }
+
     pub fn accumulated_cpu_time(&self) -> u64 {
         self.accumulated_cpu_time
     }
 
-    pub fn status(&self) -> String {
-        self.status.clone()
+    pub fn status(&self) -> &str {
+        &self.status
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
     }
 }
 
@@ -95,7 +112,7 @@ pub mod test {
         assert_eq!(instance.accumulated_cpu_time, 0);
         assert!(String::is_empty(&instance.status));
 
-        let instance = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
+        let instance = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
         assert_eq!(instance.pid, 1);
         assert_eq!(instance.name, String::from("a"));
         assert_eq!(instance.cpu_usage, 1.0);
@@ -110,7 +127,7 @@ pub mod test {
     #[test]
     fn test_instance_functions() {
         let instance_0 = ProcessListItem::default();
-        let instance_1 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"));
+        let instance_1 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
 
         assert_eq!(instance_0.pid(), instance_0.pid);
         assert_eq!(instance_0.name(), instance_0.name);
