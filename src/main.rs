@@ -18,6 +18,7 @@ pub mod app;
 pub mod config;
 pub mod components;
 pub mod events;
+pub mod models;
 
 // If the program's view of the World is incorrect, crash the program, don't hide false beliefs.
 fn main() -> Result<()> {

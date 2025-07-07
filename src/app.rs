@@ -1,6 +1,7 @@
 use anyhow::{Ok, Result};
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
+use crate::components::sysinfo_wrapper;
 use crate::components::temp::TempComponent;
 use crate::config::Config;
 use crate::components::{
@@ -43,7 +44,7 @@ impl App {
 
         system_wrapper.refresh_all();
         
-        let processes = system_wrapper.get_processes();
+        let process = ProcessComponent::new(config.clone(), &system_wrapper);
 
         let mut cpu = CPUComponent::default();
         let cpus = system_wrapper.get_cpus();
@@ -57,11 +58,12 @@ impl App {
         let mut temp = TempComponent::new(config.clone());
         temp.update(temp_items);
 
+
         Self {
             focus: MainFocus::Process,
             expand: false,
             system_wrapper,
-            process: ProcessComponent::new(config.clone(), processes),
+            process,
             cpu,
             memory,
             temp,
@@ -74,7 +76,7 @@ impl App {
     pub fn refresh_event(&mut self) -> Result<EventState> {
         self.system_wrapper.refresh_all();
 
-        self.update_process();
+        self.process.update(&self.system_wrapper);
 
         self.update_cpu();
 
@@ -97,11 +99,11 @@ impl App {
         self.memory.update(memory_item);
     }
 
-    fn update_process(&mut self) {
+    /*fn update_process(&mut self) {
         let new_processes = self.system_wrapper.get_processes();    // receive ownership
         
         self.process.update(new_processes);                         // transfer ownership
-    }
+    }*/
 
     fn update_cpu(&mut self) {
         let new_cpus = self.system_wrapper.get_cpus();  // receive ownership

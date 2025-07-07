@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
-use process_list::{ListSortOrder, MoveSelection};
+use crate::models::process_list::{ListSortOrder, MoveSelection};
 use super::config::KeyConfig;
 pub mod sysinfo_wrapper;
 pub mod filter;
@@ -39,7 +39,7 @@ pub fn common_nav(key: KeyEvent, key_config: &KeyConfig) -> Option<MoveSelection
         Some(MoveSelection::Down)
     }
     else if key.code == key_config.move_bottom {
-        Some(MoveSelection::End)
+        Some(MoveSelection::Bottom)
     }
     else if key.code == key_config.move_up {
         Some(MoveSelection::Up)

@@ -4,8 +4,11 @@ use ratatui::{
     Frame,
     prelude::*,
 };
-use crate::config::{Config, KeyConfig};
-use process_list::{ListSortOrder, ProcessList, ProcessListItem, ProcessListItems};
+use crate::{components::{filter, sysinfo_wrapper::SysInfoWrapper}, config::{Config, KeyConfig}};
+use crate::models::process_list::{ListSortOrder, ProcessList};
+use crate::models::process_list_item::ProcessListItem;
+use crate::models::process_list_items::ProcessListItems;
+
 use super::{
     common_nav, common_sort, Component, DrawableComponent, EventState,
     utils::vertical_scroll::VerticalScroll,
@@ -28,10 +31,10 @@ pub struct ProcessComponent {
 }
 
 impl ProcessComponent {
-    pub fn new(config: Config, processes: Vec<ProcessListItem>) -> Self {
+    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
         Self {
             focus: Focus::List,
-            list: ProcessList::new(processes),
+            list: ProcessList::new(sysinfo),
             filter: FilterComponent::new(config.clone()),
             filtered_list: None,
             scroll: VerticalScroll::new(),
@@ -39,18 +42,11 @@ impl ProcessComponent {
         }
     }
 
-    pub fn update(&mut self, new_processes: Vec<ProcessListItem>) {
-        assert!(!new_processes.is_empty());
-
-        let dup = new_processes.clone();
-    
-        self.list.update(new_processes);   
+    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+        self.list.update(sysinfo, "");
 
         if let Some(filtered_list) = self.filtered_list.as_mut() {
-            let processes = ProcessListItems::new(dup);
-            let filtered_processes = processes.filter(self.filter.input_str());
-
-            filtered_list.update(filtered_processes.list_items);
+            filtered_list.update(sysinfo, self.filter.input_str());
         }
     }
 
@@ -208,7 +204,7 @@ impl DrawableComponent for ProcessComponent {
                 false
             },
             self.config.theme_config.clone(),
-            list.get_sort_order(),
+            list.sort_order(),
         );
 
         self.scroll.draw(
@@ -238,7 +234,7 @@ impl DrawableComponent for ProcessComponent {
 }
 
 use ratatui::widgets::{block::*, *};
-use process_list::ListIterator;
+use crate::models::list_iter::ListIterator;
 use crate::config::ThemeConfig;
 
 fn draw_process_list(

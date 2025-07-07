@@ -1,5 +1,5 @@
 use sysinfo::{Pid, System, Components};
-use process_list::ProcessListItem;
+use crate::models::process_list_item::ProcessListItem;
 use bounded_queue::MemoryItem;
 use bounded_queue::TempItem;
 use bounded_queue::{CpuItem};
@@ -44,6 +44,61 @@ impl SysInfoWrapper {
         }
 
         cpus
+    }
+
+    pub fn get_processes_test(&self, processes: &mut Vec<ProcessListItem>) {
+        processes.clear();
+
+        for (pid, process) in self.system.processes() {
+            let name = if let Some(name) = process.name().to_str() {
+                String::from(name)
+            }
+            else {
+                String::from("No name")
+            };
+            let cpu_usage = if let Some(core_count) = sysinfo::System::physical_core_count() {
+                process.cpu_usage() / core_count as f32 // normalizing process cpu usage by the number of cores
+            }
+            else {
+                process.cpu_usage()
+            };
+
+            let memory_usage = process.memory();
+
+            let start_time = process.start_time();
+
+            let run_time = process.run_time();
+
+            let accumulated_cpu_time = process.accumulated_cpu_time();
+
+            let status = process.status().to_string();
+
+            let path = if let Some(path) = process.exe() {
+                if let Some(path) = path.to_str() {
+                    path.to_string()
+                }
+                else {
+                    String::from("Non-valid Unicode")
+                }
+            }
+            else {
+                String::from("Permission Denied")
+            };
+
+            let item = ProcessListItem::new(
+                pid.as_u32(),
+                name,
+                cpu_usage,
+                memory_usage,
+                start_time,
+                run_time,
+                accumulated_cpu_time,
+                status,
+                path,
+            );
+
+            processes.push(item);
+        }
     }
 
     pub fn get_processes(&self) -> Vec<ProcessListItem> {
