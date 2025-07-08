@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, io};
+use std::collections::VecDeque;
 
 #[derive(Default)]
 pub struct BoundedQueue<T> {
@@ -50,10 +50,11 @@ impl<T: Clone> BoundedQueue<T> {
     }
 }
 
+/*
 #[cfg(test)]
 mod test {
     use super::BoundedQueue;
-    use crate::CpuItem;
+    use crate::models::items::cpu_item::CpuItem;
 
     /*#[test]
     fn test_bounded_queue() {
@@ -72,4 +73,4 @@ mod test {
         assert_eq!(instance.back().unwrap().global_usage(), 15.7);
         assert_eq!(instance.front().unwrap().global_usage(), 13.2);
     }*/
-}
+}*/

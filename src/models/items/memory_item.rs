@@ -16,6 +16,13 @@ impl MemoryItem {
         }
     }
 
+    pub fn update(&mut self, total_memory: u64, used_memory: u64, total_swap: u64, used_swap: u64) {
+        self.total_memory = total_memory;
+        self.used_memory = used_memory;
+        self.total_swap = total_swap;
+        self.used_swap = used_swap;
+    }
+
     pub fn total_memory(&self) -> u64 {
         self.total_memory
     }

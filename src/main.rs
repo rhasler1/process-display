@@ -83,9 +83,3 @@ fn main() -> Result<()> {
 
     Ok(())
 }
-
-fn setup_terminal() -> Result<()> {
-    enable_raw_mode()?;
-    io::stdout().execute(EnterAlternateScreen)?;
-    Ok(())
-}

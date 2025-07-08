@@ -3,7 +3,9 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, ListState};
 use std::str::FromStr;
 use anyhow::Ok;
-use bounded_queue::{BoundedQueue, CpuItem};
+use crate::components::sysinfo_wrapper::SysInfoWrapper;
+use crate::models::b_queue::bounded_queue::BoundedQueue;
+use crate::models::items::cpu_item::CpuItem;
 use crate::config::Config;
 use super::{Component, DrawableComponent};
 
@@ -68,9 +70,31 @@ pub struct CPUComponent {
 }
 
 impl CPUComponent {
+    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
+        let mut cpus: BTreeMap<usize, BoundedQueue<CpuItem>> = BTreeMap::new();
+        let ui_selection: usize = 0;
+
+        for cpu in sysinfo.get_cpus() {
+            let id = cpu.id();
+
+            let perf_q = cpus.entry(id).or_insert_with(|| {
+                BoundedQueue::new(config.events_per_min() as usize)
+            });
+
+            // passes ownership
+            perf_q.add_item(cpu);
+        }
+
+        Self {
+            cpus,
+            ui_selection,
+            config,
+        }        
+    }
+
     // has ownership
-    pub fn update(&mut self, cpus: Vec<CpuItem>) {
-        for cpu in cpus {
+    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+        for cpu in sysinfo.get_cpus() {
             let id = cpu.id();
 
             let perf_q = self.cpus.entry(id).or_insert_with(|| {
@@ -107,7 +131,7 @@ impl DrawableComponent for CPUComponent {
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Fill(1),                    // chart
-                Constraint::Length(16),                // list
+                Constraint::Length(16),                 // list
             ]).split(area);
 
         // containers

@@ -1,7 +1,6 @@
 use anyhow::{Ok, Result};
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
-use crate::components::sysinfo_wrapper;
 use crate::components::temp::TempComponent;
 use crate::config::Config;
 use crate::components::{
@@ -14,8 +13,6 @@ use crate::components::{
     EventState,
     DrawableComponent,
     help::HelpComponent,
-    command,
-    command::CommandInfo,
 };
 
 enum MainFocus {
@@ -41,23 +38,12 @@ pub struct App {
 impl App {
     pub fn new(config: Config) -> Self {
         let mut system_wrapper = SysInfoWrapper::new(config.clone());
-
         system_wrapper.refresh_all();
         
         let process = ProcessComponent::new(config.clone(), &system_wrapper);
-
-        let mut cpu = CPUComponent::default();
-        let cpus = system_wrapper.get_cpus();
-        cpu.update(cpus);
-
-        let memory_item = system_wrapper.get_memory();
-        let mut memory = MemoryComponent::new(config.clone());
-        memory.update(memory_item);
-
-        let temp_items = system_wrapper.get_temps();
-        let mut temp = TempComponent::new(config.clone());
-        temp.update(temp_items);
-
+        let memory = MemoryComponent::new(config.clone(), &system_wrapper);
+        let cpu = CPUComponent::new(config.clone(), &system_wrapper);
+        let temp = TempComponent::new(config.clone(), &system_wrapper);
 
         Self {
             focus: MainFocus::Process,
@@ -77,38 +63,11 @@ impl App {
         self.system_wrapper.refresh_all();
 
         self.process.update(&self.system_wrapper);
-
-        self.update_cpu();
-
-        self.update_memory();
-
-        self.update_temps();
+        self.memory.update(&self.system_wrapper);
+        self.cpu.update(&self.system_wrapper);
+        self.temp.update(&self.system_wrapper);
 
         Ok(EventState::Consumed)
-    }
-
-    fn update_temps(&mut self) {
-        let temp_items = self.system_wrapper.get_temps();
-
-        self.temp.update(temp_items);
-    }
-
-    fn update_memory(&mut self) {
-        let memory_item = self.system_wrapper.get_memory();
-
-        self.memory.update(memory_item);
-    }
-
-    /*fn update_process(&mut self) {
-        let new_processes = self.system_wrapper.get_processes();    // receive ownership
-        
-        self.process.update(new_processes);                         // transfer ownership
-    }*/
-
-    fn update_cpu(&mut self) {
-        let new_cpus = self.system_wrapper.get_cpus();  // receive ownership
-
-        self.cpu.update(new_cpus);                      // transfer ownership
     }
 
     fn toggle_expand(&mut self) {
@@ -126,13 +85,6 @@ impl App {
             self.toggle_expand();
 
             return Ok(EventState::Consumed);
-        }
-        else if key.code == self.config.key_config.terminate {
-            if let Some(pid) = self.process.selected_pid() {
-                self.system_wrapper.terminate_process(pid);
-            }
-
-            return Ok(EventState::Consumed)
         }
 
         Ok(EventState::NotConsumed)
@@ -165,6 +117,12 @@ impl App {
             }
             MainFocus::Process => {
                 if self.process.event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+                // terminate case
+                if key.code == self.config.key_config.terminate {
+                    self.process.terminate_process(&self.system_wrapper);
+
                     return Ok(EventState::Consumed)
                 }
             }
@@ -295,6 +253,7 @@ impl App {
         return Ok(())
     }
 
+    /*
     fn commands(&self) -> Vec<CommandInfo> {
         let res = vec![
             CommandInfo::new(command::help(&self.config.key_config)),
@@ -312,5 +271,5 @@ impl App {
         ];
 
         res
-    }
+    }*/
 }

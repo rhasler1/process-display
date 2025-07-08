@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
-use crate::models::process_list::{ListSortOrder, MoveSelection};
+use crate::models::p_list::process_list::{ListSortOrder, MoveSelection};
 use super::config::KeyConfig;
 pub mod sysinfo_wrapper;
 pub mod filter;

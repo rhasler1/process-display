@@ -37,6 +37,7 @@ impl CpuItem {
 
 }
 
+/*
 #[cfg(test)]
 mod test {
     use super::CpuItem;
@@ -59,4 +60,4 @@ mod test {
         assert_eq!(instance.brand(), String::from("Apple"));
     }
     */
-}
+}*/

@@ -1,57 +1,43 @@
-// make similar to CPU
-
-/*
-
-pub struct CPUComponent {
-    cpus: BTreeMap<usize, BoundedQueue<CpuItem>>,
-    ui_selection: usize,
-    config: Config,
-}
-
-*/
-use std::collections::BTreeMap;
-use bounded_queue::BoundedQueue;
-use crate::{components::EventState, config::Config};
-use bounded_queue::TempItem;
-use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, Gauge, GraphType, List, ListItem, ListState, Table};
 use anyhow::{Ok, Result};
+use ratatui::widgets::{Block, Borders, Table};
+use ratatui::prelude::*;
+use ratatui::Frame;
+use ratatui::widgets::Cell;
+use ratatui::widgets::Row;
+use crossterm::event::KeyEvent;
+use crate::components::sysinfo_wrapper::SysInfoWrapper;
+use crate::components::utils::vertical_scroll::VerticalScroll;
+use crate::models::items::temp_item::TempItem;
+use crate::{components::EventState, config::Config};
 use super::{Component, DrawableComponent};
-use ratatui::{
-    style::{Style, Stylize},
-};
 
 pub struct TempComponent {
     config: Config,
-    temps: BTreeMap<String, BoundedQueue<TempItem>>,
+    temps: Vec<TempItem>,
     ui_selection: usize,
+    vertical_scroll: VerticalScroll,
 }
 
 impl TempComponent {
-    pub fn new(config: Config) -> Self {
-        let temps: BTreeMap<String, BoundedQueue<TempItem>> = BTreeMap::new();
+    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
+        let mut temps = Vec::new();
+        sysinfo.get_temps(&mut temps);
 
         Self {
             config,
             temps,
             ui_selection: 0,
+            vertical_scroll: VerticalScroll::new(),
         }
     }
 
-    pub fn update(&mut self, temp_items: Vec<TempItem>) {
-        for temp_item in temp_items {
-            let key = temp_item.label().to_string();
-
-            let queue = self.temps.entry(key).or_insert_with(|| {
-                BoundedQueue::new(self.config.events_per_min() as usize)
-            });
-
-            queue.add_item(temp_item);
-        }
+    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+        sysinfo.get_temps(&mut self.temps);
     }
 }
 
 impl Component for TempComponent {
-    fn event(&mut self, key: crossterm::event::KeyEvent) -> Result<EventState> {
+    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
         let temps_max_idx = self.temps.len() - 1;
 
         if key.code == self.config.key_config.move_down {
@@ -69,174 +55,83 @@ impl Component for TempComponent {
     }
 }
 
-
-// I can't get critical temp values on Mac and potentially Windows.
-// Instead of doing gauges for temp, I'm just going to report as a table.
-// Also, sorting by String, messes up the order e.g., item0 -> item1 -> item10 -> item2
-// TODO: Do not use boundedqueue, just create a Vector of TempItems.
-/*
-  let header = ["",
-        if matches!(sort_order, ListSortOrder::PidInc) { "PID ▲" }
-        else if matches!(sort_order, ListSortOrder::PidDec) { "PID ▼" }
-        else { "PID" },
-
-        if matches!(sort_order, ListSortOrder::NameInc) { "Name ▲" } 
-        else if matches!(sort_order, ListSortOrder::NameDec) { "Name ▼" }
-        else { "Name" },
-
-        if matches!(sort_order, ListSortOrder::CpuUsageInc) { "CPU (%) ▲" }
-        else if matches!(sort_order, ListSortOrder::CpuUsageDec) { "CPU (%) ▼" }
-        else { "CPU (%)" },
-
-        if matches!(sort_order, ListSortOrder::MemoryUsageInc) { "Memory (MB) ▲" }
-        else if matches!(sort_order, ListSortOrder::MemoryUsageDec) { "Memory (MB) ▼" }
-        else { "Memory (MB)" },
-
-        "Run (hh:mm:ss)",
-        "Status",
-        "Path"]
-        .into_iter()
-        .map(Cell::from)
-        .collect::<Row>()
-        .style(
-            if focus {
-                theme_config.style_border_focused
-            }
-            else {
-                theme_config.style_border_not_focused
-            }
-        )
-        .height(1);
-
-    // setting rows
-    let rows = visible_items
-        .map(|(item, selected)| {
-            let style =
-                if focus && selected && follow_flag {
-                    theme_config.style_item_selected_followed
-                }
-                else if focus && selected && !follow_flag {
-                    theme_config.style_item_selected
-                }
-                else if focus {
-                    theme_config.style_item_focused
-                }
-                else if !focus && selected & follow_flag {
-                    theme_config.style_item_selected_followed_not_focused
-                }
-                else if !focus && selected & !follow_flag {
-                    theme_config.style_item_selected_not_focused
-                }
-                else {
-                    theme_config.style_item_not_focused
-                }
-            ;
-
-            let cells: Vec<Cell> = vec![
-                if style == theme_config.style_item_selected ||
-                    style == theme_config.style_item_selected_followed || 
-                    style == theme_config.style_item_selected_followed_not_focused || 
-                    style == theme_config.style_item_selected_not_focused {
-                        Cell::from(String::from("->"))
-                }
-                else {
-                    Cell::from(String::from(""))
-                },
-                Cell::from(item.pid().to_string()),
-                Cell::from(item.name().to_string()),
-                Cell::from(format!("{:.2}", item.cpu_usage())),
-                Cell::from(format!("{:.2}", item.memory_usage()/1000000)),
-                Cell::from(item.run_time_hh_mm_ss()),
-                Cell::from(item.status()),
-                Cell::from(item.path()),
-            ];
-            Row::new(cells).style(style)
-        })
-        .collect::<Vec<_>>();
-
-    // setting the width constraints.
-    let widths =
-    vec![
-        Constraint::Length(2),
-        Constraint::Length(10), // pid
-        Constraint::Length(50), // name
-        Constraint::Length(15), // cpu usage
-        Constraint::Length(15), // memory usage
-        Constraint::Length(20), // run time
-        Constraint::Length(15), // status
-        Constraint::Min(0),     // path
-    ];
-
-    // setting block information
-    let block_title: &str = " Process List ";
-    let block_style =
-        if focus {
-            theme_config.style_border_focused
-        }
-        else {
-            theme_config.style_border_not_focused
-        };
-
-    // setting the table
-    let table = Table::new(rows, widths)
-        .header(header)
-        .block(Block::default().borders(Borders::ALL).title(block_title))
-        .style(block_style);
-
-    // render
-    f.render_widget(table, area);
-}
-*/
+//TODO: take a closer look at:
+//  1. VerticalScroll
+//  2. ListIter & ListItemsIter
 impl DrawableComponent for TempComponent {
-    fn draw(&mut self, f: &mut ratatui::Frame, area: ratatui::prelude::Rect, focused: bool) -> Result<()> {
-        // get the temp component selected
-        let selection = self.ui_selection;
-
-        //let header = ["Sensor", "Temp", "Max Temp", "Critical Temp"];
-
-        //let rows = self.temps
-        //    .iter()
-        //    .map(|item| {})
-
-        //let table = Table::new(rows, widths)
-            //.header(header)
-         //   .block(Block::default().borders(Borders::ALL).title(block_title))
-          //  .style(block_style);
-
-    
-        // populate names for UIList to draw temp component list
-        let mut names: Vec<ListItem> = self.temps
-            .iter()
-            .map(|(key, queue)| {
-                let title = format!("{} {}", key.to_string(), queue.back().unwrap().critical_temp());
-                ListItem::new(title)
-            })
-            .collect();
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()> {
+        let visible_height = area.height.saturating_sub(3) as usize;
         
-        let mut list_state = ListState::default();
-        
-        list_state.select(Some(self.ui_selection));
+        self.vertical_scroll.update(
+            self.ui_selection,
+            self.temps.len(),
+            visible_height,
+        );
 
-        let temp_list = List::new(names)
-            .scroll_padding(area.height as usize / 2)
-            .block(
-                if !focused {
-                    Block::default().borders(Borders::ALL).style(self.config.theme_config.style_border_not_focused)
+        let visible_items = self.temps.iter().skip(self.vertical_scroll.get_top()).take(visible_height);
+
+        let header = ["Sensor", "Temp", "Max Temp", "Critical Temp"]
+            .into_iter()
+            .map(Cell::from)
+            .collect::<Row>()
+            .style(
+                if focused {
+                    self.config.theme_config.style_border_focused
                 }
                 else {
-                    Block::default().borders(Borders::ALL).style(self.config.theme_config.style_border_focused)
+                    self.config.theme_config.style_border_not_focused
                 }
             )
-            .highlight_style(
-                if !focused {
-                    self.config.theme_config.style_item_selected_not_focused
-                }
-                else {
-                    self.config.theme_config.style_item_selected
-                }
-            );
-        
-        f.render_stateful_widget(temp_list, area, &mut list_state);
+            .height(1);
+
+        let rows = visible_items
+            .map(|item| {
+                let style: Style =
+                    if focused && item.label().eq(self.temps[self.ui_selection].label()) {
+                        self.config.theme_config.style_item_selected       
+                    }
+                    else if focused {
+                        self.config.theme_config.style_item_focused
+                    }
+                    else if !focused && item.label().eq(self.temps[self.ui_selection].label()) {
+                        self.config.theme_config.style_item_selected_not_focused
+                    }
+                    else {
+                        self.config.theme_config.style_item_not_focused
+                    };
+                
+                let cells: Vec<Cell> = vec![
+                    Cell::from(item.label().to_string()),
+                    Cell::from(item.temp().to_string()),
+                    Cell::from(item.max_temp().to_string()),
+                    Cell::from(item.critical_temp().to_string()),
+                ];
+
+                Row::new(cells).style(style)
+            })
+            .collect::<Vec<_>>();
+
+        let widths = vec![
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+        ];
+
+        let block_title: &str = " Sensor Temperatures ";
+        let block_style = if focused {
+            self.config.theme_config.style_border_focused
+        }
+        else {
+            self.config.theme_config.style_border_not_focused
+        };
+
+        let table = Table::new(rows, widths)
+            .header(header)
+            .block(Block::default().borders(Borders::ALL).title(block_title))
+            .style(block_style);
+
+        f.render_widget(table, area);
         
         Ok(())
     }

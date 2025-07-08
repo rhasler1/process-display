@@ -71,10 +71,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bounded-queue"
-version = "0.1.0"
-
-[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -360,7 +356,6 @@ name = "process-display"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "bounded-queue",
  "clippy",
  "crossterm",
  "dynamic-list",

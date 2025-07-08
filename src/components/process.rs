@@ -4,16 +4,14 @@ use ratatui::{
     Frame,
     prelude::*,
 };
-use crate::{components::{filter, sysinfo_wrapper::SysInfoWrapper}, config::{Config, KeyConfig}};
-use crate::models::process_list::{ListSortOrder, ProcessList};
-use crate::models::process_list_item::ProcessListItem;
-use crate::models::process_list_items::ProcessListItems;
-
-use super::{
-    common_nav, common_sort, Component, DrawableComponent, EventState,
+use crate::components::{
+    sysinfo_wrapper::SysInfoWrapper,
+    common_nav, common_sort, DrawableComponent, Component, EventState,
     utils::vertical_scroll::VerticalScroll,
     filter::FilterComponent,
 };
+use crate::config::{Config, KeyConfig};
+use crate::models::p_list::process_list::{ListSortOrder, ProcessList};
 
 #[derive(PartialEq, Clone)]
 pub enum Focus {
@@ -50,17 +48,16 @@ impl ProcessComponent {
         }
     }
 
-    // gets the selected process pid, returns Some(pid) or None
-    pub fn selected_pid(&self) -> Option<u32> {
-        if matches!(self.focus, Focus::List) {
-            if let Some(filtered_list) = self.filtered_list.as_ref() {
-                return filtered_list.selected_pid()
-            }
-            else {
-                return self.list.selected_pid()
-            }
-        }
-        None
+    pub fn terminate_process(&mut self, sysinfo: &SysInfoWrapper) -> bool {
+        self.filtered_list
+            .as_ref()
+            .and_then(|f| f.selected_pid())
+            .or_else(|| self.list.selected_pid())
+            .map(|pid| {
+                sysinfo.terminate_process(pid);
+                true
+            })
+            .unwrap_or(false)
     }
 }
 
@@ -116,7 +113,7 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed)
             }
 
-            else if list_sort(
+            if list_sort(
                 if let Some(list) = self.filtered_list.as_mut() {
                     list
                 }
@@ -174,6 +171,7 @@ impl DrawableComponent for ProcessComponent {
             &self.list
         };
 
+        // update vert scroll
         list.selection().map_or_else(
             { ||
                 self.scroll.reset()
@@ -234,7 +232,7 @@ impl DrawableComponent for ProcessComponent {
 }
 
 use ratatui::widgets::{block::*, *};
-use crate::models::list_iter::ListIterator;
+use crate::models::p_list::list_iter::ListIterator;
 use crate::config::ThemeConfig;
 
 fn draw_process_list(
@@ -303,8 +301,7 @@ fn draw_process_list(
                 }
                 else {
                     theme_config.style_item_not_focused
-                }
-            ;
+                };
 
             let cells: Vec<Cell> = vec![
                 if style == theme_config.style_item_selected ||

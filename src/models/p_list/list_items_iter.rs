@@ -45,6 +45,7 @@ impl<'a> Iterator for ListItemsIterator<'a> {
         
             return Some((self.index, &items[self.index]));
         }
+        
         None
     }
 }
