@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
-use process_list::{ListSortOrder, MoveSelection};
+use crate::models::p_list::process_list::{ListSortOrder, MoveSelection};
 use super::config::KeyConfig;
 pub mod sysinfo_wrapper;
 pub mod filter;
@@ -11,6 +11,8 @@ pub mod process;
 pub mod utils;
 pub mod command;
 pub mod cpu;
+pub mod memory;
+pub mod temp;
 
 pub trait DrawableComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()>;
@@ -37,7 +39,7 @@ pub fn common_nav(key: KeyEvent, key_config: &KeyConfig) -> Option<MoveSelection
         Some(MoveSelection::Down)
     }
     else if key.code == key_config.move_bottom {
-        Some(MoveSelection::End)
+        Some(MoveSelection::Bottom)
     }
     else if key.code == key_config.move_up {
         Some(MoveSelection::Up)

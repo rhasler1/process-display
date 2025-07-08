@@ -104,7 +104,7 @@ impl HelpComponent {
 impl Component for HelpComponent {
     fn event(&mut self, key: KeyEvent) -> Result<EventState> {
         if self.visible {
-            if key.code == self.config.key_config.exit_popup {
+            if key.code == self.config.key_config.exit {
                 self.hide();
                 return Ok(EventState::Consumed);
             }

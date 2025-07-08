@@ -45,7 +45,7 @@ impl ErrorComponent {
 impl Component for ErrorComponent {
     fn event(&mut self, key: KeyEvent) -> Result<EventState> {
         if self.visible {
-            if key.code == self.config.key_config.exit_popup {
+            if key.code == self.config.key_config.exit {
                 self.error = String::new();
                 self.hide()?;
                 return Ok(EventState::Consumed);

@@ -57,10 +57,10 @@ impl DrawableComponent for FilterComponent {
 
         let style: Style =
         if focused {
-            self.config.theme_config.component_in_focus
+            self.config.theme_config.style_border_focused
         }
         else {
-            self.config.theme_config.component_out_of_focus
+            self.config.theme_config.style_border_not_focused
         };
 
         let filter_text: &str = self.input_str.as_str();

@@ -1,22 +1,13 @@
 use std::collections::BTreeMap;
-
 use ratatui::prelude::*;
 use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, ListState};
-
 use std::str::FromStr;
-
 use anyhow::Ok;
-use bounded_queue::{BoundedQueue, CpuItem};
+use crate::components::sysinfo_wrapper::SysInfoWrapper;
+use crate::models::b_queue::bounded_queue::BoundedQueue;
+use crate::models::items::cpu_item::CpuItem;
 use crate::config::Config;
-
 use super::{Component, DrawableComponent};
-
-#[derive(Default)]
-pub struct CPUComponent {
-    cpus: BTreeMap<usize, BoundedQueue<CpuItem>>,
-    ui_selection: usize,
-    config: Config,
-}
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ColorWheel {
@@ -71,10 +62,39 @@ impl ColorWheel {
     }
 }
 
+#[derive(Default)]
+pub struct CPUComponent {
+    cpus: BTreeMap<usize, BoundedQueue<CpuItem>>,
+    ui_selection: usize,
+    config: Config,
+}
+
 impl CPUComponent {
+    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
+        let mut cpus: BTreeMap<usize, BoundedQueue<CpuItem>> = BTreeMap::new();
+        let ui_selection: usize = 0;
+
+        for cpu in sysinfo.get_cpus() {
+            let id = cpu.id();
+
+            let perf_q = cpus.entry(id).or_insert_with(|| {
+                BoundedQueue::new(config.events_per_min() as usize)
+            });
+
+            // passes ownership
+            perf_q.add_item(cpu);
+        }
+
+        Self {
+            cpus,
+            ui_selection,
+            config,
+        }        
+    }
+
     // has ownership
-    pub fn update(&mut self, cpus: Vec<CpuItem>) {
-        for cpu in cpus {
+    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+        for cpu in sysinfo.get_cpus() {
             let id = cpu.id();
 
             let perf_q = self.cpus.entry(id).or_insert_with(|| {
@@ -110,12 +130,12 @@ impl DrawableComponent for CPUComponent {
         let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(90),         // chart
-                Constraint::Fill(1),                // list
+                Constraint::Fill(1),                    // chart
+                Constraint::Length(16),                 // list
             ]).split(area);
 
         // containers
-        let mut all_data: Vec<(u32, Vec<(f64, f64)>)> = Vec::new();        // collect all data ensuring references live long enough to be drawn by `datasets`
+        let mut all_data: Vec<(u32, Vec<(f64, f64)>)> = Vec::new(); // collect all data ensuring references live long enough to be drawn by `datasets`
         let mut datasets: Vec<Dataset> = Vec::new();                // holds references to data to be drawn
 
         // get max index of a queue (they are all the same)
@@ -172,11 +192,6 @@ impl DrawableComponent for CPUComponent {
             }
         }
 
-        // TODO: colors should match between these two
-        // datasets can be 1..len(cpus)
-        // names is always len(cpus) + 1(All)
-
-
         // populate datasets for drawing chart
         for (id, data) in all_data.iter() {
             datasets.push(
@@ -191,29 +206,35 @@ impl DrawableComponent for CPUComponent {
         // populate names for UIList to draw cpu list
         let mut names: Vec<ListItem> = self.cpus
             .iter()
-            .map(|(key, _queue)| {
-                let title = if *key == 0 {
-                    format!("Global")
+            .map(|(key, queue)| {
+                let usage = queue.back().unwrap().usage();
+
+                let label = if *key == 0 {
+                    String::from("Global")
                 }
                 else {
-                    format!("CPU {}", key.saturating_sub(1).to_string())
+                    format!("CPU {}", key.saturating_sub(1))
                 };
+
+                let title = format!("{:<7} {:.2}", label, usage);
+
                 ListItem::new(title).style(Color::from_str(ColorWheel::from_index(*key).as_str()).unwrap())
             })
             .collect();
 
         // insert All option into UI list
-        names.insert(0, ListItem::new(String::from("All")));
+        let title = format!("{:<7} {}", String::from("All"), String::from("%"));
+        names.insert(0, ListItem::new(title));
 
         // render chart
         let chart = Chart::new(datasets)
             .block(
                 {
                     if !focused {
-                        Block::default().borders(Borders::ALL).title(" CPU % ").style(Color::DarkGray)
+                        Block::default().borders(Borders::ALL).title(" CPU % ").style(self.config.theme_config.style_border_not_focused)
                     }
                     else {
-                        Block::default().borders(Borders::ALL).title(" CPU % ").style(Color::LightGreen)
+                        Block::default().borders(Borders::ALL).title(" CPU % ").style(self.config.theme_config.style_border_focused)
                     }
                 }
             )
@@ -221,7 +242,7 @@ impl DrawableComponent for CPUComponent {
             .x_axis(
                 Axis::default()
                     .bounds([0.0, self.config.events_per_min().saturating_sub(1) as f64])
-                    .labels(vec![Span::raw(format!("-{}s",self.config.min_as_s())), Span::raw("now")])
+                    .labels(vec![Span::raw(format!("-{}s", self.config.min_as_s())), Span::raw("now")])
                     .labels_alignment(Alignment::Right),
             )
             .y_axis(
@@ -239,23 +260,26 @@ impl DrawableComponent for CPUComponent {
 
         // render cpu list
         let mut list_state = ListState::default();
+        
         list_state.select(Some(self.ui_selection));
+        
         let cpu_list = List::new(names)
             .scroll_padding(horizontal_chunks[1].height as usize / 2)
             .block(
-                {
-                    if !focused {
-                        Block::default().borders(Borders::ALL).style(Color::DarkGray)
-                    }
-                    else {
-                        Block::default().borders(Borders::ALL).style(Color::LightGreen)
-                    }
+                if !focused {
+                    Block::default().borders(Borders::ALL).style(self.config.theme_config.style_border_not_focused)
+                }
+                else {
+                    Block::default().borders(Borders::ALL).style(self.config.theme_config.style_border_focused)
                 }
             )
             .highlight_style(
-                Style::default()
-                    .bg(Color::LightBlue)
-                    .add_modifier(Modifier::BOLD)
+                if !focused {
+                    self.config.theme_config.style_item_selected_not_focused
+                }
+                else {
+                    self.config.theme_config.style_item_selected
+                }
             );
 
         f.render_stateful_widget(cpu_list, horizontal_chunks[1], &mut list_state);

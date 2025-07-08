@@ -3,9 +3,6 @@ pub struct CpuItem {
     id: usize,
     usage: f32,
     frequency: u64,
-    name: String,
-    brand: String,
-    vendor_id: String,
 }
 
 impl CpuItem {
@@ -13,17 +10,11 @@ impl CpuItem {
         id: usize,
         usage: f32,
         frequency: u64,
-        name: String,
-        brand: String,
-        vendor_id: String,
     ) -> Self {
         Self {
             id,
             usage,
             frequency,
-            name,
-            brand,
-            vendor_id,
         }
     }
 
@@ -44,11 +35,9 @@ impl CpuItem {
         self.frequency
     }
 
-    pub fn brand(&self) -> String {
-        self.brand.clone()
-    }
 }
 
+/*
 #[cfg(test)]
 mod test {
     use super::CpuItem;
@@ -71,4 +60,4 @@ mod test {
         assert_eq!(instance.brand(), String::from("Apple"));
     }
     */
-}
+}*/

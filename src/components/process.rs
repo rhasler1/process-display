@@ -4,16 +4,15 @@ use ratatui::{
     Frame,
     prelude::*,
 };
-use process_list::{ProcessList, ProcessListItem, ProcessListItems};
+use crate::components::{
+    sysinfo_wrapper::SysInfoWrapper,
+    common_nav, common_sort, DrawableComponent, Component, EventState,
+    utils::vertical_scroll::VerticalScroll,
+    filter::FilterComponent,
+};
+use crate::config::{Config, KeyConfig};
+use crate::models::p_list::process_list::{ListSortOrder, ProcessList};
 
-use super::{common_nav, common_sort};
-use super::{filter::FilterComponent, Component, DrawableComponent, EventState};
-use super::utils::vertical_scroll::VerticalScroll;
-use crate::config::Config;
-use crate::config::KeyConfig;
-use crate::ui::process_list_ui::process_list_ui::draw_process_list;
-
-// focus of process component, this can be on either a ProcessList or FilterComponent
 #[derive(PartialEq, Clone)]
 pub enum Focus {
     Filter,
@@ -30,10 +29,10 @@ pub struct ProcessComponent {
 }
 
 impl ProcessComponent {
-    pub fn new(config: Config, processes: Vec<ProcessListItem>) -> Self {
+    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
         Self {
             focus: Focus::List,
-            list: ProcessList::new(processes),
+            list: ProcessList::new(sysinfo),
             filter: FilterComponent::new(config.clone()),
             filtered_list: None,
             scroll: VerticalScroll::new(),
@@ -41,80 +40,55 @@ impl ProcessComponent {
         }
     }
 
-    // update process list, return true if new processes is non empty
-    // given ownersip
-    pub fn update(&mut self, new_processes: Vec<ProcessListItem>) -> bool {
-        // should never be empty
-        assert!(!new_processes.is_empty());
-
-        // two vectors are needed to update list and filtered list
-        let dup = new_processes.clone();
-        
-        // Must pass by reference to update both lists
-        self.list.update(new_processes);   
+    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+        self.list.update(sysinfo, "");
 
         if let Some(filtered_list) = self.filtered_list.as_mut() {
-            // implement a better way to update the filtered list
-            // filter new processes
-            let processes = ProcessListItems::new(dup);
-            //let filter_text = self.filter.input_str();
-            let filtered_processes = processes.filter(self.filter.input_str());
-            // transfer ownership
-            filtered_list.update(filtered_processes.list_items);
+            filtered_list.update(sysinfo, self.filter.input_str());
         }
-
-        true
     }
 
-    // gets the selected process pid, returns Some(pid) or None
-    pub fn selected_pid(&self) -> Option<u32> {
-        if matches!(self.focus, Focus::List) {
-            if let Some(filtered_list) = self.filtered_list.as_ref() {
-                return filtered_list.selected_pid()
-            }
-            else {
-                return self.list.selected_pid()
-            }
-        }
-        None
+    pub fn terminate_process(&mut self, sysinfo: &SysInfoWrapper) -> bool {
+        self.filtered_list
+            .as_ref()
+            .and_then(|f| f.selected_pid())
+            .or_else(|| self.list.selected_pid())
+            .map(|pid| {
+                sysinfo.terminate_process(pid);
+                true
+            })
+            .unwrap_or(false)
     }
 }
 
 impl Component for ProcessComponent {
-    // Handle key events for ProcessComponent.
     fn event(&mut self, key: KeyEvent) -> Result<EventState> {
-        //  If they key event is filter and the ProcessComponent Focus is on the List, then move the focus to Filter and return.
         if key.code == self.config.key_config.filter && self.focus == Focus::List {
             self.focus = Focus::Filter;
+            
             return Ok(EventState::Consumed)
-        }
-
-        // If the ProcessComponent Focus is on the Filter, then attempt to set the filtered_list.
-        // If the filter's input string is None, then set the filtered_list to None (no List to display),
-        // else create the filtered_list calling list.filter(input_str).
-        if matches!(self.focus, Focus::Filter) {
-            self.filtered_list = if self.filter.input_str().is_empty() {
-                None
-            }
-            else {
-                Some(self.list.filter(self.filter.input_str()))
-            };
         }
 
         if matches!(self.focus, Focus::Filter) {
             if self.filter.event(key)?.is_consumed() {
+                self.filtered_list = if self.filter.input_str().is_empty() {
+                    None
+                }
+                else {
+                    Some(self.list.filter(self.filter.input_str()))
+                };
+
                 return Ok(EventState::Consumed)
             }
             
             if key.code == self.config.key_config.enter {
                 self.focus = Focus::List;
+
                 return Ok(EventState::Consumed)
             }
         }
 
         if matches!(self.focus, Focus::List) {
-            // Check if the key input is to navigate the list. If there is some filtered list, then that is the
-            // list we want to interact with, else interact with the unfiltered list.
             if list_nav(
                 if let Some(list) = self.filtered_list.as_mut() {
                     list
@@ -128,8 +102,7 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed);
             }
 
-            // Check if the key is to change the follow_selection value.
-            else if key.code == self.config.key_config.follow_selection {
+            if key.code == self.config.key_config.follow_selection {
                 if let Some(filtered_list) = self.filtered_list.as_mut() {
                     filtered_list.toggle_follow_selection();
                 }
@@ -140,9 +113,7 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed)
             }
 
-            // Check if the key input is to sort the list. If there is some filtered list, then that is the
-            // list we want to interact with, else interact with unfiltered list.
-            else if list_sort(
+            if list_sort(
                 if let Some(list) = self.filtered_list.as_mut() {
                     list
                 }
@@ -160,13 +131,10 @@ impl Component for ProcessComponent {
     }
 }
 
-
-// Function calls common_nav, common_nav checks if key can be consumed, if so,
-// Some(MoveSelection) is returned and list.move_selection(MoveSelection) is called.
-// Else return false.
 fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bool {
     if let Some(move_dir) = common_nav(key, key_config) {
         list.move_selection(move_dir);
+
         true
     }
     else {
@@ -174,12 +142,10 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
     }
 }
 
-// Function calls common_sort, common_sort checks if key can be consumed, if so,
-// Some(ListSortOrder) is returned and list.sort(ListSortOrder) is called.
-// Else return false.
 fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> Result<bool> {
     if let Some(sort) = common_sort(key, key_config) {
         list.sort(&sort);
+
         Ok(true)
     }
     else {
@@ -189,18 +155,15 @@ fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> R
 
 impl DrawableComponent for ProcessComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()> {
-        // split for filter
         let horizontal_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Fill(1),
-                Constraint::Length(3),
+                Constraint::Fill(1),        //list
+                Constraint::Length(3),      //filter
             ]).split(area);
 
-        // calculate visible list height
         let visible_list_height = horizontal_chunks[0].height.saturating_sub(3) as usize;
 
-        // determine list to display
         let list = if let Some(filtered_list) = self.filtered_list.as_ref() {
             filtered_list
         }
@@ -208,7 +171,7 @@ impl DrawableComponent for ProcessComponent {
             &self.list
         };
 
-        // updating the scroll struct--calculates the position at the top of the displayed list
+        // update vert scroll
         list.selection().map_or_else(
             { ||
                 self.scroll.reset()
@@ -238,7 +201,8 @@ impl DrawableComponent for ProcessComponent {
             else {
                 false
             },
-            self.config.theme_config.clone()
+            self.config.theme_config.clone(),
+            list.sort_order(),
         );
 
         self.scroll.draw(
@@ -265,6 +229,133 @@ impl DrawableComponent for ProcessComponent {
 
         Ok(())
     }
+}
+
+use ratatui::widgets::{block::*, *};
+use crate::models::p_list::list_iter::ListIterator;
+use crate::config::ThemeConfig;
+
+fn draw_process_list(
+    f: &mut Frame,
+    area: Rect,
+    visible_items: ListIterator<'_>,
+    follow_selection: bool,
+    focus: bool,
+    theme_config: ThemeConfig,
+    sort_order: &ListSortOrder,
+) {
+    let follow_flag = follow_selection;
+
+    // setting header
+    let header = ["",
+        if matches!(sort_order, ListSortOrder::PidInc) { "PID ▲" }
+        else if matches!(sort_order, ListSortOrder::PidDec) { "PID ▼" }
+        else { "PID" },
+
+        if matches!(sort_order, ListSortOrder::NameInc) { "Name ▲" } 
+        else if matches!(sort_order, ListSortOrder::NameDec) { "Name ▼" }
+        else { "Name" },
+
+        if matches!(sort_order, ListSortOrder::CpuUsageInc) { "CPU (%) ▲" }
+        else if matches!(sort_order, ListSortOrder::CpuUsageDec) { "CPU (%) ▼" }
+        else { "CPU (%)" },
+
+        if matches!(sort_order, ListSortOrder::MemoryUsageInc) { "Memory (MB) ▲" }
+        else if matches!(sort_order, ListSortOrder::MemoryUsageDec) { "Memory (MB) ▼" }
+        else { "Memory (MB)" },
+
+        "Run (hh:mm:ss)",
+        "Status",
+        "Path"]
+        .into_iter()
+        .map(Cell::from)
+        .collect::<Row>()
+        .style(
+            if focus {
+                theme_config.style_border_focused
+            }
+            else {
+                theme_config.style_border_not_focused
+            }
+        )
+        .height(1);
+
+    // setting rows
+    let rows = visible_items
+        .map(|(item, selected)| {
+            let style =
+                if focus && selected && follow_flag {
+                    theme_config.style_item_selected_followed
+                }
+                else if focus && selected && !follow_flag {
+                    theme_config.style_item_selected
+                }
+                else if focus {
+                    theme_config.style_item_focused
+                }
+                else if !focus && selected & follow_flag {
+                    theme_config.style_item_selected_followed_not_focused
+                }
+                else if !focus && selected & !follow_flag {
+                    theme_config.style_item_selected_not_focused
+                }
+                else {
+                    theme_config.style_item_not_focused
+                };
+
+            let cells: Vec<Cell> = vec![
+                if style == theme_config.style_item_selected ||
+                    style == theme_config.style_item_selected_followed || 
+                    style == theme_config.style_item_selected_followed_not_focused || 
+                    style == theme_config.style_item_selected_not_focused {
+                        Cell::from(String::from("->"))
+                }
+                else {
+                    Cell::from(String::from(""))
+                },
+                Cell::from(item.pid().to_string()),
+                Cell::from(item.name().to_string()),
+                Cell::from(format!("{:.2}", item.cpu_usage())),
+                Cell::from(format!("{:.2}", item.memory_usage()/1000000)),
+                Cell::from(item.run_time_hh_mm_ss()),
+                Cell::from(item.status()),
+                Cell::from(item.path()),
+            ];
+            Row::new(cells).style(style)
+        })
+        .collect::<Vec<_>>();
+
+    // setting the width constraints.
+    let widths =
+    vec![
+        Constraint::Length(2),
+        Constraint::Length(10), // pid
+        Constraint::Length(50), // name
+        Constraint::Length(15), // cpu usage
+        Constraint::Length(15), // memory usage
+        Constraint::Length(20), // run time
+        Constraint::Length(15), // status
+        Constraint::Min(0),     // path
+    ];
+
+    // setting block information
+    let block_title: &str = " Process List ";
+    let block_style =
+        if focus {
+            theme_config.style_border_focused
+        }
+        else {
+            theme_config.style_border_not_focused
+        };
+
+    // setting the table
+    let table = Table::new(rows, widths)
+        .header(header)
+        .block(Block::default().borders(Borders::ALL).title(block_title))
+        .style(block_style);
+
+    // render
+    f.render_widget(table, area);
 }
 
 #[cfg(test)]

@@ -2,18 +2,25 @@
 pub struct MemoryItem {
     total_memory: u64,
     used_memory: u64,
-    free_memory: u64,
-    available_memory: u64,
+    total_swap: u64,
+    used_swap: u64,
 }
 
 impl MemoryItem {
-    pub fn new(total_memory: u64, used_memory: u64, free_memory: u64, available_memory: u64) -> Self {
+    pub fn new(total_memory: u64, used_memory: u64, total_swap: u64, used_swap: u64) -> Self {
         Self {
             total_memory,
             used_memory,
-            free_memory,
-            available_memory,
+            total_swap,
+            used_swap,
         }
+    }
+
+    pub fn update(&mut self, total_memory: u64, used_memory: u64, total_swap: u64, used_swap: u64) {
+        self.total_memory = total_memory;
+        self.used_memory = used_memory;
+        self.total_swap = total_swap;
+        self.used_swap = used_swap;
     }
 
     pub fn total_memory(&self) -> u64 {
@@ -22,14 +29,6 @@ impl MemoryItem {
 
     pub fn used_memory(&self) -> u64 {
         self.used_memory
-    }
-
-    pub fn free_memory(&self) -> u64 {
-        self.free_memory
-    }
-
-    pub fn available_memory(&self) -> u64 {
-        self.available_memory
     }
     
     pub fn total_memory_gb(&self) -> f64 {
@@ -40,12 +39,20 @@ impl MemoryItem {
         self.used_memory as f64 / 1000000000_f64 
     }
 
-    pub fn free_memory_gb(&self) -> f64 {
-        self.free_memory as f64 / 1000000000_f64 
+    pub fn total_swap(&self) -> u64 {
+        self.total_swap
     }
 
-    pub fn available_memory_gb(&self) -> f64 {
-        self.available_memory as f64 / 1000000000_f64 
+    pub fn used_swap(&self) -> u64 {
+        self.used_swap
+    }
+
+    pub fn total_swap_gb(&self) -> f64 {
+        self.total_swap as f64 / 1000000000_f64 
+    }
+
+    pub fn used_swap_gb(&self) -> f64 {
+        self.used_swap as f64 / 1000000000_f64 
     }
 }
 
@@ -58,24 +65,16 @@ mod test {
         let instance = MemoryItem::default();
         assert_eq!(instance.total_memory(), 0);
         assert_eq!(instance.used_memory(), 0);
-        assert_eq!(instance.free_memory(), 0);
-        assert_eq!(instance.available_memory(), 0);
         assert_eq!(instance.total_memory_gb(), 0.0);
         assert_eq!(instance.used_memory_gb(), 0.0);
-        assert_eq!(instance.free_memory_gb(), 0.0);
-        assert_eq!(instance.available_memory_gb(), 0.0);
     }
 
     #[test]
     fn test_new() {
-        let instance = MemoryItem::new(1, 2, 3, 4);
+        let instance = MemoryItem::new(1, 2, 0, 0);
         assert_eq!(instance.total_memory(), 1);
         assert_eq!(instance.used_memory(), 2);
-        assert_eq!(instance.free_memory(), 3);
-        assert_eq!(instance.available_memory(), 4);
         assert_eq!(instance.total_memory_gb(), 0.000000001);
         assert_eq!(instance.used_memory_gb(), 0.000000002);
-        assert_eq!(instance.free_memory_gb(), 0.000000003);
-        assert_eq!(instance.available_memory_gb(), 0.000000004);
     }
 }

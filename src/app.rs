@@ -1,9 +1,11 @@
 use anyhow::{Ok, Result};
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
+use crate::components::temp::TempComponent;
 use crate::config::Config;
 use crate::components::{
     cpu::CPUComponent,
+    memory::MemoryComponent,
     process::ProcessComponent,
     sysinfo_wrapper::SysInfoWrapper,
     error::ErrorComponent,
@@ -11,13 +13,13 @@ use crate::components::{
     EventState,
     DrawableComponent,
     help::HelpComponent,
-    command,
-    command::CommandInfo,
 };
 
 enum MainFocus {
     CPU,
     Process,
+    Memory,
+    Temp,
 }
 
 pub struct App {
@@ -26,6 +28,8 @@ pub struct App {
     system_wrapper: SysInfoWrapper,
     process: ProcessComponent,
     cpu: CPUComponent,
+    memory: MemoryComponent,
+    temp: TempComponent,
     help: HelpComponent,
     pub error: ErrorComponent,
     pub config: Config,
@@ -34,23 +38,21 @@ pub struct App {
 impl App {
     pub fn new(config: Config) -> Self {
         let mut system_wrapper = SysInfoWrapper::new(config.clone());
-        
         system_wrapper.refresh_all();
         
-        let processes = system_wrapper.get_processes();
-
-        let mut cpu = CPUComponent::default();
-
-        let cpus = system_wrapper.get_cpus();
-
-        cpu.update(cpus);
+        let process = ProcessComponent::new(config.clone(), &system_wrapper);
+        let memory = MemoryComponent::new(config.clone(), &system_wrapper);
+        let cpu = CPUComponent::new(config.clone(), &system_wrapper);
+        let temp = TempComponent::new(config.clone(), &system_wrapper);
 
         Self {
             focus: MainFocus::Process,
             expand: false,
             system_wrapper,
-            process: ProcessComponent::new(config.clone(), processes),
+            process,
             cpu,
+            memory,
+            temp,
             help: HelpComponent::new(config.clone()),
             error: ErrorComponent::new(config.clone()),
             config: config.clone(),
@@ -60,25 +62,12 @@ impl App {
     pub fn refresh_event(&mut self) -> Result<EventState> {
         self.system_wrapper.refresh_all();
 
-        self.update_process();
-
-        self.update_cpu();
-
-        self.update_cmds();
+        self.process.update(&self.system_wrapper);
+        self.memory.update(&self.system_wrapper);
+        self.cpu.update(&self.system_wrapper);
+        self.temp.update(&self.system_wrapper);
 
         Ok(EventState::Consumed)
-    }
-
-    fn update_process(&mut self) {
-        let new_processes = self.system_wrapper.get_processes();    // receive ownership
-        
-        self.process.update(new_processes);                         // transfer ownership
-    }
-
-    fn update_cpu(&mut self) {
-        let new_cpus = self.system_wrapper.get_cpus();  // receive ownership
-
-        self.cpu.update(new_cpus);                      // transfer ownership
     }
 
     fn toggle_expand(&mut self) {
@@ -96,13 +85,6 @@ impl App {
             self.toggle_expand();
 
             return Ok(EventState::Consumed);
-        }
-        else if key.code == self.config.key_config.terminate {
-            if let Some(pid) = self.process.selected_pid() {
-                self.system_wrapper.terminate_process(pid);
-            }
-
-            return Ok(EventState::Consumed)
         }
 
         Ok(EventState::NotConsumed)
@@ -123,8 +105,24 @@ impl App {
                     return Ok(EventState::Consumed)
                 }
             }
+            MainFocus::Memory => {
+                if self.memory.event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
+            MainFocus::Temp => {
+                if self.temp.event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
             MainFocus::Process => {
                 if self.process.event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+                // terminate case
+                if key.code == self.config.key_config.terminate {
+                    self.process.terminate_process(&self.system_wrapper);
+
                     return Ok(EventState::Consumed)
                 }
             }
@@ -137,6 +135,12 @@ impl App {
         if key.code == self.config.key_config.tab {
             match self.focus {
                 MainFocus::CPU => {
+                    self.focus = MainFocus::Memory
+                }
+                MainFocus::Memory => {
+                    self.focus = MainFocus::Temp
+                }
+                MainFocus::Temp => {
                     self.focus = MainFocus::Process
                 }
                 MainFocus::Process => {
@@ -177,13 +181,30 @@ impl App {
                     true,
                 )?;
             }
+
+            if matches!(self.focus, MainFocus::Memory) {
+                self.memory.draw(
+                    f,
+                    chunks[0],
+                    true,
+                )?;
+            }
+
+            if matches!(self.focus, MainFocus::Temp) {
+                self.temp.draw(
+                    f,
+                    chunks[0],
+                    true,
+                )?;
+            }
         }
         else {
             let vertical_chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Percentage(25),
-                    Constraint::Percentage(75),
+                    Constraint::Percentage(24),
+                    Constraint::Percentage(24),
+                    Constraint::Percentage(52),
                 ].as_ref())
                 .split(chunks[0]);
             
@@ -193,9 +214,8 @@ impl App {
                 let horizontal_chunk = Layout::default()
                     .direction(Direction::Horizontal)
                     .constraints([
-                        Constraint::Percentage(33),
-                        Constraint::Percentage(33),
-                        Constraint::Percentage(34),
+                        Constraint::Percentage(50),
+                        Constraint::Percentage(50),
                     ])
                     .split(*chunk);
 
@@ -204,7 +224,7 @@ impl App {
 
             self.process.draw(
                 f,
-                vertical_chunks[1],
+                vertical_chunks[2],
                 matches!(self.focus, MainFocus::Process)
             )?;
 
@@ -213,6 +233,19 @@ impl App {
                 vertical_chunks[0],
                 matches!(self.focus, MainFocus::CPU)
             )?;
+
+            self.memory.draw(
+                f,
+                horizontal_chunks[1][0],
+                //vertical_chunks[1],
+                matches!(self.focus, MainFocus::Memory)
+            )?;
+
+            self.temp.draw(
+                f,
+                horizontal_chunks[1][1],
+                matches!(self.focus, MainFocus::Temp)
+            )?;
         }
 
         self.help.draw(f, Rect::default(), false)?;
@@ -220,12 +253,7 @@ impl App {
         return Ok(())
     }
 
-    fn update_cmds(&mut self) {
-        let cmds = self.commands();
-
-        self.help.set_commands(cmds);
-    }
-
+    /*
     fn commands(&self) -> Vec<CommandInfo> {
         let res = vec![
             CommandInfo::new(command::help(&self.config.key_config)),
@@ -243,5 +271,5 @@ impl App {
         ];
 
         res
-    }
+    }*/
 }
