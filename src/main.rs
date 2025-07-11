@@ -20,7 +20,6 @@ pub mod components;
 pub mod events;
 pub mod models;
 
-// If the program's view of the World is incorrect, crash the program, don't hide false beliefs.
 fn main() -> Result<()> {
     enable_raw_mode()?;
     io::stdout().execute(EnterAlternateScreen)?;

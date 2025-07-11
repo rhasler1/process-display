@@ -38,7 +38,7 @@ impl TempComponent {
 
 impl Component for TempComponent {
     fn event(&mut self, key: KeyEvent) -> Result<EventState> {
-        let temps_max_idx = self.temps.len() - 1;
+        let temps_max_idx = self.temps.len().saturating_sub(1);
 
         if key.code == self.config.key_config.move_down {
             if self.ui_selection < temps_max_idx {

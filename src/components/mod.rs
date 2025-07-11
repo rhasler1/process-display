@@ -1,8 +1,8 @@
 use anyhow::Result;
 use crossterm::event::KeyEvent;
 use ratatui::prelude::*;
-use crate::models::p_list::process_list::{ListSortOrder, MoveSelection};
 use super::config::KeyConfig;
+use crate::components::utils::MoveSelection;
 pub mod sysinfo_wrapper;
 pub mod filter;
 pub mod help;
@@ -51,8 +51,9 @@ pub fn common_nav(key: KeyEvent, key_config: &KeyConfig) -> Option<MoveSelection
         None
     }
 }
+/*
+pub fn common_sort(key: KeyEvent, key_config: &KeyConfig) -> Option<ProcessItem> {
 
-pub fn common_sort(key: KeyEvent, key_config: &KeyConfig) -> Option<ListSortOrder> {
     if key.code == key_config.sort_cpu_usage_dec {
         Some(ListSortOrder::CpuUsageDec)
     }
@@ -80,4 +81,4 @@ pub fn common_sort(key: KeyEvent, key_config: &KeyConfig) -> Option<ListSortOrde
     else {
         None
     }
-}
+}*/

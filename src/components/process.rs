@@ -6,12 +6,15 @@ use ratatui::{
 };
 use crate::components::{
     sysinfo_wrapper::SysInfoWrapper,
-    common_nav, common_sort, DrawableComponent, Component, EventState,
+    common_nav, DrawableComponent, Component, EventState,
     utils::vertical_scroll::VerticalScroll,
     filter::FilterComponent,
 };
 use crate::config::{Config, KeyConfig};
-use crate::models::p_list::process_list::{ListSortOrder, ProcessList};
+use crate::models::process_list::process_item_iter::ProcessItemIterator;
+use crate::models::process_list::process_list::ProcessList;
+use crate::models::process_list::ProcessItemSortOrder;
+use crate::models::process_list::map_key_to_process_sort;
 
 #[derive(PartialEq, Clone)]
 pub enum Focus {
@@ -41,18 +44,18 @@ impl ProcessComponent {
     }
 
     pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
-        self.list.update(sysinfo, "");
+        self.list.update(sysinfo);
 
         if let Some(filtered_list) = self.filtered_list.as_mut() {
-            filtered_list.update(sysinfo, self.filter.input_str());
+            filtered_list.update(sysinfo);
         }
     }
 
     pub fn terminate_process(&mut self, sysinfo: &SysInfoWrapper) -> bool {
         self.filtered_list
             .as_ref()
-            .and_then(|f| f.selected_pid())
-            .or_else(|| self.list.selected_pid())
+            .and_then(|f| f.selection_pid())
+            .or_else(|| self.list.selection_pid())
             .map(|pid| {
                 sysinfo.terminate_process(pid);
                 true
@@ -143,7 +146,8 @@ fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bo
 }
 
 fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> Result<bool> {
-    if let Some(sort) = common_sort(key, key_config) {
+    // sorting is not common between componenets
+    if let Some(sort) = map_key_to_process_sort(key, key_config) {
         list.sort(&sort);
 
         Ok(true)
@@ -232,36 +236,37 @@ impl DrawableComponent for ProcessComponent {
 }
 
 use ratatui::widgets::{block::*, *};
-use crate::models::p_list::list_iter::ListIterator;
+//use crate::models::process_list::list_iter::ListIterator;
 use crate::config::ThemeConfig;
 
-fn draw_process_list(
+fn draw_process_list<'a>(
     f: &mut Frame,
     area: Rect,
-    visible_items: ListIterator<'_>,
+    visible_items: ProcessItemIterator,
     follow_selection: bool,
     focus: bool,
     theme_config: ThemeConfig,
-    sort_order: &ListSortOrder,
-) {
+    sort_order: &ProcessItemSortOrder,
+)
+{
     let follow_flag = follow_selection;
 
     // setting header
     let header = ["",
-        if matches!(sort_order, ListSortOrder::PidInc) { "PID ▲" }
-        else if matches!(sort_order, ListSortOrder::PidDec) { "PID ▼" }
+        if matches!(sort_order, ProcessItemSortOrder::PidInc) { "PID ▲" }
+        else if matches!(sort_order, ProcessItemSortOrder::PidDec) { "PID ▼" }
         else { "PID" },
 
-        if matches!(sort_order, ListSortOrder::NameInc) { "Name ▲" } 
-        else if matches!(sort_order, ListSortOrder::NameDec) { "Name ▼" }
+        if matches!(sort_order, ProcessItemSortOrder::NameInc) { "Name ▲" } 
+        else if matches!(sort_order, ProcessItemSortOrder::NameDec) { "Name ▼" }
         else { "Name" },
 
-        if matches!(sort_order, ListSortOrder::CpuUsageInc) { "CPU (%) ▲" }
-        else if matches!(sort_order, ListSortOrder::CpuUsageDec) { "CPU (%) ▼" }
+        if matches!(sort_order, ProcessItemSortOrder::CpuUsageInc) { "CPU (%) ▲" }
+        else if matches!(sort_order, ProcessItemSortOrder::CpuUsageDec) { "CPU (%) ▼" }
         else { "CPU (%)" },
 
-        if matches!(sort_order, ListSortOrder::MemoryUsageInc) { "Memory (MB) ▲" }
-        else if matches!(sort_order, ListSortOrder::MemoryUsageDec) { "Memory (MB) ▼" }
+        if matches!(sort_order, ProcessItemSortOrder::MemoryUsageInc) { "Memory (MB) ▲" }
+        else if matches!(sort_order, ProcessItemSortOrder::MemoryUsageDec) { "Memory (MB) ▼" }
         else { "Memory (MB)" },
 
         "Run (hh:mm:ss)",

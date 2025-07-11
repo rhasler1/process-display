@@ -1,5 +1,5 @@
 use sysinfo::{Pid, System, Components};
-use crate::models::p_list::process_list_item::ProcessListItem;
+use crate::models::process_list::process_item::ProcessItem;
 use crate::models::items::{memory_item::MemoryItem, temp_item::TempItem, cpu_item::CpuItem};
 use crate::config::Config;
 
@@ -47,7 +47,7 @@ impl SysInfoWrapper {
         cpus
     }
 
-    pub fn get_processes(&self, processes: &mut Vec<ProcessListItem>) {
+    pub fn get_processes(&self, processes: &mut Vec<ProcessItem>) {
         processes.clear();
 
         for (pid, process) in self.system.processes() {
@@ -86,7 +86,7 @@ impl SysInfoWrapper {
                 String::from("Permission Denied")
             };
 
-            let item = ProcessListItem::new(
+            let item = ProcessItem::new(
                 pid.as_u32(),
                 name,
                 cpu_usage,

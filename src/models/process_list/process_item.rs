@@ -1,5 +1,5 @@
-#[derive(Default, Clone, Debug)]
-pub struct ProcessListItem {
+#[derive(Default, Clone)]
+pub struct ProcessItem {
     pid: u32,
     name: String,
     cpu_usage: f32,
@@ -11,7 +11,7 @@ pub struct ProcessListItem {
     path: String,
 }
 
-impl ProcessListItem {
+impl ProcessItem {
     pub fn new(
         pid: u32,
         name: String,
@@ -36,12 +36,7 @@ impl ProcessListItem {
         }
     }
 
-    // match by name or pid
-    //pub fn is_match(&self, filter_text: &str) -> bool {
-    //    self.name.contains(filter_text) ||
-    //    self.pid.to_string().contains(filter_text)
-    //}
-
+    // GETTERS
     pub fn pid(&self) -> u32 {
         self.pid
     }
@@ -87,10 +82,53 @@ impl ProcessListItem {
     pub fn path(&self) -> &str {
         &self.path
     }
+
+    // STATIC COMPARATORS
+    pub fn cmp_pid_inc(a: &Self, b: &Self) -> std::cmp::Ordering {
+        a.pid.cmp(&b.pid)
+    }
+
+    pub fn cmp_pid_dec(a: &Self, b: &Self) -> std::cmp::Ordering {
+        b.pid.cmp(&a.pid)
+    }
+
+    pub fn cmp_name_inc(a: &Self, b: &Self) -> std::cmp::Ordering {
+        a.name.cmp(&b.name)
+    }
+
+    pub fn cmp_name_dec(a: &Self, b: &Self) -> std::cmp::Ordering {
+        b.name.cmp(&a.name)
+    }
+
+    pub fn cmp_cpu_inc(a: &Self, b: &Self) -> std::cmp::Ordering {
+        // ordering cannot always be determined with f32
+        // in case where f32 comparison returns None this
+        // function will return Equal
+        a.cpu_usage
+            .partial_cmp(&b.cpu_usage)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    }
+
+    pub fn cmp_cpu_dec(a: &Self, b: &Self) -> std::cmp::Ordering {
+        // ordering cannot always be determined with f32
+        // in case where f32 comparison returns None this
+        // function will return Equal
+        b.cpu_usage
+            .partial_cmp(&a.cpu_usage)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    }
+
+    pub fn cmp_mem_inc(a: &Self, b: &Self) -> std::cmp::Ordering {
+        a.memory_usage.cmp(&b.memory_usage)
+    }
+
+    pub fn cmp_mem_dec(a: &Self, b: &Self) -> std::cmp::Ordering {
+        b.memory_usage.cmp(&a.memory_usage)
+    }
 }
 
 // PartialEq is needed for comparison, e.g., calling contains
-impl PartialEq for ProcessListItem {
+impl PartialEq for ProcessItem {
     fn eq(&self, other: &Self) -> bool {
         self.pid.eq(&other.pid)
     }
@@ -98,11 +136,11 @@ impl PartialEq for ProcessListItem {
 
 #[cfg(test)]
 pub mod test {
-    use super::ProcessListItem;
+    use super::ProcessItem;
 
     #[test]
     fn test_constructors() {
-        let instance = ProcessListItem::default();
+        let instance = ProcessItem::default();
         assert_eq!(instance.pid, 0);
         assert!(String::is_empty(&instance.name));
         assert_eq!(instance.cpu_usage, 0.0);
@@ -112,7 +150,7 @@ pub mod test {
         assert_eq!(instance.accumulated_cpu_time, 0);
         assert!(String::is_empty(&instance.status));
 
-        let instance = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
+        let instance = ProcessItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
         assert_eq!(instance.pid, 1);
         assert_eq!(instance.name, String::from("a"));
         assert_eq!(instance.cpu_usage, 1.0);
@@ -126,8 +164,8 @@ pub mod test {
 
     #[test]
     fn test_instance_functions() {
-        let instance_0 = ProcessListItem::default();
-        let instance_1 = ProcessListItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
+        let instance_0 = ProcessItem::default();
+        let instance_1 = ProcessItem::new(1, String::from("a"), 1.0, 1, 0, 10, 10, String::from("test"), String::from("test"));
 
         assert_eq!(instance_0.pid(), instance_0.pid);
         assert_eq!(instance_0.name(), instance_0.name);

@@ -1,198 +1,190 @@
-use super::process_list_items::ProcessListItems;
-use super::process_list_item::ProcessListItem;
-use super::list_iter::ListIterator;
+use super::process_item::ProcessItem;
+use super::ProcessItemSortOrder;
+use crate::components::utils::selection::SelectionState;
+use crate::components::utils::MoveSelection;
 use crate::components::sysinfo_wrapper::SysInfoWrapper;
+use crate::models::process_list::process_item_iter::ProcessItemIterator;
 
-#[derive(PartialEq, Clone, Default)]
-pub enum ListSortOrder {
-    PidInc,
-    PidDec,
-    NameInc,
-    NameDec,
-    CpuUsageInc,
-    #[default] CpuUsageDec,
-    MemoryUsageInc,
-    MemoryUsageDec,
-}
-
-#[derive(Copy, Clone)]
-pub enum MoveSelection {
-    Up,
-    Down,
-    MultipleUp,
-    MultipleDown,
-    Top,
-    Bottom,
-}
-
-#[derive(Default)]
+// A ProcessList can be constructed as an "unfiltered list" with the new(&SysInfoWrapper) constructor
+// or as a "filtered list" with filter(&str) constructor.
+// Additionally, the filter(&str) constructor uses an existing instance of a ProcessList,
+// thus the only constructor that interacts with the sysinfo backend is new(&SysInfoWrapper).
+// If filter = None, then the List is Unfiltered, if Some() then the List if Filtered.
 pub struct ProcessList {
-    items: ProcessListItems,
-    sort: ListSortOrder,
-    follow_selection: bool,
-    pub selection: Option<usize>,
+    processes: Vec<ProcessItem>,
+    sort: ProcessItemSortOrder,
+    selection_state: SelectionState,
+    filter: Option<String>,
 }
 
 impl ProcessList {
+    // constructor
     pub fn new(sysinfo: &SysInfoWrapper) -> Self {
+        let mut processes: Vec<ProcessItem> = Vec::new();
+        // sysinfo.get_processes(&mut vec) populates argument Vec with system processes. See /components/sysinfo_wrapper.rs for implementation details.
+        sysinfo.get_processes(&mut processes);
+
+        // setting defaults explicitly
+        let sort: ProcessItemSortOrder = ProcessItemSortOrder::CpuUsageDec;
+        let selection_state: SelectionState = if processes.len() > 0 { SelectionState::new(Some(0)) } else { SelectionState::new(None) };
+        let filter: Option<String> = None;
+
         Self {
-            items: ProcessListItems::new(sysinfo),
-            sort: ListSortOrder::default(),
-            follow_selection: false,
-            selection: Some(0),
+            processes,
+            sort,
+            selection_state,
+            filter,
         }
     }
 
+    // filter constructor
     pub fn filter(&self, filter_text: &str) -> Self {
-        let items = self.items.filter(filter_text);
-        let len = items.len();
+        // filtering by process name--case insensitive
+        let processes: Vec<ProcessItem> = self.processes
+            .iter()
+            .filter(|item| {
+                item.name().to_lowercase().contains(&filter_text.to_lowercase())
+            })
+            .cloned()
+            .collect();
+
+        // setting defaults explicitly
+        let sort: ProcessItemSortOrder = ProcessItemSortOrder::CpuUsageDec;
+        let selection_state: SelectionState = if processes.len() > 0 { SelectionState::new(Some(0)) } else { SelectionState::new(None) };
+        let filter: Option<String> = Some(String::from(filter_text));
 
         Self {
-            items,
-            sort: ListSortOrder::default(),
-            follow_selection: false,
-            selection: if len > 0 {
-                Some(0)
-            }
-            else {
-                None
-            },
+            processes,
+            sort,
+            selection_state,
+            filter,
         }
     }
 
-    pub fn update(&mut self, sysinfo: &SysInfoWrapper, filter_text: &str) {
-        let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
-        let pid: Option<u32> = selected_item.map(|item| item.pid());
 
+    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+        // storing reference to selected item and deep copy of it's PID before updating processes
+        let selection_item: Option<&ProcessItem> = self.processes.get(self.selection_state.selection.unwrap_or_default());
+        let selection_pid: Option<u32> = selection_item.map(|item| item.pid());
 
-        self.items.update(sysinfo, filter_text);
+        // get new processes
+        sysinfo.get_processes(&mut self.processes);
+        // filter if this is a "filtered list"
+        if let Some(filter) = &self.filter {
+            self.processes.retain(|item| {
+                item.name().to_lowercase().contains(&filter.to_lowercase())
+            });
+        }
 
-        self.items.sort_items(&self.sort);
-
-        if self.items.len() == 0 {
-            self.selection = None;
+        // return if update resulted in no processes
+        if self.processes.len() == 0 {
+            self.selection_state.set_selection(None);
+            self.selection_state.set_follow(false);
             return
         }
 
-        if self.follow_selection {
-            self.selection = pid.and_then(|p| self.items.get_idx(p));
+        // sort order is lost when getting new processes
+        self.sort(&self.sort.clone());
+
+        // set selection after update
+        let selection = if self.selection_state.follow_selection {
+            selection_pid.and_then(|p| {
+                self.processes
+                    .iter()
+                    .position(|item| item.pid() == p)
+            })
         }
         else {
-            if let Some(selection) = self.selection {
-                let max_idx = self.items.len().saturating_sub(1);
+            if let Some(selection) = self.selection_state.selection {
+                // check upper bound (lowerbound is effectively checked when checking for NO processes)
+                let max_idx = self.processes.len().saturating_sub(1);
                 if selection > max_idx {
-                    self.selection = Some(max_idx)
+                    Some(max_idx)
+                }
+                else {
+                    Some(selection)
                 }
             }
-        }
+            else {
+                None
+            }
+        };
 
-        if self.selection.is_none() {
-            self.selection = Some(0)
-        }
+        self.selection_state.set_selection(selection);
     }
 
-    pub fn sort(&mut self, sort: &ListSortOrder) {
-        let selected_item: Option<&ProcessListItem> = self.items.get_item(self.selection.unwrap_or_default());
+    pub fn sort(&mut self, sort: &ProcessItemSortOrder) {
+        let selection_item: Option<&ProcessItem> = self.processes.get(self.selection_state.selection.unwrap_or_default());
+        let selection_pid: Option<u32> = selection_item.map(|item| item.pid());
 
-        let pid: Option<u32> = selected_item.map(|item| item.pid());
+        // mapping variants to corresponding static comparator functions (see /process_item.rs)
+        match sort {
+            ProcessItemSortOrder::PidInc => self.processes.sort_by(ProcessItem::cmp_pid_inc),
+            ProcessItemSortOrder::PidDec => self.processes.sort_by(ProcessItem::cmp_pid_dec),
+            ProcessItemSortOrder::NameInc => self.processes.sort_by(ProcessItem::cmp_name_inc),
+            ProcessItemSortOrder::NameDec => self.processes.sort_by(ProcessItem::cmp_name_dec),
+            ProcessItemSortOrder::CpuUsageInc => self.processes.sort_by(ProcessItem::cmp_cpu_inc),
+            ProcessItemSortOrder::CpuUsageDec => self.processes.sort_by(ProcessItem::cmp_cpu_dec),
+            ProcessItemSortOrder::MemoryUsageInc => self.processes.sort_by(ProcessItem::cmp_mem_inc),
+            ProcessItemSortOrder::MemoryUsageDec => self.processes.sort_by(ProcessItem::cmp_mem_dec),
+        }
 
-        self.items.sort_items(sort);
-
+        // assign field to new sort variant
         self.sort = sort.clone();
 
-        if self.follow_selection {
-            self.selection = pid.and_then(|p| self.items.get_idx(p));
+        // update selection if following
+        if self.selection_state.follow_selection {
+            self.selection_state.selection = selection_pid.and_then(|p| {
+                self.processes
+                    .iter()
+                    .position(|item| item.pid() == p)
+            });
         }
     }
 
     pub fn move_selection(&mut self, dir: MoveSelection) {
-        if let Some(selection) = self.selection() {
-            let new_idx = match dir {
-                MoveSelection::Down => self.selection_down(selection, 1),
-                MoveSelection::MultipleDown => self.selection_down(selection, 10),
-                MoveSelection::Up => self.selection_up(selection, 1),
-                MoveSelection::MultipleUp => self.selection_up(selection, 10),
-                MoveSelection::Bottom => self.selection_bottom(selection),
-                MoveSelection::Top => self.selection_top(selection),       
-            };
-
-            self.selection = new_idx;
-        }
-    }
-
-    fn selection_down(&self, current_idx: usize, lines: usize) -> Option<usize> {
-        let mut new_idx = current_idx;
-        let max_idx = self.items.len().saturating_sub(1);
-
-        'a: for _ in 0..lines {
-            if new_idx >= max_idx {
-                break 'a;
-            }
-            new_idx = new_idx.saturating_add(1);
-        }
-
-        Some(new_idx)
-    }
-
-    fn selection_up(&self, current_idx: usize, lines: usize) -> Option<usize> {
-        let mut new_idx = current_idx;
-        let min_idx = 0;
-
-        'a: for _ in 0..lines {
-            if new_idx == min_idx {
-                break 'a;
-            }
-            new_idx = new_idx.saturating_sub(1);
-        }
-
-        Some(new_idx)
-    }
-
-    fn selection_bottom(&self, _current_idx: usize) -> Option<usize> {
-        let max_idx = self.items.len().saturating_sub(1);
-
-        Some(max_idx)
-
-    }
-
-    fn selection_top(&self, _current_idx: usize) -> Option<usize> {
-        let min_idx = 0;
-
-        Some(min_idx)
+        self.selection_state.move_selection(dir, self.processes.len());
     }
 
     pub fn toggle_follow_selection(&mut self) {
-        self.follow_selection = !self.follow_selection
+        if self.processes.len() == 0 {
+            // nothing to follow: do not toggle, enforce false
+            self.selection_state.set_follow(false);
+        }
+        else {
+            self.selection_state.set_follow(!self.selection_state.follow_selection);
+        }
     }
-    
+
+    // GETTERS
     pub fn is_follow_selection(&self) -> bool {
-        self.follow_selection
+        self.selection_state.follow_selection
     }
 
     pub fn selection(&self) -> Option<usize> {
-        self.selection
+        self.selection_state.selection
     }
 
     pub fn is_empty(&self) -> bool {
-        self.items.len() == 0
+        self.processes.len() == 0
     }
 
     pub fn len(&self) -> usize {
-        self.items.len()
+        self.processes.len()
     }
 
-    pub fn selected_item(&self) -> Option<&ProcessListItem> {
-        if let Some(selection) = self.selection {
-            let selected_item = self.items.get_item(selection);
-            return selected_item
+    pub fn selection_item(&self) -> Option<&ProcessItem> {
+        if let Some(selection) = self.selection_state.selection {
+            let selection_item = self.processes.get(selection);
+            return selection_item
         }
 
         None
     }
 
-    pub fn selected_pid(&self) -> Option<u32> {
-        if let Some(selection) = self.selection {
-            if let Some(item) = self.items.get_item(selection) {
+    pub fn selection_pid(&self) -> Option<u32> {
+        if let Some(selection) = self.selection_state.selection {
+            if let Some(item) = self.processes.get(selection) {
                 return Some(item.pid())
             }
             else {
@@ -203,13 +195,12 @@ impl ProcessList {
         None
     }
 
-    pub fn sort_order(&self) -> &ListSortOrder {
+    pub fn sort_order(&self) -> &ProcessItemSortOrder {
         &self.sort
     }
 
-    pub fn iterate(&self, start_index: usize, max_amount: usize) -> ListIterator<'_> {
-        let start = start_index;
-        ListIterator::new(self.items.iterate(start, max_amount), self.selection)
+    pub fn iterate(&self, start_idx: usize, max_amount: usize) -> ProcessItemIterator {
+        ProcessItemIterator::new(&self.processes, self.selection_state.selection, start_idx, max_amount)
     }
 }
 

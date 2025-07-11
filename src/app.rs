@@ -164,7 +164,6 @@ impl App {
 
         self.error.draw(f, chunks[0], false)?;
 
-
         if self.expand {
             if matches!(self.focus, MainFocus::Process) {
                 self.process.draw(

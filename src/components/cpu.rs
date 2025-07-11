@@ -1,10 +1,15 @@
 use std::collections::BTreeMap;
+use ratatui::Frame;
 use ratatui::prelude::*;
 use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, ListState};
 use std::str::FromStr;
-use anyhow::Ok;
+use anyhow::{Ok, Result};
+use crossterm::event::KeyEvent;
+use super::EventState;
+use crate::components::common_nav;
 use crate::components::sysinfo_wrapper::SysInfoWrapper;
-use crate::models::b_queue::bounded_queue::BoundedQueue;
+use crate::components::utils::selection::SelectionState;
+use crate::models::bounded_queue::bounded_queue::BoundedQueue;
 use crate::models::items::cpu_item::CpuItem;
 use crate::config::Config;
 use super::{Component, DrawableComponent};
@@ -62,17 +67,16 @@ impl ColorWheel {
     }
 }
 
-#[derive(Default)]
 pub struct CPUComponent {
     cpus: BTreeMap<usize, BoundedQueue<CpuItem>>,
-    ui_selection: usize,
+    selection_state: SelectionState,
+    selection_offset: usize,
     config: Config,
 }
 
 impl CPUComponent {
     pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
         let mut cpus: BTreeMap<usize, BoundedQueue<CpuItem>> = BTreeMap::new();
-        let ui_selection: usize = 0;
 
         for cpu in sysinfo.get_cpus() {
             let id = cpu.id();
@@ -85,9 +89,16 @@ impl CPUComponent {
             perf_q.add_item(cpu);
         }
 
+        let selection_state = if cpus.len() > 0 { SelectionState::new(Some(0)) } else { SelectionState::new(None) };
+        // this is the offset between the SelectionState Selection (ui selection) & cpu_selection (backend)
+        // this offset is present because an option to display ALL cpus is present in the ui list that is
+        // not present in the CPU list
+        let selection_offset = 1;
+
         Self {
             cpus,
-            ui_selection,
+            selection_state,
+            selection_offset,
             config,
         }        
     }
@@ -108,16 +119,11 @@ impl CPUComponent {
 }
 
 impl Component for CPUComponent {
-    fn event(&mut self, key: crossterm::event::KeyEvent) -> anyhow::Result<super::EventState> {
-        if key.code == self.config.key_config.move_down {
-            if self.ui_selection < self.cpus.len() { // this works b/c we prepend ALL to the drawn list
-                self.ui_selection = self.ui_selection.saturating_add(1);
-            }
-            return Ok(super::EventState::Consumed);
-        }
-        if key.code == self.config.key_config.move_up {
-            self.ui_selection = self.ui_selection.saturating_sub(1);
-            return Ok(super::EventState::Consumed);
+    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
+        if let Some(dir) = common_nav(key, &self.config.key_config) {
+            self.selection_state.move_selection(dir, self.cpus.len() + self.selection_offset);
+            
+            return Ok(EventState::Consumed)
         }
         
         Ok(super::EventState::NotConsumed)
@@ -125,7 +131,8 @@ impl Component for CPUComponent {
 }
 
 impl DrawableComponent for CPUComponent {
-    fn draw(&mut self, f: &mut ratatui::Frame, area: ratatui::prelude::Rect, focused: bool) -> anyhow::Result<()> {
+    // draw function has some magic numbers relating to render position: TODO-research a fix/better approach
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()> {
         // split screen
         let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
@@ -153,42 +160,43 @@ impl DrawableComponent for CPUComponent {
         // This means len(UICPUList) = 1 + len(cpus)
 
         // set cpu selection
-        let cpu_selection = if self.ui_selection == 0 {
-            None
+        let cpu_selection = if let Some(selection) = self.selection_state.selection {
+            if selection == 0 { None }
+            else {Some(selection.saturating_sub(self.selection_offset))}
+  
         }
-        else {
-            Some(self.ui_selection.saturating_sub(1))
-        };
-
+        else { None };
 
         // iterate over cpus
-        if self.ui_selection == 0 {
-            // display all
-            for (id, queue) in self.cpus
-                .iter()
-                {
+        if let Some(selection) = self.selection_state.selection {
+            if selection == 0 {
+                // display all
+                for (id, queue) in self.cpus
+                    .iter()
+                    {
+                        let data: Vec<(f64, f64)> = queue
+                            .iter()
+                            .rev()
+                            .enumerate()
+                            .map(|(i, item)| ((perf_q_max_idx - i) as f64, item.usage() as f64))
+                            .collect();
+                        
+                        all_data.push((*id as u32, data));
+                    }
+            }
+            else {
+                let id = cpu_selection.unwrap();            // unwrap should be safe here
+
+                if let Some(queue) = self.cpus.get(&id) {
                     let data: Vec<(f64, f64)> = queue
                         .iter()
                         .rev()
                         .enumerate()
                         .map(|(i, item)| ((perf_q_max_idx - i) as f64, item.usage() as f64))
                         .collect();
-                    
-                    all_data.push((*id as u32, data));
+
+                    all_data.push((id as u32, data));
                 }
-        }
-        else {
-            let id = cpu_selection.unwrap();            // unwrap should be safe here
-
-            if let Some(queue) = self.cpus.get(&id) {
-                let data: Vec<(f64, f64)> = queue
-                    .iter()
-                    .rev()
-                    .enumerate()
-                    .map(|(i, item)| ((perf_q_max_idx - i) as f64, item.usage() as f64))
-                    .collect();
-
-                all_data.push((id as u32, data));
             }
         }
 
@@ -231,14 +239,19 @@ impl DrawableComponent for CPUComponent {
             .block(
                 {
                     if !focused {
-                        Block::default().borders(Borders::ALL).title(" CPU % ").style(self.config.theme_config.style_border_not_focused)
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title(" CPU % ")
+                            .style(self.config.theme_config.style_border_not_focused)
                     }
                     else {
-                        Block::default().borders(Borders::ALL).title(" CPU % ").style(self.config.theme_config.style_border_focused)
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title(" CPU % ")
+                            .style(self.config.theme_config.style_border_focused)
                     }
                 }
             )
-
             .x_axis(
                 Axis::default()
                     .bounds([0.0, self.config.events_per_min().saturating_sub(1) as f64])
@@ -260,8 +273,7 @@ impl DrawableComponent for CPUComponent {
 
         // render cpu list
         let mut list_state = ListState::default();
-        
-        list_state.select(Some(self.ui_selection));
+        list_state.select(self.selection_state.selection);
         
         let cpu_list = List::new(names)
             .scroll_padding(horizontal_chunks[1].height as usize / 2)
