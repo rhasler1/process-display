@@ -19,6 +19,7 @@ pub mod config;
 pub mod components;
 pub mod events;
 pub mod models;
+pub mod state;
 
 fn main() -> Result<()> {
     enable_raw_mode()?;
