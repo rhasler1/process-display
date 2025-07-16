@@ -1,11 +1,12 @@
 use crate::components::MoveSelection;
 
-pub struct SelectionState {
+// currently this is only being used by CpuComponent
+pub struct UISelection {
     pub selection: Option<usize>,
     pub follow_selection: bool,
 }
 
-impl SelectionState {
+impl UISelection {
     pub fn new(idx: Option<usize>) -> Self {
         Self {
             selection: idx,
@@ -21,13 +22,15 @@ impl SelectionState {
         self.follow_selection = follow;
     }
 
-    pub fn move_selection(&mut self, dir: MoveSelection, len: usize) {
+    pub fn move_selection(&mut self, move_selection: MoveSelection, len: usize) {
+        if matches!(len, 0) {
+            self.selection = None
+        }
+
         if let Some(selection) = self.selection {
-            let new_idx = match dir {
+            let new_idx = match move_selection {
                 MoveSelection::Down => self.selection_down(selection, 1, len),
-                MoveSelection::MultipleDown => self.selection_down(selection, 10, len),
                 MoveSelection::Up => self.selection_up(selection, 1),
-                MoveSelection::MultipleUp => self.selection_up(selection, 10),
                 MoveSelection::Bottom => self.selection_bottom(selection, len),
                 MoveSelection::Top => self.selection_top(selection),       
             };

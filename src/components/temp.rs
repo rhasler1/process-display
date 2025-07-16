@@ -5,7 +5,7 @@ use ratatui::Frame;
 use ratatui::widgets::Cell;
 use ratatui::widgets::Row;
 use crossterm::event::KeyEvent;
-use crate::components::sysinfo_wrapper::SysInfoWrapper;
+use crate::services::sysinfo_service::SysInfoService;
 use crate::components::utils::vertical_scroll::VerticalScroll;
 use crate::models::items::temp_item::TempItem;
 use crate::{components::EventState, config::Config};
@@ -19,7 +19,7 @@ pub struct TempComponent {
 }
 
 impl TempComponent {
-    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
+    pub fn new(config: Config, sysinfo: &SysInfoService) -> Self {
         let mut temps = Vec::new();
         sysinfo.get_temps(&mut temps);
 
@@ -31,7 +31,7 @@ impl TempComponent {
         }
     }
 
-    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+    pub fn update(&mut self, sysinfo: &SysInfoService) {
         sysinfo.get_temps(&mut self.temps);
     }
 }

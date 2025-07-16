@@ -1,3 +1,17 @@
+use crate::{models::{Filterable, Sortable}};
+
+#[derive(Clone, PartialEq)]
+pub enum ProcessItemSortOrder {
+    PidInc,
+    PidDec,
+    NameInc,
+    NameDec,
+    CpuUsageInc,
+    CpuUsageDec,
+    MemoryUsageInc,
+    MemoryUsageDec,
+}
+
 #[derive(Default, Clone)]
 pub struct ProcessItem {
     pid: u32,
@@ -83,7 +97,7 @@ impl ProcessItem {
         &self.path
     }
 
-    // STATIC COMPARATORS
+    // STATIC COMPARATORS -- get rid of these
     pub fn cmp_pid_inc(a: &Self, b: &Self) -> std::cmp::Ordering {
         a.pid.cmp(&b.pid)
     }
@@ -131,6 +145,27 @@ impl ProcessItem {
 impl PartialEq for ProcessItem {
     fn eq(&self, other: &Self) -> bool {
         self.pid.eq(&other.pid)
+    }
+}
+
+impl Filterable for ProcessItem {
+    fn matches_filter(&self, filter: &str) -> bool {
+        self.name.contains(filter)
+    }
+}
+
+impl Sortable<ProcessItemSortOrder> for ProcessItem {
+    fn cmp_with(&self, other: &Self, sort: &ProcessItemSortOrder) -> std::cmp::Ordering {
+        match sort {
+            ProcessItemSortOrder::PidInc => self.pid.cmp(&other.pid),
+            ProcessItemSortOrder::PidDec => other.pid.cmp(&self.pid),
+            ProcessItemSortOrder::NameInc => self.name.cmp(&other.name),
+            ProcessItemSortOrder::NameDec => other.name.cmp(&self.name),
+            ProcessItemSortOrder::CpuUsageInc => self.cpu_usage.partial_cmp(&other.cpu_usage).unwrap_or(std::cmp::Ordering::Equal),
+            ProcessItemSortOrder::CpuUsageDec => other.cpu_usage.partial_cmp(&self.cpu_usage).unwrap_or(std::cmp::Ordering::Equal),
+            ProcessItemSortOrder::MemoryUsageInc => self.memory_usage.cmp(&other.memory_usage),
+            ProcessItemSortOrder::MemoryUsageDec => other.memory_usage.cmp(&self.memory_usage),
+        }
     }
 }
 

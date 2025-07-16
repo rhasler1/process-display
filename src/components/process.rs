@@ -1,20 +1,12 @@
 use anyhow::{Ok, Result};
 use crossterm::event::KeyEvent;
-use ratatui::{
-    Frame,
-    prelude::*,
-};
-use crate::components::{
-    sysinfo_wrapper::SysInfoWrapper,
-    common_nav, DrawableComponent, Component, EventState,
-    utils::vertical_scroll::VerticalScroll,
-    filter::FilterComponent,
-};
+use ratatui::{Frame, prelude::*,};
+use crate::services::{sysinfo_service::SysInfoService, ListProvider};
 use crate::config::{Config, KeyConfig};
-use crate::models::process_list::process_item_iter::ProcessItemIterator;
-use crate::models::process_list::process_list::ProcessList;
-use crate::models::process_list::ProcessItemSortOrder;
-use crate::models::process_list::map_key_to_process_sort;
+use crate::components::{common_nav, DrawableComponent, Component, EventState, Refreshable};
+use crate::components::{utils::{selection::UISelection, vertical_scroll::VerticalScroll}, filter::FilterComponent};
+use crate::states::vec_state::VecState;
+use crate::models::items::process_item::{ProcessItem, ProcessItemSortOrder};
 
 #[derive(PartialEq, Clone)]
 pub enum Focus {
@@ -23,110 +15,137 @@ pub enum Focus {
 }
 
 pub struct ProcessComponent {
-    focus: Focus,
-    list: ProcessList,
-    filter: FilterComponent,
-    filtered_list: Option<ProcessList>,
+    vec_state: VecState<ProcessItem, ProcessItemSortOrder>,
+    ui_selection: UISelection,
+    sort: Option<ProcessItemSortOrder>,
     scroll: VerticalScroll,
+    filter_component: FilterComponent,
+    focus: Focus,
     pub config: Config,
 }
 
 impl ProcessComponent {
-    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
+    pub fn new(config: Config, sysinfo: &SysInfoService) -> Self {
+        let processes: Vec<ProcessItem> = sysinfo.fetch_items();
+        let ui_selection: UISelection = if processes.is_empty() { UISelection::new(None) } else { UISelection::new(Some(0)) };
+        let state_selection: Option<usize> = ui_selection.selection;
+        let filter: Option<String> = None;
+        let sort: Option<ProcessItemSortOrder> = None;
+        let vec_state: VecState<ProcessItem, ProcessItemSortOrder> = VecState::new(processes, state_selection, sort.clone(), filter);
+
+        let scroll: VerticalScroll = VerticalScroll::new();
+        let filter_component: FilterComponent = FilterComponent::new(config.clone());
+        let focus: Focus = Focus::List;
+
         Self {
-            focus: Focus::List,
-            list: ProcessList::new(sysinfo),
-            filter: FilterComponent::new(config.clone()),
-            filtered_list: None,
-            scroll: VerticalScroll::new(),
+            vec_state,
+            ui_selection,
+            sort,
+            scroll,
+            filter_component,
+            focus,
             config,
         }
     }
+}
 
-    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
-        self.list.update(sysinfo);
+impl<S> Refreshable<S> for ProcessComponent
+where
+    S: ListProvider<ProcessItem>
+{
+    fn refresh(&mut self, service: &S) {
+        let processes: Vec<ProcessItem> = service.fetch_items();
+        self.vec_state.replace(processes);
 
-        if let Some(filtered_list) = self.filtered_list.as_mut() {
-            filtered_list.update(sysinfo);
+        let len = self.vec_state.view_indices().len();
+        if len == 0 {
+            self.ui_selection.set_selection(None);
+            self.vec_state.set_selection(self.ui_selection.selection);
+            return;
         }
-    }
 
-    pub fn terminate_process(&mut self, sysinfo: &SysInfoWrapper) -> bool {
-        self.filtered_list
-            .as_ref()
-            .and_then(|f| f.selection_pid())
-            .or_else(|| self.list.selection_pid())
-            .map(|pid| {
-                sysinfo.terminate_process(pid);
-                true
-            })
-            .unwrap_or(false)
+        // ui_selection iterates over vec_state.view_indices()
+        if let Some(ui_selection) = self.ui_selection.selection {
+            let max_idx = len.saturating_sub(1);
+
+            if ui_selection > max_idx {
+                self.ui_selection.set_selection(Some(max_idx));
+                let idx = self.vec_state.view_indices().get(max_idx).cloned();
+                self.vec_state.set_selection(idx);
+            }
+            else {
+                let idx = self.vec_state.view_indices().get(ui_selection).cloned();
+                self.vec_state.set_selection(idx);
+            }
+        }
     }
 }
 
+
 impl Component for ProcessComponent {
     fn event(&mut self, key: KeyEvent) -> Result<EventState> {
-        if key.code == self.config.key_config.filter && self.focus == Focus::List {
+        if key.code == self.config.key_config.filter &&
+            matches!(self.focus,Focus::List)
+        {
             self.focus = Focus::Filter;
-            
             return Ok(EventState::Consumed)
         }
 
         if matches!(self.focus, Focus::Filter) {
-            if self.filter.event(key)?.is_consumed() {
-                self.filtered_list = if self.filter.input_str().is_empty() {
-                    None
+
+            if self.filter_component.event(key)?.is_consumed() {
+                self.vec_state.set_filter(self.filter_component.filter_contents());
+
+                if self.vec_state.view_indices().len() > 0 {
+                    // set ui_selection to beginning of view_indices
+                    self.ui_selection.set_selection(Some(0));
+                    // set vec_state selection to the index at view_indices[0]
+                    let idx = self.vec_state.view_indices().get(0).cloned();
+                    self.vec_state.set_selection(idx);
                 }
-                else {
-                    Some(self.list.filter(self.filter.input_str()))
-                };
 
                 return Ok(EventState::Consumed)
             }
             
             if key.code == self.config.key_config.enter {
                 self.focus = Focus::List;
-
                 return Ok(EventState::Consumed)
             }
         }
 
         if matches!(self.focus, Focus::List) {
-            if list_nav(
-                if let Some(list) = self.filtered_list.as_mut() {
-                    list
+            if let Some(move_dir) = common_nav(key, &self.config.key_config) {
+                let len = self.vec_state.view_indices().len();
+                self.ui_selection.move_selection(move_dir, len);                    // if len == 0, ui_selection.selection is set to None here
+
+                if let Some(ui_selection) = self.ui_selection.selection {
+                    let idx = self.vec_state.view_indices().get(ui_selection).cloned();
+                    self.vec_state.set_selection(idx);
                 }
                 else {
-                    &mut self.list
-                },
-                key,
-                &self.config.key_config
-            ) {
-                return Ok(EventState::Consumed);
+                    self.vec_state.set_selection(None);
+                }
+                
+                return Ok(EventState::Consumed)
             }
 
-            if key.code == self.config.key_config.follow_selection {
-                if let Some(filtered_list) = self.filtered_list.as_mut() {
-                    filtered_list.toggle_follow_selection();
+            if let Some(sort_order) = process_sort(key, &self.config.key_config) {
+                self.sort = Some(sort_order);
+                self.vec_state.set_sort(self.sort.clone());
+
+                if let Some(ui_selection) = self.ui_selection.selection {
+                    let idx = self.vec_state.view_indices().get(ui_selection).cloned();
+                    self.vec_state.set_selection(idx);
                 }
                 else {
-                    self.list.toggle_follow_selection();
+                    self.vec_state.set_selection(None);
                 }
 
                 return Ok(EventState::Consumed)
             }
 
-            if list_sort(
-                if let Some(list) = self.filtered_list.as_mut() {
-                    list
-                }
-                else {
-                    &mut self.list
-                },
-                key,
-                &self.config.key_config
-            )? {
-                return Ok(EventState::Consumed);
+            if key.code == self.config.key_config.follow_selection {            // TODO: implement follow selection?
+                return Ok(EventState::Consumed)
             }
         }
         
@@ -134,27 +153,17 @@ impl Component for ProcessComponent {
     }
 }
 
-fn list_nav(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> bool {
-    if let Some(move_dir) = common_nav(key, key_config) {
-        list.move_selection(move_dir);
+fn process_sort(key: KeyEvent, key_config: &KeyConfig) -> Option<ProcessItemSortOrder> {
+    if key.code == key_config.sort_pid_inc { return Some(ProcessItemSortOrder::PidInc) }
+    if key.code == key_config.sort_pid_dec { return Some(ProcessItemSortOrder::PidDec) }
+    if key.code == key_config.sort_cpu_usage_inc { return Some(ProcessItemSortOrder::CpuUsageInc) }
+    if key.code == key_config.sort_cpu_usage_dec { return Some(ProcessItemSortOrder::CpuUsageDec) }
+    if key.code == key_config.sort_memory_usage_inc { return Some(ProcessItemSortOrder::MemoryUsageInc) }
+    if key.code == key_config.sort_memory_usage_dec { return Some(ProcessItemSortOrder::MemoryUsageDec) }
+    if key.code == key_config.sort_name_inc { return Some(ProcessItemSortOrder::NameInc) }
+    if key.code == key_config.sort_name_dec { return Some(ProcessItemSortOrder::NameDec) }
 
-        true
-    }
-    else {
-        false
-    }
-}
-
-fn list_sort(list: &mut ProcessList, key: KeyEvent, key_config: &KeyConfig) -> Result<bool> {
-    // sorting is not common between componenets
-    if let Some(sort) = map_key_to_process_sort(key, key_config) {
-        list.sort(&sort);
-
-        Ok(true)
-    }
-    else {
-        Ok(false)
-    }
+    return None
 }
 
 impl DrawableComponent for ProcessComponent {
@@ -168,37 +177,25 @@ impl DrawableComponent for ProcessComponent {
 
         let visible_list_height = horizontal_chunks[0].height.saturating_sub(3) as usize;
 
-        let list = if let Some(filtered_list) = self.filtered_list.as_ref() {
-            filtered_list
-        }
-        else {
-            &self.list
-        };
-
-        // update vert scroll
-        list.selection().map_or_else(
+        // update vertical scroll
+        let indices = self.vec_state.view_indices();
+        let len = indices.len();
+        self.ui_selection.selection.map_or_else(
             { ||
                 self.scroll.reset()
-            }, |selection| {
-                self.scroll.update(
-                    selection,
-                    list.len(),
-                    visible_list_height,
-                );
-            },
-        );
+            }, |idx| {
+                self.scroll.update(idx, len, visible_list_height,);
+        },);
 
-        let visible_items = list
-            .iterate(
-                self.scroll.get_top(),
-                visible_list_height,
-            );
+        let visible_items = self.vec_state
+            .iter_with_selection()
+            .skip(self.scroll.get_top())
+            .take(visible_list_height);
 
         draw_process_list(
             f, 
             horizontal_chunks[0], 
-            visible_items, 
-            list.is_follow_selection(),
+            visible_items,
             if focused {
                 matches!(self.focus, Focus::List)
             } 
@@ -206,7 +203,7 @@ impl DrawableComponent for ProcessComponent {
                 false
             },
             self.config.theme_config.clone(),
-            list.sort_order(),
+            self.sort.clone(),
         );
 
         self.scroll.draw(
@@ -220,7 +217,7 @@ impl DrawableComponent for ProcessComponent {
             },
         )?;
                 
-        self.filter.draw(
+        self.filter_component.draw(
             f, 
             horizontal_chunks[1],
             if focused {
@@ -236,37 +233,37 @@ impl DrawableComponent for ProcessComponent {
 }
 
 use ratatui::widgets::{block::*, *};
-//use crate::models::process_list::list_iter::ListIterator;
 use crate::config::ThemeConfig;
 
-fn draw_process_list<'a>(
+fn draw_process_list<'a, I>(
     f: &mut Frame,
     area: Rect,
-    visible_items: ProcessItemIterator,
-    follow_selection: bool,
+    visible_items: I,
     focus: bool,
     theme_config: ThemeConfig,
-    sort_order: &ProcessItemSortOrder,
+    sort_order: Option<ProcessItemSortOrder>,
 )
+where
+    I: Iterator<Item = (usize, &'a ProcessItem, bool)>,
 {
-    let follow_flag = follow_selection;
+    let follow_flag = false;
 
     // setting header
     let header = ["",
-        if matches!(sort_order, ProcessItemSortOrder::PidInc) { "PID ▲" }
-        else if matches!(sort_order, ProcessItemSortOrder::PidDec) { "PID ▼" }
+        if matches!(sort_order, Some(ProcessItemSortOrder::PidInc)) { "PID ▲" }
+        else if matches!(sort_order, Some(ProcessItemSortOrder::PidDec)) { "PID ▼" }
         else { "PID" },
 
-        if matches!(sort_order, ProcessItemSortOrder::NameInc) { "Name ▲" } 
-        else if matches!(sort_order, ProcessItemSortOrder::NameDec) { "Name ▼" }
+        if matches!(sort_order, Some(ProcessItemSortOrder::NameInc)) { "Name ▲" } 
+        else if matches!(sort_order, Some(ProcessItemSortOrder::NameDec)) { "Name ▼" }
         else { "Name" },
 
-        if matches!(sort_order, ProcessItemSortOrder::CpuUsageInc) { "CPU (%) ▲" }
-        else if matches!(sort_order, ProcessItemSortOrder::CpuUsageDec) { "CPU (%) ▼" }
+        if matches!(sort_order, Some(ProcessItemSortOrder::CpuUsageInc)) { "CPU (%) ▲" }
+        else if matches!(sort_order, Some(ProcessItemSortOrder::CpuUsageDec)) { "CPU (%) ▼" }
         else { "CPU (%)" },
 
-        if matches!(sort_order, ProcessItemSortOrder::MemoryUsageInc) { "Memory (MB) ▲" }
-        else if matches!(sort_order, ProcessItemSortOrder::MemoryUsageDec) { "Memory (MB) ▼" }
+        if matches!(sort_order, Some(ProcessItemSortOrder::MemoryUsageInc)) { "Memory (MB) ▲" }
+        else if matches!(sort_order, Some(ProcessItemSortOrder::MemoryUsageDec)) { "Memory (MB) ▼" }
         else { "Memory (MB)" },
 
         "Run (hh:mm:ss)",
@@ -287,7 +284,7 @@ fn draw_process_list<'a>(
 
     // setting rows
     let rows = visible_items
-        .map(|(item, selected)| {
+        .map(|(idx, item, selected)| {
             let style =
                 if focus && selected && follow_flag {
                     theme_config.style_item_selected_followed

@@ -1,5 +1,6 @@
 use anyhow::Result;
-use std::io;
+use crossterm::event::EnableMouseCapture;
+use std::io::{stdout};
 use crossterm::ExecutableCommand;
 use crossterm::{
     execute,
@@ -19,13 +20,15 @@ pub mod config;
 pub mod components;
 pub mod events;
 pub mod models;
-pub mod state;
+pub mod states;
+pub mod services;
 
 fn main() -> Result<()> {
     enable_raw_mode()?;
-    io::stdout().execute(EnterAlternateScreen)?;
+    execute!(stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+    //stdout().execute(EnterAlternateScreen)?;
 
-    let backend = CrosstermBackend::new(io::stdout());
+    let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
 
     let config = config::Config::default();
@@ -50,12 +53,18 @@ fn main() -> Result<()> {
         })?;
 
         match events.next()? {
-            Event::Input(key) => match app.key_event(key) {
+            Event::KeyInput(key) => match app.key_event(key) {
                 Ok(state) => {
                     if !state.is_consumed() && key.code == app.config.key_config.exit {
                         break;
                     }
                 }
+                Err(err) => {
+                    app.error.set(err.to_string())?;
+                }
+            }
+            Event::MouseInput(mouse) => match app.mouse_event(mouse) {
+                Ok(_state) => {}
                 Err(err) => {
                     app.error.set(err.to_string())?;
                 }

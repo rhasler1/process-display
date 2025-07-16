@@ -7,9 +7,9 @@ use anyhow::{Ok, Result};
 use crossterm::event::KeyEvent;
 use super::EventState;
 use crate::components::common_nav;
-use crate::components::sysinfo_wrapper::SysInfoWrapper;
-use crate::components::utils::selection::SelectionState;
-use crate::models::bounded_queue::bounded_queue::BoundedQueue;
+use crate::services::sysinfo_service::SysInfoService;
+use crate::components::utils::selection::UISelection;
+use crate::models::bounded_queue::BoundedQueue;
 use crate::models::items::cpu_item::CpuItem;
 use crate::config::Config;
 use super::{Component, DrawableComponent};
@@ -69,13 +69,13 @@ impl ColorWheel {
 
 pub struct CPUComponent {
     cpus: BTreeMap<usize, BoundedQueue<CpuItem>>,
-    selection_state: SelectionState,
+    selection_state: UISelection,
     selection_offset: usize,
     config: Config,
 }
 
 impl CPUComponent {
-    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
+    pub fn new(config: Config, sysinfo: &SysInfoService) -> Self {
         let mut cpus: BTreeMap<usize, BoundedQueue<CpuItem>> = BTreeMap::new();
 
         for cpu in sysinfo.get_cpus() {
@@ -89,7 +89,7 @@ impl CPUComponent {
             perf_q.add_item(cpu);
         }
 
-        let selection_state = if cpus.len() > 0 { SelectionState::new(Some(0)) } else { SelectionState::new(None) };
+        let selection_state = if cpus.len() > 0 { UISelection::new(Some(0)) } else { UISelection::new(None) };
         // this is the offset between the SelectionState Selection (ui selection) & cpu_selection (backend)
         // this offset is present because an option to display ALL cpus is present in the ui list that is
         // not present in the CPU list
@@ -104,7 +104,7 @@ impl CPUComponent {
     }
 
     // has ownership
-    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+    pub fn update(&mut self, sysinfo: &SysInfoService) {
         for cpu in sysinfo.get_cpus() {
             let id = cpu.id();
 

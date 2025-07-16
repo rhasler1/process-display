@@ -1,9 +1,10 @@
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, MouseButton, MouseEventKind};
 use serde::{Deserialize,Serialize};
 
 #[derive(Clone,Serialize,Deserialize)]
 pub struct Config {
     pub key_config: KeyConfig,
+    pub mouse_config: MouseConfig,
     pub theme_config: ThemeConfig,
     refresh_rate: u64,
     min_as_s: u64,
@@ -16,6 +17,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             key_config: KeyConfig::default(),
+            mouse_config: MouseConfig::default(),
             theme_config: ThemeConfig::default(),
             refresh_rate: 2000,
             min_as_s: 60000/ 1000,
@@ -98,6 +100,25 @@ impl Default for KeyConfig {
             toggle_themes: KeyCode::Char('t'),
             process_info: KeyCode::Enter,
             expand: KeyCode::Char('e'),
+        }
+    }
+}
+
+#[derive(Clone,Serialize,Deserialize)]
+pub struct MouseConfig {
+    pub left_click: MouseButton,
+    pub right_click: MouseButton,
+    pub scroll_up: MouseEventKind,
+    pub scroll_down: MouseEventKind,
+}
+
+impl Default for MouseConfig {
+    fn default() -> Self {
+        Self {
+            left_click: MouseButton::Left,
+            right_click: MouseButton::Right,
+            scroll_up: MouseEventKind::ScrollUp,
+            scroll_down: MouseEventKind::ScrollDown,
         }
     }
 }

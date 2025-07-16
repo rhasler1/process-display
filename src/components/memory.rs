@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Gauge},
 };
 use crossterm::event::KeyEvent;
-use crate::components::sysinfo_wrapper::SysInfoWrapper;
+use crate::services::sysinfo_service::SysInfoService;
 use crate::components::DrawableComponent;
 use crate::models::items::memory_item::MemoryItem;
 use crate::config::Config;
@@ -18,7 +18,7 @@ pub struct MemoryComponent {
 }
 
 impl MemoryComponent {
-    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
+    pub fn new(config: Config, sysinfo: &SysInfoService) -> Self {
         let mut memory = MemoryItem::default();
         sysinfo.get_memory(&mut memory);
 
@@ -28,7 +28,7 @@ impl MemoryComponent {
         }
     }
 
-    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+    pub fn update(&mut self, sysinfo: &SysInfoService) {
         sysinfo.get_memory(&mut self.memory);
     }
 }

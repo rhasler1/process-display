@@ -1,17 +1,17 @@
 use sysinfo::{Pid, System, Components};
-use crate::models::process_list::process_item::ProcessItem;
-use crate::models::items::{memory_item::MemoryItem, temp_item::TempItem, cpu_item::CpuItem};
+use crate::models::items::{memory_item::MemoryItem, temp_item::TempItem, cpu_item::CpuItem, process_item::ProcessItem};
 use crate::config::Config;
+use crate::services::ListProvider;
 
 // See here for refreshing system: https://crates.io/crates/sysinfo#:~:text=use%20sysinfo%3A%3ASystem,(sysinfo%3A%3AMINIMUM_CPU_UPDATE_INTERVAL)%3B%0A%7D
 // note: sysinfo::MINIMUM_CPU_UPDATE_INTERVAL = 200 ms
-pub struct SysInfoWrapper {
+pub struct SysInfoService {
     system: System,
     components: Components,
     pub _config: Config
 }
 
-impl SysInfoWrapper {
+impl SysInfoService {
     pub fn new(config: Config) -> Self  {
         Self {
             system: System::new_all(),
@@ -154,5 +154,64 @@ impl SysInfoWrapper {
         }
         
         res
+    }
+}
+
+impl ListProvider<ProcessItem> for SysInfoService {
+    fn fetch_items(&self) -> Vec<ProcessItem> {
+        let mut processes: Vec<ProcessItem> = Vec::new();
+
+        for (pid, process) in self.system.processes() {
+            let name = if let Some(name) = process.name().to_str() {
+                String::from(name)
+            }
+            else {
+                String::from("No name")
+            };
+            let cpu_usage = if let Some(core_count) = sysinfo::System::physical_core_count() {
+                process.cpu_usage() / core_count as f32 // normalizing process cpu usage by the number of cores
+            }
+            else {
+                process.cpu_usage()
+            };
+
+            let memory_usage = process.memory();
+
+            let start_time = process.start_time();
+
+            let run_time = process.run_time();
+
+            let accumulated_cpu_time = process.accumulated_cpu_time();
+
+            let status = process.status().to_string();
+
+            let path = if let Some(path) = process.exe() {
+                if let Some(path) = path.to_str() {
+                    path.to_string()
+                }
+                else {
+                    String::from("Non-valid Unicode")
+                }
+            }
+            else {
+                String::from("Permission Denied")
+            };
+
+            let item = ProcessItem::new(
+                pid.as_u32(),
+                name,
+                cpu_usage,
+                memory_usage,
+                start_time,
+                run_time,
+                accumulated_cpu_time,
+                status,
+                path,
+            );
+
+            processes.push(item);
+        }
+
+        return processes;
     }
 }

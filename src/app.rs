@@ -1,20 +1,24 @@
+use std::collections::HashMap;
+
 use anyhow::{Ok, Result};
-use crossterm::event::KeyEvent;
+use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::prelude::*;
 use crate::components::temp::TempComponent;
+use crate::components::Refreshable;
 use crate::config::Config;
 use crate::components::{
     cpu::CPUComponent,
     memory::MemoryComponent,
     process::ProcessComponent,
-    sysinfo_wrapper::SysInfoWrapper,
     error::ErrorComponent,
     Component,
     EventState,
     DrawableComponent,
     help::HelpComponent,
 };
+use crate::services::sysinfo_service::SysInfoService;
 
+#[derive(PartialEq, Eq, Hash, Clone, Copy)]
 enum MainFocus {
     CPU,
     Process,
@@ -24,8 +28,9 @@ enum MainFocus {
 
 pub struct App {
     focus: MainFocus,
+    focus_rects: HashMap<MainFocus, Rect>,
     expand: bool,
-    system_wrapper: SysInfoWrapper,
+    service: SysInfoService,
     process: ProcessComponent,
     cpu: CPUComponent,
     memory: MemoryComponent,
@@ -37,18 +42,22 @@ pub struct App {
 
 impl App {
     pub fn new(config: Config) -> Self {
-        let mut system_wrapper = SysInfoWrapper::new(config.clone());
-        system_wrapper.refresh_all();
+        let mut service = SysInfoService::new(config.clone());
+        service.refresh_all();
         
-        let process = ProcessComponent::new(config.clone(), &system_wrapper);
-        let memory = MemoryComponent::new(config.clone(), &system_wrapper);
-        let cpu = CPUComponent::new(config.clone(), &system_wrapper);
-        let temp = TempComponent::new(config.clone(), &system_wrapper);
+        let process = ProcessComponent::new(config.clone(), &service);
+        let memory = MemoryComponent::new(config.clone(), &service);
+        let cpu = CPUComponent::new(config.clone(), &service);
+        let temp = TempComponent::new(config.clone(), &service);
+        
+        let focus = MainFocus::Process;
+        let focus_rects = HashMap::new();
 
         Self {
-            focus: MainFocus::Process,
+            focus,
+            focus_rects,
             expand: false,
-            system_wrapper,
+            service,
             process,
             cpu,
             memory,
@@ -60,12 +69,12 @@ impl App {
     }
 
     pub fn refresh_event(&mut self) -> Result<EventState> {
-        self.system_wrapper.refresh_all();
+        self.service.refresh_all();
 
-        self.process.update(&self.system_wrapper);
-        self.memory.update(&self.system_wrapper);
-        self.cpu.update(&self.system_wrapper);
-        self.temp.update(&self.system_wrapper);
+        self.process.refresh(&self.service);
+        self.memory.update(&self.service);
+        self.cpu.update(&self.service);
+        self.temp.update(&self.service);
 
         Ok(EventState::Consumed)
     }
@@ -88,6 +97,29 @@ impl App {
         }
 
         Ok(EventState::NotConsumed)
+    }
+
+    pub fn mouse_event(&mut self, mouse: MouseEvent) -> Result<EventState> {
+        if self.move_focus_mouse_test(mouse)?.is_consumed() {
+            return Ok(EventState::Consumed)
+        }
+
+        Ok(EventState::NotConsumed)
+    }
+
+    fn move_focus_mouse_test(&mut self, mouse: MouseEvent) -> Result<EventState> {
+        if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+            let col = mouse.column;
+            let row = mouse.row;
+
+            for (focus, rect) in &self.focus_rects {
+                if rect.contains(col, row) {
+                    self.focus = *focus;
+                    return Ok(EventState::Consumed)
+                }
+            }
+        }
+        return Ok(EventState::NotConsumed)
     }
 
     fn component_event(&mut self, key: KeyEvent) -> Result<EventState> {
@@ -121,7 +153,7 @@ impl App {
                 }
                 // terminate case
                 if key.code == self.config.key_config.terminate {
-                    self.process.terminate_process(&self.system_wrapper);
+                    //self.process.terminate_process(&self.system_wrapper);
 
                     return Ok(EventState::Consumed)
                 }
@@ -171,6 +203,7 @@ impl App {
                     chunks[0],
                     true,
                 )?;
+                self.focus_rects.insert(MainFocus::Process, chunks[0]);
             }
 
             if matches!(self.focus, MainFocus::CPU) {
@@ -179,6 +212,7 @@ impl App {
                     chunks[0],
                     true,
                 )?;
+                self.focus_rects.insert(MainFocus::CPU, chunks[0]);
             }
 
             if matches!(self.focus, MainFocus::Memory) {
@@ -187,6 +221,7 @@ impl App {
                     chunks[0],
                     true,
                 )?;
+                self.focus_rects.insert(MainFocus::Memory, chunks[0]);
             }
 
             if matches!(self.focus, MainFocus::Temp) {
@@ -195,6 +230,7 @@ impl App {
                     chunks[0],
                     true,
                 )?;
+                self.focus_rects.insert(MainFocus::Temp, chunks[0]);
             }
         }
         else {
@@ -226,12 +262,14 @@ impl App {
                 vertical_chunks[2],
                 matches!(self.focus, MainFocus::Process)
             )?;
+            self.focus_rects.insert(MainFocus::Process, vertical_chunks[2]);
 
             self.cpu.draw(
                 f,
                 vertical_chunks[0],
                 matches!(self.focus, MainFocus::CPU)
             )?;
+            self.focus_rects.insert(MainFocus::CPU, vertical_chunks[0]);
 
             self.memory.draw(
                 f,
@@ -239,15 +277,17 @@ impl App {
                 //vertical_chunks[1],
                 matches!(self.focus, MainFocus::Memory)
             )?;
+            self.focus_rects.insert(MainFocus::Memory, horizontal_chunks[1][0]);
 
             self.temp.draw(
                 f,
                 horizontal_chunks[1][1],
                 matches!(self.focus, MainFocus::Temp)
             )?;
+            self.focus_rects.insert(MainFocus::Temp, horizontal_chunks[1][1]);
         }
 
-        self.help.draw(f, Rect::default(), false)?;
+        //self.help.draw(f, Rect::default(), false)?; //TODO: re-implement
 
         return Ok(())
     }
@@ -271,4 +311,16 @@ impl App {
 
         res
     }*/
+}
+
+trait Contains {
+    fn contains(&self, col: u16, row: u16) -> bool;
+}
+impl Contains for ratatui::layout::Rect {
+    fn contains(&self, col: u16, row: u16) -> bool {
+        col >= self.x
+            && col < self.x + self.width
+            && row >= self.y
+            && row < self.y + self.height
+    }
 }

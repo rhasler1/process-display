@@ -1,8 +1,10 @@
 use crossterm::event::{
     self,
     KeyEvent,
+    KeyEventKind,
+    MouseEvent,
+    MouseEventKind,
     Event as CEvent,
-    KeyEventKind
 };
 
 use std::{
@@ -28,15 +30,16 @@ impl Default for EventConfig {
 
 
 #[derive(Clone, Copy)]
-pub enum Event<K> {
-    Input(K),
+pub enum Event<K, M> {
+    KeyInput(K),
+    MouseInput(M),
     Tick,
     Refresh,
 }
 
 pub struct Events {
-    rx: mpsc::Receiver<Event<KeyEvent>>,
-    _tx: mpsc::Sender<Event<KeyEvent>>,
+    rx: mpsc::Receiver<Event<KeyEvent, MouseEvent>>,
+    _tx: mpsc::Sender<Event<KeyEvent, MouseEvent>>,
 }
 
 impl Events {
@@ -59,8 +62,11 @@ impl Events {
                 if let Ok(event) = event::read() {
                     if let CEvent::Key(key) = event {
                         if key.kind == KeyEventKind::Press {
-                            input_tx.send(Event::Input(key)).unwrap();
+                            input_tx.send(Event::KeyInput(key)).unwrap();
                         }
+                    }
+                    if let CEvent::Mouse(mouse) = event {
+                        input_tx.send(Event::MouseInput(mouse)).unwrap();
                     }
                 }
             }
@@ -79,7 +85,7 @@ impl Events {
         Events { rx, _tx: tx }
     }
 
-    pub fn next(&self) -> Result<Event<KeyEvent>, mpsc::RecvError> {
+    pub fn next(&self) -> Result<Event<KeyEvent, MouseEvent>, mpsc::RecvError> {
         self.rx.recv()
     }
 }

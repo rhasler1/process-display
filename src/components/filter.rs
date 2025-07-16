@@ -26,12 +26,17 @@ impl FilterComponent {
         self.input_str.clear();
     }
 
-    pub fn input_str(&mut self) -> &str {
+    pub fn input_str(&self) -> &str {
         &self.input_str
     }
 
-    pub fn is_filter_empty(&mut self) -> bool {
+    pub fn is_filter_empty(&self) -> bool {
         self.input_str.is_empty()
+    }
+
+    pub fn filter_contents(&self) -> Option<&str> {
+        if self.input_str.is_empty() { return None }
+        else { return Some(&self.input_str) }
     }
 }
 
