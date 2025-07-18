@@ -17,6 +17,7 @@ use crate::app::App;
 
 pub mod app;
 pub mod config;
+pub mod input;
 pub mod components;
 pub mod events;
 pub mod models;
@@ -55,7 +56,7 @@ fn main() -> Result<()> {
         match events.next()? {
             Event::KeyInput(key) => match app.key_event(key) {
                 Ok(state) => {
-                    if !state.is_consumed() && key.code == app.config.key_config.exit {
+                    if !state.is_consumed() && key == app.config.key_config.exit {
                         break;
                     }
                 }

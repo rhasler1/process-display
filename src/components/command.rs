@@ -60,17 +60,6 @@ pub fn filter_submit(key: &KeyConfig) -> CommandText {
     )
 }
 
-pub fn change_tab(key: &KeyConfig) -> CommandText {
-    CommandText::new(
-        format!(
-            "Move tab left/right [{:?}/{:?}]",
-            key.tab_left,
-            key.tab_right,
-        ),
-        CMD_GROUP_GENERAL
-    )
-}
-
 pub fn exit_popup(key: &KeyConfig) -> CommandText {
     CommandText::new(
         format!(
@@ -140,26 +129,6 @@ pub fn sort_list_by_memory_usage(key: &KeyConfig) -> CommandText {
             "Sort by memory usage dec/inc [{:?}/{:?}]",
             key.sort_memory_usage_dec,
             key.sort_memory_usage_inc,
-        ),
-        CMD_GROUP_GENERAL
-    )
-}
-
-pub fn follow_selection(key: &KeyConfig) -> CommandText {
-    CommandText::new(
-        format!(
-            "Toggle follow selection [{:?}]",
-            key.follow_selection,
-        ),
-        CMD_GROUP_GENERAL
-    )
-}
-
-pub fn more_process_info(key: &KeyConfig) -> CommandText {
-    CommandText::new(
-        format!(
-            "Get more process information [{:?}]",
-            key.process_info,
         ),
         CMD_GROUP_GENERAL
     )

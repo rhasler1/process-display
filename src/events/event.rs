@@ -1,17 +1,6 @@
-use crossterm::event::{
-    self,
-    KeyEvent,
-    KeyEventKind,
-    MouseEvent,
-    MouseEventKind,
-    Event as CEvent,
-};
-
-use std::{
-    thread,
-    time::Duration,
-    sync::mpsc
-};
+use crossterm::event::{self, KeyEventKind, Event as CEvent};
+use std::{thread, time::Duration, sync::mpsc};
+use crate::input::{Key, Mouse};
 
 #[derive(Clone, Copy)]
 pub struct EventConfig {
@@ -28,18 +17,17 @@ impl Default for EventConfig {
     }
 }
 
-
-#[derive(Clone, Copy)]
-pub enum Event<K, M> {
-    KeyInput(K),
-    MouseInput(M),
+#[derive(Clone)]
+pub enum Event {
+    KeyInput(Key),
+    MouseInput(Mouse),
     Tick,
     Refresh,
 }
 
 pub struct Events {
-    rx: mpsc::Receiver<Event<KeyEvent, MouseEvent>>,
-    _tx: mpsc::Sender<Event<KeyEvent, MouseEvent>>,
+    rx: mpsc::Receiver<Event>,
+    _tx: mpsc::Sender<Event>,
 }
 
 impl Events {
@@ -61,12 +49,13 @@ impl Events {
             if event::poll(config.tick_rate).unwrap() {
                 if let Ok(event) = event::read() {
                     if let CEvent::Key(key) = event {
+                        // guard needed for Windows
                         if key.kind == KeyEventKind::Press {
-                            input_tx.send(Event::KeyInput(key)).unwrap();
+                            input_tx.send(Event::KeyInput(Key::from(key))).unwrap();
                         }
                     }
                     if let CEvent::Mouse(mouse) = event {
-                        input_tx.send(Event::MouseInput(mouse)).unwrap();
+                        input_tx.send(Event::MouseInput(Mouse::from(mouse))).unwrap();
                     }
                 }
             }
@@ -85,7 +74,7 @@ impl Events {
         Events { rx, _tx: tx }
     }
 
-    pub fn next(&self) -> Result<Event<KeyEvent, MouseEvent>, mpsc::RecvError> {
+    pub fn next(&self) -> Result<Event, mpsc::RecvError> {
         self.rx.recv()
     }
 }

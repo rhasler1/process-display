@@ -4,10 +4,14 @@ use ratatui::prelude::*;
 use ratatui::Frame;
 use ratatui::widgets::Cell;
 use ratatui::widgets::Row;
-use crossterm::event::KeyEvent;
+
+use crate::input::*;
+
+use crate::components::Refreshable;
 use crate::services::sysinfo_service::SysInfoService;
 use crate::components::utils::vertical_scroll::VerticalScroll;
 use crate::models::items::temp_item::TempItem;
+use crate::services::VecProvider;
 use crate::{components::EventState, config::Config};
 use super::{Component, DrawableComponent};
 
@@ -20,8 +24,7 @@ pub struct TempComponent {
 
 impl TempComponent {
     pub fn new(config: Config, sysinfo: &SysInfoService) -> Self {
-        let mut temps = Vec::new();
-        sysinfo.get_temps(&mut temps);
+        let temps: Vec<TempItem> = sysinfo.fetch_items();
 
         Self {
             config,
@@ -30,28 +33,36 @@ impl TempComponent {
             vertical_scroll: VerticalScroll::new(),
         }
     }
+}
 
-    pub fn update(&mut self, sysinfo: &SysInfoService) {
-        sysinfo.get_temps(&mut self.temps);
+impl<S> Refreshable<S> for TempComponent
+where S: VecProvider<TempItem>
+{
+    fn refresh(&mut self, service: &S) {
+        self.temps = service.fetch_items();
     }
 }
 
 impl Component for TempComponent {
-    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
+    fn key_event(&mut self, key: Key) -> Result<EventState> {
         let temps_max_idx = self.temps.len().saturating_sub(1);
 
-        if key.code == self.config.key_config.move_down {
+        if key == self.config.key_config.move_down {
             if self.ui_selection < temps_max_idx {
                 self.ui_selection = self.ui_selection.saturating_add(1);
             }
             return Ok(super::EventState::Consumed);
         }
-        if key.code == self.config.key_config.move_up {
+        if key == self.config.key_config.move_up {
             self.ui_selection = self.ui_selection.saturating_sub(1);
             return Ok(super::EventState::Consumed);
         }
         
         Ok(super::EventState::NotConsumed)
+    }
+
+    fn mouse_event(&mut self, _mouse: Mouse) -> Result<EventState> {
+        Ok(EventState::NotConsumed)
     }
 }
 

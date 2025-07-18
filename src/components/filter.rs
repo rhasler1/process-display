@@ -1,5 +1,5 @@
-use anyhow::Result;
-use crossterm::event::{KeyEvent, KeyCode};
+use anyhow::{Ok, Result};
+use crate::input::*;
 use ratatui::{
     Frame,
     prelude::*,
@@ -41,18 +41,22 @@ impl FilterComponent {
 }
 
 impl Component for FilterComponent {
-    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
-        match key.code {
-            KeyCode::Char(c) => {
+    fn key_event(&mut self, key: Key) -> Result<EventState> {
+        match key {
+            Key::Char(c) => {
                 self.input_str.push(c);
                 Ok(EventState::Consumed)
             }
-            KeyCode::Backspace => {
+            Key::Backspace => {
                 self.input_str.pop();
                 Ok(EventState::Consumed)
             }
             _ => Ok(EventState::NotConsumed)
         }
+    }
+
+    fn mouse_event(&mut self, _mouse: Mouse) -> Result<EventState> {
+        Ok(EventState::NotConsumed)
     }
 }
 

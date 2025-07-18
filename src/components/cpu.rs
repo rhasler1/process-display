@@ -4,7 +4,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, ListState};
 use std::str::FromStr;
 use anyhow::{Ok, Result};
-use crossterm::event::KeyEvent;
+use crate::input::*;
 use super::EventState;
 use crate::components::common_nav;
 use crate::services::sysinfo_service::SysInfoService;
@@ -119,7 +119,7 @@ impl CPUComponent {
 }
 
 impl Component for CPUComponent {
-    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
+    fn key_event(&mut self, key: Key) -> Result<EventState> {
         if let Some(dir) = common_nav(key, &self.config.key_config) {
             self.selection_state.move_selection(dir, self.cpus.len() + self.selection_offset);
             
@@ -127,6 +127,10 @@ impl Component for CPUComponent {
         }
         
         Ok(super::EventState::NotConsumed)
+    }
+
+    fn mouse_event(&mut self, _mouse: Mouse) -> Result<EventState> {
+        Ok(EventState::NotConsumed)
     }
 }
 

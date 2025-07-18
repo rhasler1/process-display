@@ -8,7 +8,9 @@ pub struct VecState<T, S> {
     filter: Option<String>,
 }
 
-impl <T, S> VecState<T, S> {
+impl <T, S> VecState<T, S> 
+where S: Clone,
+{
     pub fn new(model: Vec<T>, selection: Option<usize>, sort: Option<S>, filter: Option<String>) -> Self {
         let model = VecModel::new(model);
 
@@ -38,6 +40,7 @@ impl <T, S> VecState<T, S> {
         };
     }
 
+    // ACCESS TO MODEL MUTATORS
     pub fn push(&mut self, item: T) {
         self.model.push(item);
     }
@@ -66,12 +69,25 @@ impl <T, S> VecState<T, S> {
     pub fn list(&self) -> &[T] {
         &self.model.items()
     }
+
+    pub fn selection(&self) -> Option<usize> {
+        self.selection
+    }
+
+    pub fn sort(&self) -> &Option<S> {
+        &self.sort
+    }
+
+    pub fn filter(&self) -> Option<&str> {
+        self.filter.as_deref()
+    }
 }
 
 impl <T, S> VecState<T, S>
 where
     T: Filterable + Sortable<S>
 {
+    // Vec<usize> mapping viewable indices(e.g., rows when rendering a table) -> immutable model indices after sort/filter
     pub fn view_indices(&self) -> Vec<usize> {
         let mut indices: Vec<usize> = (0..self.model.items().len()).collect();
 
@@ -86,6 +102,8 @@ where
         indices
     }
 
+    // Returns an iterator where Item = (usize:"mapping to immutable model index",
+    // &T:"reference to current item", bool:"does the current item map to the selected index?")
     pub fn iter_with_selection(&self) -> impl Iterator<Item = (usize, &T, bool)> {
         let indices = self.view_indices();
         let selected = self.selection;

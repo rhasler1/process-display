@@ -1,8 +1,8 @@
 use std::collections::HashMap;
-
 use anyhow::{Ok, Result};
 use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::prelude::*;
+use crate::input::{Key, Mouse, MouseKind};
 use crate::components::temp::TempComponent;
 use crate::components::Refreshable;
 use crate::config::Config;
@@ -11,8 +11,8 @@ use crate::components::{
     memory::MemoryComponent,
     process::ProcessComponent,
     error::ErrorComponent,
-    Component,
     EventState,
+    Component,
     DrawableComponent,
     help::HelpComponent,
 };
@@ -74,7 +74,7 @@ impl App {
         self.process.refresh(&self.service);
         self.memory.update(&self.service);
         self.cpu.update(&self.service);
-        self.temp.update(&self.service);
+        self.temp.refresh(&self.service);
 
         Ok(EventState::Consumed)
     }
@@ -83,14 +83,14 @@ impl App {
         self.expand = !self.expand
     }
 
-    pub fn key_event(&mut self, key: KeyEvent) -> Result<EventState> {
+    pub fn key_event(&mut self, key: Key) -> Result<EventState> {
         if self.component_event(key)?.is_consumed() {
             return Ok(EventState::Consumed);
         }
-        else if self.move_focus(key)?.is_consumed() {
+        else if self.move_focus_key(key)?.is_consumed() {
             return Ok(EventState::Consumed);
         }
-        else if key.code == self.config.key_config.expand {
+        else if key == self.config.key_config.expand {
             self.toggle_expand();
 
             return Ok(EventState::Consumed);
@@ -99,16 +99,34 @@ impl App {
         Ok(EventState::NotConsumed)
     }
 
-    pub fn mouse_event(&mut self, mouse: MouseEvent) -> Result<EventState> {
-        if self.move_focus_mouse_test(mouse)?.is_consumed() {
+    pub fn mouse_event(&mut self, mouse: Mouse) -> Result<EventState> {
+        //TODO:
+        //      1. change component_event -> component_key_event
+        //      2. create component_mouse_event
+        //      3. figure out how to select Cells? e.g., selecting a process in the process list
+        match self.focus {
+            MainFocus::Process => {
+                if self.process.mouse_event(mouse)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
+            _ => {}
+        }
+
+        if self.move_focus_mouse(mouse)?.is_consumed() {
+            return Ok(EventState::Consumed)
+        }
+
+        if matches!(mouse.kind, MouseKind::MiddleClick) {
+            self.toggle_expand();
             return Ok(EventState::Consumed)
         }
 
         Ok(EventState::NotConsumed)
     }
 
-    fn move_focus_mouse_test(&mut self, mouse: MouseEvent) -> Result<EventState> {
-        if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+    fn move_focus_mouse(&mut self, mouse: Mouse) -> Result<EventState> {
+        if matches!(mouse.kind, MouseKind::LeftClick) {
             let col = mouse.column;
             let row = mouse.row;
 
@@ -119,40 +137,41 @@ impl App {
                 }
             }
         }
+        
         return Ok(EventState::NotConsumed)
     }
 
-    fn component_event(&mut self, key: KeyEvent) -> Result<EventState> {
-        if self.error.event(key)?.is_consumed() {
+    fn component_event(&mut self, key: Key) -> Result<EventState> {
+        if self.error.key_event(key)?.is_consumed() {
             return Ok(EventState::Consumed)
         }
 
-        if self.help.event(key)?.is_consumed() {
+        if self.help.key_event(key)?.is_consumed() {
             return Ok(EventState::Consumed)
         }
 
         match self.focus {
             MainFocus::CPU => {
-                if self.cpu.event(key)?.is_consumed() {
+                if self.cpu.key_event(key)?.is_consumed() {
                     return Ok(EventState::Consumed)
                 }
             }
             MainFocus::Memory => {
-                if self.memory.event(key)?.is_consumed() {
+                if self.memory.key_event(key)?.is_consumed() {
                     return Ok(EventState::Consumed)
                 }
             }
             MainFocus::Temp => {
-                if self.temp.event(key)?.is_consumed() {
+                if self.temp.key_event(key)?.is_consumed() {
                     return Ok(EventState::Consumed)
                 }
             }
             MainFocus::Process => {
-                if self.process.event(key)?.is_consumed() {
+                if self.process.key_event(key)?.is_consumed() {
                     return Ok(EventState::Consumed)
                 }
                 // terminate case
-                if key.code == self.config.key_config.terminate {
+                if key == self.config.key_config.terminate {
                     //self.process.terminate_process(&self.system_wrapper);
 
                     return Ok(EventState::Consumed)
@@ -163,8 +182,8 @@ impl App {
         Ok(EventState::NotConsumed)
     }
 
-    fn move_focus(&mut self, key: KeyEvent) -> Result<EventState> {
-        if key.code == self.config.key_config.tab {
+    fn move_focus_key(&mut self, key: Key) -> Result<EventState> {
+        if key == self.config.key_config.tab {
             match self.focus {
                 MainFocus::CPU => {
                     self.focus = MainFocus::Memory
@@ -316,7 +335,7 @@ impl App {
 trait Contains {
     fn contains(&self, col: u16, row: u16) -> bool;
 }
-impl Contains for ratatui::layout::Rect {
+impl Contains for Rect {
     fn contains(&self, col: u16, row: u16) -> bool {
         col >= self.x
             && col < self.x + self.width

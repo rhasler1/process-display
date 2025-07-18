@@ -1,10 +1,10 @@
 use anyhow::{Ok, Result};
 use ratatui::{
-    layout::{Layout, Direction, Constraint},
+    layout::{Constraint, Direction, Layout},
     style::{Style, Stylize},
-    widgets::{Block, Gauge},
+    widgets::{Block, Borders, Gauge},
 };
-use crossterm::event::KeyEvent;
+use crate::input::*;
 use crate::services::sysinfo_service::SysInfoService;
 use crate::components::DrawableComponent;
 use crate::models::items::memory_item::MemoryItem;
@@ -34,7 +34,11 @@ impl MemoryComponent {
 }
 
 impl Component for MemoryComponent {
-    fn event(&mut self, _key: KeyEvent) -> Result<EventState> {
+    fn key_event(&mut self, _key: Key) -> Result<EventState> {
+        Ok(EventState::NotConsumed)
+    }
+
+    fn mouse_event(&mut self, _mouse: Mouse) -> Result<EventState> {
         Ok(EventState::NotConsumed)
     }
 }
@@ -62,8 +66,8 @@ impl DrawableComponent for MemoryComponent {
         let ram_title = format!(" {:<15} {:.2} GB / {:.2} GB ", ram_label, self.memory.used_memory_gb(), self.memory.total_memory_gb());
 
         let g_ram = Gauge::default()
-            .block(Block::bordered().style(style).title(ram_title))
-            .gauge_style(Style::new().red().on_black().italic())
+            .block(Block::default().borders(Borders::LEFT | Borders::TOP | Borders::RIGHT).style(style).title(ram_title))
+            .gauge_style(Style::new().light_cyan().on_black().italic())
             .percent(ram_percent as u16);
 
         // swap widget
@@ -72,8 +76,8 @@ impl DrawableComponent for MemoryComponent {
         let swap_title = format!(" {:<15} {:.2} GB / {:.2} GB ", swap_label, self.memory.used_swap_gb(), self.memory.total_swap_gb());
 
         let g_swap = Gauge::default()
-            .block(Block::bordered().style(style).title(swap_title))
-            .gauge_style(Style::new().magenta().on_black().italic())
+            .block(Block::default().borders(Borders::LEFT | Borders::BOTTOM | Borders::RIGHT).style(style).title(swap_title))
+            .gauge_style(Style::new().light_magenta().on_black().italic())
             .percent(swap_percent as u16);
 
         f.render_widget(g_ram, vertical_chunks[0]);
