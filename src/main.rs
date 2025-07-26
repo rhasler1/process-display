@@ -1,7 +1,6 @@
 use anyhow::Result;
 use crossterm::event::EnableMouseCapture;
 use std::io::{stdout};
-use crossterm::ExecutableCommand;
 use crossterm::{
     execute,
     terminal::{enable_raw_mode, EnterAlternateScreen},
@@ -19,6 +18,7 @@ pub mod app;
 pub mod config;
 pub mod input;
 pub mod components;
+pub mod ui;
 pub mod events;
 pub mod models;
 pub mod states;

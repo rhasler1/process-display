@@ -24,6 +24,10 @@ impl VerticalScroll {
         self.top.get()
     }
 
+    pub fn get_count(&self) -> usize {
+        self.count.get()
+    }
+
     pub fn reset(&self) {
         self.top.set(0);
     }
@@ -51,14 +55,11 @@ const fn calc_scroll_top(
         return 0;
     }
 
-    let padding = visual_height / 2;
-    let min_top = selection.saturating_sub(padding);
-
-    if selection < current_top + padding {
-        min_top
+    if selection < current_top {
+        selection
     }
-    else if selection >= current_top + visual_height - padding {
-        min_top
+    else if selection >= current_top + visual_height {
+        selection.saturating_sub(visual_height.saturating_sub(1))
     }
     else {
         current_top

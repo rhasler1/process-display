@@ -1,13 +1,12 @@
 use std::collections::VecDeque;
 
 #[derive(Default)]
-pub struct BoundedQueue<T> {
-    pub items: VecDeque<T>,
+pub struct BoundedQueueModel<T> {
+    items: VecDeque<T>,
     capacity: usize,
 }
 
-// Clone trait is required for T to clone elements when adding items.
-impl<T: Clone> BoundedQueue<T> {
+impl<T> BoundedQueueModel<T> {
     pub fn new(capacity: usize) -> Self {
         Self {
             items: VecDeque::with_capacity(capacity),
@@ -15,6 +14,7 @@ impl<T: Clone> BoundedQueue<T> {
         }
     }
     
+    // MUTATORS
     pub fn add_item(&mut self, item: T) {
         let len = self.items.len();
 
@@ -33,6 +33,7 @@ impl<T: Clone> BoundedQueue<T> {
         }
     }
 
+    // GETTERS
     pub fn front(&self) -> Option<&T> {
         self.items.front()
     }
@@ -45,6 +46,11 @@ impl<T: Clone> BoundedQueue<T> {
         self.capacity
     }
 
+    pub fn items(&self) -> &VecDeque<T> {
+        &self.items
+    }
+
+    // ITERATORS
     pub fn iter(&self) -> std::collections::vec_deque::Iter<'_, T> {
         self.items.iter()
     }

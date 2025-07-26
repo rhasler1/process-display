@@ -1,21 +1,22 @@
 use std::collections::HashMap;
 use anyhow::{Ok, Result};
-use crossterm::event::{KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use ratatui::prelude::*;
+use crate::components::help::HelpComponent;
 use crate::input::{Key, Mouse, MouseKind};
-use crate::components::temp::TempComponent;
-use crate::components::Refreshable;
-use crate::config::Config;
+use crate::components::{command, Refreshable};
+use crate::config::{Config, KeyConfig, MouseConfig};
 use crate::components::{
     cpu::CPUComponent,
     memory::MemoryComponent,
+    network::NetworkComponent,
     process::ProcessComponent,
     error::ErrorComponent,
     EventState,
     Component,
     DrawableComponent,
-    help::HelpComponent,
+    //help::HelpComponent,
 };
+use crate::components::command::CommandInfo;
 use crate::services::sysinfo_service::SysInfoService;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
@@ -23,7 +24,7 @@ enum MainFocus {
     CPU,
     Process,
     Memory,
-    Temp,
+    Network,
 }
 
 pub struct App {
@@ -34,7 +35,8 @@ pub struct App {
     process: ProcessComponent,
     cpu: CPUComponent,
     memory: MemoryComponent,
-    temp: TempComponent,
+    network: NetworkComponent,
+    //temp: TempComponent,
     help: HelpComponent,
     pub error: ErrorComponent,
     pub config: Config,
@@ -48,7 +50,12 @@ impl App {
         let process = ProcessComponent::new(config.clone(), &service);
         let memory = MemoryComponent::new(config.clone(), &service);
         let cpu = CPUComponent::new(config.clone(), &service);
-        let temp = TempComponent::new(config.clone(), &service);
+        let network = NetworkComponent::new(config.clone(), &service);
+        //let temp = TempComponent::new(config.clone(), &service);
+
+        let help_config = config.clone();
+        let mut help = HelpComponent::new(help_config.clone());
+        help.set_commands(commands(&help_config.key_config, &help_config.mouse_config));
         
         let focus = MainFocus::Process;
         let focus_rects = HashMap::new();
@@ -61,8 +68,9 @@ impl App {
             process,
             cpu,
             memory,
-            temp,
-            help: HelpComponent::new(config.clone()),
+            network,
+            //temp,
+            help,
             error: ErrorComponent::new(config.clone()),
             config: config.clone(),
         }
@@ -72,9 +80,9 @@ impl App {
         self.service.refresh_all();
 
         self.process.refresh(&self.service);
-        self.memory.update(&self.service);
+        self.memory.refresh(&self.service);
         self.cpu.update(&self.service);
-        self.temp.refresh(&self.service);
+        self.network.refresh(&self.service);
 
         Ok(EventState::Consumed)
     }
@@ -84,41 +92,124 @@ impl App {
     }
 
     pub fn key_event(&mut self, key: Key) -> Result<EventState> {
-        if self.component_event(key)?.is_consumed() {
-            return Ok(EventState::Consumed);
+        if self.help.is_visible() {
+            let _ = self.help.key_event(key)?.is_consumed();
+            return Ok(EventState::Consumed)
         }
-        else if self.move_focus_key(key)?.is_consumed() {
-            return Ok(EventState::Consumed);
-        }
-        else if key == self.config.key_config.expand {
-            self.toggle_expand();
 
+        if self.key_component_event(key)?.is_consumed() {
+            return Ok(EventState::Consumed);
+        }
+        if self.move_focus_key(key)?.is_consumed() {
+            return Ok(EventState::Consumed);
+        }
+        if key == self.config.key_config.expand {
+            self.toggle_expand();
             return Ok(EventState::Consumed);
         }
 
         Ok(EventState::NotConsumed)
     }
 
+    fn key_component_event(&mut self, key: Key) -> Result<EventState> {
+        if self.error.key_event(key)?.is_consumed() {
+            return Ok(EventState::Consumed)
+        }
+        if self.help.key_event(key)?.is_consumed() {
+            return Ok(EventState::Consumed)
+        }
+
+        match self.focus {
+            MainFocus::CPU => {
+                if self.cpu.key_event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
+            MainFocus::Memory => {
+                if self.memory.key_event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
+            MainFocus::Network => {
+                if self.network.key_event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
+            MainFocus::Process => {
+                if self.process.key_event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+                // terminate case
+                if key == self.config.key_config.terminate {
+                    
+                    return Ok(EventState::Consumed)
+                }
+            }
+        }
+
+        Ok(EventState::NotConsumed)
+    }
+
+    fn move_focus_key(&mut self, key: Key) -> Result<EventState> {
+        if key == self.config.key_config.tab {
+            match self.focus {
+                MainFocus::CPU => {
+                    self.focus = MainFocus::Memory
+                }
+                MainFocus::Memory => {
+                    self.focus = MainFocus::Network
+                }
+                MainFocus::Network => {
+                    self.focus = MainFocus::Process
+                }
+                MainFocus::Process => {
+                    self.focus = MainFocus::CPU
+                }
+            }
+            return Ok(EventState::Consumed)
+        }
+
+        Ok(EventState::NotConsumed)
+    }
+
     pub fn mouse_event(&mut self, mouse: Mouse) -> Result<EventState> {
-        //TODO:
-        //      1. change component_event -> component_key_event
-        //      2. create component_mouse_event
-        //      3. figure out how to select Cells? e.g., selecting a process in the process list
+        // mouse event can result in multiple state changes
+        // for example: The app's main focus is on CPU. A left-click
+        // mouse event occurs on the proces list. This one event will
+        // first change the app's main focus to the ProcessComponent,
+        // then the ProcessComponent will handle the mouse click to potentially
+        // change it's own focus state (List, Filter) or selection state.
+        if self.help.is_visible() {
+            let _ = self.help.mouse_event(mouse)?.is_consumed();
+            return Ok(EventState::Consumed)
+        }
+
+        let move_focus_res = self.move_focus_mouse(mouse)?.is_consumed();
+
         match self.focus {
             MainFocus::Process => {
                 if self.process.mouse_event(mouse)?.is_consumed() {
                     return Ok(EventState::Consumed)
                 }
             }
-            _ => {}
+            MainFocus::CPU => {
+                if self.cpu.mouse_event(mouse)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
+            MainFocus::Memory => {
+                if self.memory.mouse_event(mouse)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
+            MainFocus::Network => {
+                if self.network.mouse_event(mouse)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+           }
         }
 
-        if self.move_focus_mouse(mouse)?.is_consumed() {
-            return Ok(EventState::Consumed)
-        }
-
-        if matches!(mouse.kind, MouseKind::MiddleClick) {
-            self.toggle_expand();
+        if move_focus_res {
             return Ok(EventState::Consumed)
         }
 
@@ -141,71 +232,9 @@ impl App {
         return Ok(EventState::NotConsumed)
     }
 
-    fn component_event(&mut self, key: Key) -> Result<EventState> {
-        if self.error.key_event(key)?.is_consumed() {
-            return Ok(EventState::Consumed)
-        }
-
-        if self.help.key_event(key)?.is_consumed() {
-            return Ok(EventState::Consumed)
-        }
-
-        match self.focus {
-            MainFocus::CPU => {
-                if self.cpu.key_event(key)?.is_consumed() {
-                    return Ok(EventState::Consumed)
-                }
-            }
-            MainFocus::Memory => {
-                if self.memory.key_event(key)?.is_consumed() {
-                    return Ok(EventState::Consumed)
-                }
-            }
-            MainFocus::Temp => {
-                if self.temp.key_event(key)?.is_consumed() {
-                    return Ok(EventState::Consumed)
-                }
-            }
-            MainFocus::Process => {
-                if self.process.key_event(key)?.is_consumed() {
-                    return Ok(EventState::Consumed)
-                }
-                // terminate case
-                if key == self.config.key_config.terminate {
-                    //self.process.terminate_process(&self.system_wrapper);
-
-                    return Ok(EventState::Consumed)
-                }
-            }
-        }
-
-        Ok(EventState::NotConsumed)
-    }
-
-    fn move_focus_key(&mut self, key: Key) -> Result<EventState> {
-        if key == self.config.key_config.tab {
-            match self.focus {
-                MainFocus::CPU => {
-                    self.focus = MainFocus::Memory
-                }
-                MainFocus::Memory => {
-                    self.focus = MainFocus::Temp
-                }
-                MainFocus::Temp => {
-                    self.focus = MainFocus::Process
-                }
-                MainFocus::Process => {
-                    self.focus = MainFocus::CPU
-                }
-            }
-
-            return Ok(EventState::Consumed)
-        }
-
-        Ok(EventState::NotConsumed)
-    }
-
     pub fn draw(&mut self, f: &mut Frame) -> Result<()> {
+        self.focus_rects.clear();
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -214,6 +243,11 @@ impl App {
             .split(f.size());
 
         self.error.draw(f, chunks[0], false)?;
+        
+        if self.help.is_visible() {
+            self.help.draw(f, chunks[0], false)?;
+            return Ok(())
+        }
 
         if self.expand {
             if matches!(self.focus, MainFocus::Process) {
@@ -243,13 +277,13 @@ impl App {
                 self.focus_rects.insert(MainFocus::Memory, chunks[0]);
             }
 
-            if matches!(self.focus, MainFocus::Temp) {
-                self.temp.draw(
+            if matches!(self.focus, MainFocus::Network) {
+                self.network.draw(
                     f,
                     chunks[0],
                     true,
                 )?;
-                self.focus_rects.insert(MainFocus::Temp, chunks[0]);
+                self.focus_rects.insert(MainFocus::Network, chunks[0]);
             }
         }
         else {
@@ -293,43 +327,38 @@ impl App {
             self.memory.draw(
                 f,
                 horizontal_chunks[1][0],
-                //vertical_chunks[1],
                 matches!(self.focus, MainFocus::Memory)
             )?;
             self.focus_rects.insert(MainFocus::Memory, horizontal_chunks[1][0]);
 
-            self.temp.draw(
+            self.network.draw(
                 f,
                 horizontal_chunks[1][1],
-                matches!(self.focus, MainFocus::Temp)
+                matches!(self.focus, MainFocus::Network)
             )?;
-            self.focus_rects.insert(MainFocus::Temp, horizontal_chunks[1][1]);
+            self.focus_rects.insert(MainFocus::Network, horizontal_chunks[1][1]);
         }
-
-        //self.help.draw(f, Rect::default(), false)?; //TODO: re-implement
 
         return Ok(())
     }
+}
 
-    /*
-    fn commands(&self) -> Vec<CommandInfo> {
-        let res = vec![
-            CommandInfo::new(command::help(&self.config.key_config)),
-            CommandInfo::new(command::exit_popup(&self.config.key_config)),
-            CommandInfo::new(command::change_tab(&self.config.key_config)),
-            CommandInfo::new(command::move_selection(&self.config.key_config)),
-            CommandInfo::new(command::selection_to_top_bottom(&self.config.key_config)),
-            CommandInfo::new(command::follow_selection(&self.config.key_config)),
-            CommandInfo::new(command::sort_list_by_name(&self.config.key_config)),
-            CommandInfo::new(command::sort_list_by_pid(&self.config.key_config)),
-            CommandInfo::new(command::sort_list_by_cpu_usage(&self.config.key_config)),
-            CommandInfo::new(command::sort_list_by_memory_usage(&self.config.key_config)),
-            CommandInfo::new(command::filter_submit(&self.config.key_config)),
-            CommandInfo::new(command::terminate_process(&self.config.key_config)),
-        ];
+fn commands(key_config: &KeyConfig, mouse_config: &MouseConfig) -> Vec<CommandInfo> {
+    let res = vec![
+        CommandInfo::new(command::help(key_config)),
+        CommandInfo::new(command::exit_popup(key_config)),
+        //CommandInfo::new(command::change_tab(&self.config.key_config)),
+        CommandInfo::new(command::move_selection(key_config)),
+        CommandInfo::new(command::selection_to_top_bottom(key_config)),
+        CommandInfo::new(command::sort_list_by_name(key_config, mouse_config)),
+        CommandInfo::new(command::sort_list_by_pid(key_config, mouse_config)),
+        CommandInfo::new(command::sort_list_by_cpu_usage(key_config, mouse_config)),
+        CommandInfo::new(command::sort_list_by_memory_usage(key_config, mouse_config)),
+        CommandInfo::new(command::filter_submit(key_config)),
+        CommandInfo::new(command::terminate_process(key_config)),
+    ];
 
-        res
-    }*/
+    res
 }
 
 trait Contains {

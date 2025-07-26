@@ -1,6 +1,10 @@
-use crate::config::KeyConfig;
+use crate::config::{KeyConfig, MouseConfig};
 
 static CMD_GROUP_GENERAL: &str = "-- General --";
+static CMD_GROUP_PROCESS: &str = "-- Process --";
+static CMD_GROUP_CPU: &str = "-- CPU --";
+static CMD_GROUP_MEMORY: &str = "-- Memory --";
+static CMD_GROUP_NETWORK: &str = "-- Network --";
 
 #[derive(Clone, PartialEq, PartialOrd, Ord, Eq)]
 pub struct CommandText {
@@ -74,7 +78,7 @@ pub fn help(key: &KeyConfig) -> CommandText {
     CommandText::new(
         format!(
             "Help [{:?}]",
-            key.open_help,
+            key.help,
         ),
         CMD_GROUP_GENERAL
     )
@@ -90,46 +94,54 @@ pub fn terminate_process(key: &KeyConfig) -> CommandText {
     )
 }
 
-pub fn sort_list_by_name(key: &KeyConfig) -> CommandText {
+// Process specific::begin
+pub fn sort_list_by_name(key: &KeyConfig, mouse: &MouseConfig) -> CommandText {
     CommandText::new(
         format!(
-            "Sort by name dec/inc [{:?}/{:?}]",
-            key.sort_name_dec,
-            key.sort_name_inc,
+            "Sort by name toggle [{:?}]",
+            key.sort_name_toggle,
         ),
-        CMD_GROUP_GENERAL
+        CMD_GROUP_PROCESS
     )
 }
 
-pub fn sort_list_by_pid(key: &KeyConfig) -> CommandText {
+pub fn sort_list_by_pid(key: &KeyConfig, mouse: &MouseConfig) -> CommandText {
     CommandText::new(
         format!(
-            "Sort by PID dec/inc [{:?}/{:?}]",
-            key.sort_pid_dec,
-            key.sort_pid_inc,
+            "Sort by PID toggle [{:?}]",
+            key.sort_pid_toggle
         ),
-        CMD_GROUP_GENERAL
+        CMD_GROUP_PROCESS
     )
 }
 
-pub fn sort_list_by_cpu_usage(key: &KeyConfig) -> CommandText {
+pub fn sort_list_by_cpu_usage(key: &KeyConfig, mouse: &MouseConfig) -> CommandText {
     CommandText::new(
         format!(
-            "Sort by cpu usage dec/inc [{:?}/{:?}]",
-            key.sort_cpu_usage_dec,
-            key.sort_cpu_usage_inc,
+            "Sort by cpu usage toggle [{:?}]",
+            key.sort_cpu_toggle
         ),
-        CMD_GROUP_GENERAL
+        CMD_GROUP_PROCESS
     )
 }
 
-pub fn sort_list_by_memory_usage(key: &KeyConfig) -> CommandText {
+pub fn sort_list_by_memory_usage(key: &KeyConfig, mouse: &MouseConfig) -> CommandText {
     CommandText::new(
         format!(
-            "Sort by memory usage dec/inc [{:?}/{:?}]",
-            key.sort_memory_usage_dec,
-            key.sort_memory_usage_inc,
+            "Sort by memory usage toggle [{:?}]",
+            key.sort_memory_toggle
         ),
-        CMD_GROUP_GENERAL
+        CMD_GROUP_PROCESS
     )
 }
+
+pub fn select_process(key: &KeyConfig, mouse: &MouseConfig) -> CommandText {
+    CommandText::new(
+        format!(
+            "Select process by mouse [{:?}] | [{:?}/{:?}]",
+            mouse.left_click, mouse.scroll_down, mouse.scroll_up,
+        ),
+        CMD_GROUP_PROCESS
+    )
+}
+// Process specific::end

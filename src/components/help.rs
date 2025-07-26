@@ -100,12 +100,15 @@ impl HelpComponent {
         Ok(())
     }
 
+    pub fn is_visible(&self) -> bool {
+        self.visible
+    }
 }
 
 impl Component for HelpComponent {
     fn key_event(&mut self, key: Key) -> Result<EventState> {
         if self.visible {
-            if key == self.config.key_config.exit {
+            if key == self.config.key_config.help {
                 self.hide();
                 return Ok(EventState::Consumed);
             }
@@ -118,7 +121,7 @@ impl Component for HelpComponent {
                 return Ok(EventState::Consumed);
             }
         }
-        else if key == self.config.key_config.open_help {
+        else if key == self.config.key_config.help {
             self.show()?;
             return Ok(EventState::Consumed);
         }

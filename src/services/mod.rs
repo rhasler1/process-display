@@ -10,3 +10,7 @@ pub mod sysinfo_service;
 pub trait VecProvider<T> {
     fn fetch_items(&self) -> Vec<T>;
 }
+
+pub trait ItemProvider<T> {
+    fn fetch_item(&self) -> T;
+}

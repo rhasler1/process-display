@@ -1,14 +1,15 @@
 use anyhow::{Ok, Result};
-use ratatui::{Frame, prelude::*};
-use ratatui::widgets::{block::*, *};
-use crate::services::VecProvider;
+use ratatui::{Frame, prelude::*, widgets::*};
+use ratatui::layout::Position;
 use crate::config::*;
-use crate::components::{common_nav, Component, DrawableComponent, EventState, MoveSelection, Refreshable};
-use crate::components::{utils::{selection::UISelection, vertical_scroll::VerticalScroll}, filter::FilterComponent};
+use crate::input::{Key, Mouse, MouseKind};
+use crate::services::VecProvider;
+use crate::components::utils::{selection::UISelection, vertical_scroll::VerticalScroll};
+use crate::components::filter::FilterComponent;
+use crate::components::*;
 use crate::states::vec_state::VecState;
 use crate::models::items::process_item::{ProcessItem, ProcessItemSortOrder};
-
-use crate::input::{Key, Mouse, MouseKind};
+use crate::models::items::*;
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum Focus {
@@ -17,10 +18,16 @@ pub enum Focus {
 }
 
 pub struct ProcessComponent {
-    vec_state: VecState<ProcessItem, ProcessItemSortOrder>,
-    ui_selection: UISelection,
-    sort: Option<ProcessItemSortOrder>,
+    vec_state: VecState<ProcessItem, ProcessItemSortOrder>,             // underlying the "processlist" is a VecState: see states/vec_state.rs for details
+    // ui stuff
+    ui_selection: UISelection,                                          // manages ui selection state and movement
+    table_area: Option<Rect>,                                           // table area is dynamic, updated by draw, init to None
+    filter_area: Option<Rect>,                                          // filter area is dynamic, updated by draw, init to None
+    header_height: u16,                                                 // header height is static, initialize in constructor to 1
+    border_height: u16,                                                 // border height is static, initialize in constructor to 1, e.g., If Border::BOTTOM | Border::TOP, then total height = 2
     scroll: VerticalScroll,
+    //
+    sort: ProcessItemSortOrder,
     filter_component: FilterComponent,
     focus: Focus,
     pub config: Config,
@@ -31,11 +38,16 @@ impl ProcessComponent {
     where S: VecProvider<ProcessItem>
     {
         let processes: Vec<ProcessItem> = service.fetch_items();
+
         let ui_selection: UISelection = if processes.is_empty() { UISelection::new(None) } else { UISelection::new(Some(0)) };
+        let table_area: Option<Rect> = None;
+        let filter_area: Option<Rect> = None;
+        let header_height = 1 as u16;
+        let border_height = 1 as u16;
         let state_selection: Option<usize> = ui_selection.selection;
         let filter: Option<String> = None;
-        let sort: Option<ProcessItemSortOrder> = None;
-        let vec_state: VecState<ProcessItem, ProcessItemSortOrder> = VecState::new(processes, state_selection, sort.clone(), filter);
+        let sort: ProcessItemSortOrder = ProcessItemSortOrder::CpuUsageDec;
+        let vec_state: VecState<ProcessItem, ProcessItemSortOrder> = VecState::new(processes, state_selection, Some(sort.clone()), filter);
         let scroll: VerticalScroll = VerticalScroll::new();
         let filter_component: FilterComponent = FilterComponent::new(config.clone());
         let focus: Focus = Focus::List;
@@ -43,6 +55,10 @@ impl ProcessComponent {
         Self {
             vec_state,
             ui_selection,
+            table_area,
+            filter_area,
+            header_height,
+            border_height,
             sort,
             scroll,
             filter_component,
@@ -51,6 +67,7 @@ impl ProcessComponent {
         }
     }
 
+    // SELECTION HANDLERS::begin
     fn handle_move_selection(&mut self, dir: MoveSelection) {
         let len = self.vec_state.view_indices().len();
         // move ui selection by dir
@@ -106,6 +123,132 @@ impl ProcessComponent {
         self.vec_state.set_selection(vec_idx);
     }
 
+    // toggles sort if already sorting by specified field
+    // else sets sort to decrementing of specified field
+    fn handle_sort(&mut self, key: Key) -> bool {
+        let key_config = &self.config.key_config;
+        let sort = self.sort;
+        if key == key_config.sort_pid_toggle {
+            if matches!(sort, ProcessItemSortOrder::PidDec) { 
+                self.sort = ProcessItemSortOrder::PidInc;
+            }
+            else {
+                self.sort = ProcessItemSortOrder::PidDec;
+            }
+            self.vec_state.set_sort(Some(self.sort.clone()));
+            return true;
+        }
+        else if key == key_config.sort_name_toggle {
+            if matches!(sort, ProcessItemSortOrder::NameDec) {
+                self.sort = ProcessItemSortOrder::NameInc;
+            }
+            else {
+                self.sort = ProcessItemSortOrder::NameDec;
+            }
+            self.vec_state.set_sort(Some(self.sort.clone()));
+            return true
+        }
+        else if key == key_config.sort_cpu_toggle {
+            if matches!(sort, ProcessItemSortOrder::CpuUsageDec) {
+                self.sort = ProcessItemSortOrder::CpuUsageInc;
+            }
+            else {
+                self.sort = ProcessItemSortOrder::CpuUsageDec;
+            }
+            self.vec_state.set_sort(Some(self.sort.clone()));
+            return true;
+        }
+        else if key == key_config.sort_memory_toggle {
+            if matches!(sort, ProcessItemSortOrder::MemoryUsageDec) {
+                self.sort = ProcessItemSortOrder::MemoryUsageInc;
+            }
+            else {
+                self.sort = ProcessItemSortOrder::MemoryUsageDec;
+            }
+            self.vec_state.set_sort(Some(self.sort.clone()));
+            return true;
+        }
+
+        false
+
+    }
+    // SELECTION HANDLERS::end
+
+    // MOUSE CLICK HANDLERS::begin
+
+    /* computes the max/min y-coordinates of the process list and checks if 'click_y' is within the range
+       if click_y is within this range, then focus is set to List. if click_y is within the max/min y-coordinates
+       of visible items contained in the process list, then ui selection is set to the correspoding item index
+       and vec state selection is updated.
+       returns true if click_y is contained in the process list, else false
+    */
+    fn handle_mouse_click_on_list(&mut self, click_y: u16) -> bool {
+        if self.table_area.is_none() { return false; }
+        let table_area = self.table_area.unwrap();
+        let table_top = table_area.top();                           // y-coordinate to top of table area
+        let table_height = table_area.height;                       // height of table area
+        let header_height = self.header_height;                     // height of table header
+        let border_height = self.border_height;                     // height of a single border
+
+        let visible_list_height = table_height.saturating_sub(header_height).saturating_sub(border_height).saturating_sub(border_height);
+        // checking if click is NOT within list component constraints
+        if click_y < table_top.saturating_add(border_height).saturating_add(header_height) ||
+           click_y >= table_top.saturating_add(border_height).saturating_add(header_height).saturating_add(visible_list_height) {
+            return false;
+        }
+        self.focus = Focus::List;
+
+
+        // determining the maximum number of visible items
+        let scroll_offset = self.scroll.get_top();
+        let list_len = self.scroll.get_count();
+        let max_visible_items = (list_len.saturating_sub(scroll_offset)) as u16;
+        let visible_list_height = if max_visible_items < visible_list_height {
+            max_visible_items
+        }
+        else {
+            visible_list_height
+        };
+
+        // checking if click is within list items constraints
+        if click_y < table_top.saturating_add(border_height).saturating_add(header_height) ||
+           click_y >= table_top.saturating_add(border_height).saturating_add(header_height).saturating_add(visible_list_height) {
+            // return true here, click is considered consumed when focus is changed after the first check
+            return true;
+        }
+
+        // calculating row index and corresponding item index
+        let row_idx = (click_y.saturating_sub(table_top).saturating_sub(header_height).saturating_sub(border_height)) as usize;
+        let item_idx = scroll_offset.saturating_add(row_idx);
+
+        // setting selection and vec state
+        self.ui_selection.set_selection(Some(item_idx));
+        let vec_idx = self.compute_vec_state_idx();
+        self.vec_state.set_selection(vec_idx);
+
+        true
+    }
+
+    fn handle_mouse_click_on_filter(&mut self, click_y: u16) -> bool {
+        if self.filter_area.is_none() { return false; }
+        let filter_area = self.filter_area.unwrap();
+        let filter_top = filter_area.top();
+        let filter_height = filter_area.height;
+        let border_height = self.border_height;
+
+        if click_y < filter_top.saturating_add(border_height) ||
+           click_y >= filter_top.saturating_add(border_height).saturating_add(filter_height) {
+            return false;
+        }
+
+        // click was on filter, set focus to filter
+        self.focus = Focus::Filter;
+        true
+    }
+    // MOUSE CLICK HANDLERS::end
+
+    // HELPERS::begin
+    /* computes amd returns vector state index corresponding to ui selection */
     fn compute_vec_state_idx(&self) -> Option<usize> {
         // map ui_selection.selection to vec_state
         let vec_idx = self.ui_selection.selection
@@ -113,6 +256,7 @@ impl ProcessComponent {
 
         vec_idx
     }
+    // HELPERS::end
 }
 
 impl<S> Refreshable<S> for ProcessComponent
@@ -125,7 +269,6 @@ where
         self.handle_refresh_selection();
     }
 }
-
 
 impl Component for ProcessComponent {
     fn key_event(&mut self, key: Key) -> Result<EventState> {
@@ -155,10 +298,9 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed)
             }
 
-            if let Some(sort_order) = match_sort_order_key(key, &self.config.key_config) {
-                self.sort = Some(sort_order);
-                self.vec_state.set_sort(self.sort.clone());
-                self.handle_refresh_selection();                                        // handle_refresh() also works for handling sort
+            if self.handle_sort(key) {
+                // logic for handling selection after sort is similar enough to refresh
+                self.handle_refresh_selection();
                 return Ok(EventState::Consumed)
             }
         }
@@ -168,15 +310,24 @@ impl Component for ProcessComponent {
 
     fn mouse_event(&mut self, mouse: Mouse) -> Result<EventState> {
         match mouse.kind {
-            MouseKind::ScrollDown | MouseKind::ScrollUp => {
-                let dir = match mouse.kind {
-                    MouseKind::ScrollDown => MoveSelection::Down,
-                    MouseKind::ScrollUp => MoveSelection::Up,
-                    _ => unreachable!(),                                                // safeguarded by conditional
-                };
-
-                self.handle_move_selection(dir);
+            MouseKind::ScrollDown => {
+                self.handle_move_selection(MoveSelection::Down);
                 return Ok(EventState::Consumed);
+            }
+            MouseKind::ScrollUp => {
+                self.handle_move_selection(MoveSelection::Up);
+                return Ok(EventState::Consumed);
+            }
+            MouseKind::LeftClick => {
+                if self.handle_mouse_click_on_list(mouse.row) {
+                    return Ok(EventState::Consumed);
+                }
+                if self.handle_mouse_click_on_filter(mouse.row) {
+                    return Ok(EventState::Consumed);
+                }
+                /*if self.handle_mouse_click_on_header(mouse.column, mouse.row) {
+                    return Ok(EventState::Consumed)
+                }*/
             }
             _ => {}
         }
@@ -185,16 +336,24 @@ impl Component for ProcessComponent {
     }
 }
 
-// maps key to ProcessItemSortOrder
-fn match_sort_order_key(key: Key, key_config: &KeyConfig) -> Option<ProcessItemSortOrder> {
-    if key == key_config.sort_pid_inc               { return Some(ProcessItemSortOrder::PidInc) }
-    if key == key_config.sort_pid_dec               { return Some(ProcessItemSortOrder::PidDec) }
-    if key == key_config.sort_cpu_usage_inc         { return Some(ProcessItemSortOrder::CpuUsageInc) }
-    if key == key_config.sort_cpu_usage_dec         { return Some(ProcessItemSortOrder::CpuUsageDec) }
-    if key == key_config.sort_memory_usage_inc      { return Some(ProcessItemSortOrder::MemoryUsageInc) }
-    if key == key_config.sort_memory_usage_dec      { return Some(ProcessItemSortOrder::MemoryUsageDec) }
-    if key == key_config.sort_name_inc              { return Some(ProcessItemSortOrder::NameInc) }
-    if key == key_config.sort_name_dec              { return Some(ProcessItemSortOrder::NameDec) }
+// helper function to match key to sort variant
+fn handle_sort(key: Key, key_config: &KeyConfig, sort: &ProcessItemSortOrder) -> Option<ProcessItemSortOrder> {
+    if key == key_config.sort_pid_toggle {
+        if matches!(sort, ProcessItemSortOrder::PidDec) { return Some(ProcessItemSortOrder::PidInc)};
+        return Some(ProcessItemSortOrder::PidDec);
+    }
+    if key == key_config.sort_cpu_toggle {
+        if matches!(sort, ProcessItemSortOrder::PidDec) { return Some(ProcessItemSortOrder::PidInc)};
+        return Some(ProcessItemSortOrder::PidDec);
+    }
+
+
+
+    if key == key_config.sort_cpu_toggle        { return Some(ProcessItemSortOrder::CpuUsageDec) }
+    if key == key_config.sort_memory_toggle     { return Some(ProcessItemSortOrder::MemoryUsageInc) }
+    if key == key_config.sort_memory_toggle     { return Some(ProcessItemSortOrder::MemoryUsageDec) }
+    if key == key_config.sort_name_toggle             { return Some(ProcessItemSortOrder::NameInc) }
+    if key == key_config.sort_name_toggle            { return Some(ProcessItemSortOrder::NameDec) }
 
     return None
 }
@@ -204,20 +363,34 @@ impl DrawableComponent for ProcessComponent {
         let horizontal_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Fill(1),        //list
+                Constraint::Fill(1),        //table(process list)
                 Constraint::Length(3),      //filter
             ]).split(area);
 
-        // sub 3 here for table header (1 line) and borders (2 lines)
-        let visible_list_height = horizontal_chunks[0].height.saturating_sub(4) as usize;
+        // set heights
+        let header_height = self.header_height;
+        let border_height = self.border_height;
+        let visible_list_height = horizontal_chunks[0]
+            .height
+            .saturating_sub(border_height)
+            .saturating_sub(border_height)
+            .saturating_sub(header_height) as usize;
+
+        // saving table and filter area to process mouse clicks
+        // set table area
+        self.table_area = Some(horizontal_chunks[0]);
+        // set filter area
+        self.filter_area = Some(horizontal_chunks[1]);
 
         // update vertical scroll
         let indices = self.vec_state.view_indices();
         let len = indices.len();
         self.ui_selection.selection.map_or_else(
             { ||
+                // if selection is none
                 self.scroll.reset()
             }, |idx| {
+                // if selection is some
                 self.scroll.update(idx, len, visible_list_height);
         },);
 
@@ -272,22 +445,21 @@ fn draw_process_list<'a, I>(
     visible_items: I,
     focus: bool,
     theme_config: ThemeConfig,
-    sort_order: Option<ProcessItemSortOrder>,
+    sort_order: ProcessItemSortOrder,
 )
 where
     I: Iterator<Item = (usize, &'a ProcessItem, bool)>,
 {
-
     // setting header
     let header_labels = [
         "",
-        &header_with_sort(&sort_order, &ProcessItemSortOrder::PidInc, &ProcessItemSortOrder::PidDec, "PID"),
-        &header_with_sort(&sort_order, &ProcessItemSortOrder::NameInc, &ProcessItemSortOrder::NameDec, "Name"),
-        &header_with_sort(&sort_order, &ProcessItemSortOrder::CpuUsageInc, &ProcessItemSortOrder::CpuUsageDec, "CPU (%)"),
-        &header_with_sort(&sort_order, &ProcessItemSortOrder::MemoryUsageInc, &ProcessItemSortOrder::MemoryUsageDec, "Memory (MB)"),
-        "Run (hh:mm:ss)",
-        "Status",
-        "Path",
+        &header_with_sort(&sort_order, &ProcessItemSortOrder::PidInc, &ProcessItemSortOrder::PidDec, "PID(p)"),
+        &header_with_sort(&sort_order, &ProcessItemSortOrder::NameInc, &ProcessItemSortOrder::NameDec, "NAME(n)"),
+        &header_with_sort(&sort_order, &ProcessItemSortOrder::CpuUsageInc, &ProcessItemSortOrder::CpuUsageDec, "CPU(c)(%)"),
+        &header_with_sort(&sort_order, &ProcessItemSortOrder::MemoryUsageInc, &ProcessItemSortOrder::MemoryUsageDec, "MEM(m)(MB)"),
+        "STATUS",
+        "RUNTIME",
+        //"PATH",
     ];
 
     let header = header_labels
@@ -295,29 +467,27 @@ where
         .map(Cell::from)
         .collect::<Row>()
         .style(if focus {theme_config.style_border_focused} else {theme_config.style_border_not_focused})
-        .height(2);
+        .height(1);
 
     // setting rows
     let rows = visible_items
         .map(|(_idx, item, selected)| {
             let style = compute_row_style(focus, selected, &theme_config);
-
-            let is_selected_style = [
-                theme_config.style_item_selected,
-                theme_config.style_item_selected_followed,
-                theme_config.style_item_selected_followed_not_focused,
-                theme_config.style_item_selected_not_focused,
-            ].contains(&style);
+            let indicator = if style == theme_config.style_item_selected {
+                "->"
+            } else {
+                ""
+            };
 
             let cells = vec![
-                Cell::from(if is_selected_style {"->"} else { "" }),
+                Cell::from(indicator),
                 Cell::from(item.pid().to_string()),
-                Cell::from(item.name()),
+                Cell::from(format!("{:.40}", item.name())),
                 Cell::from(format!("{:.2}", item.cpu_usage())),
-                Cell::from(format!("{:.2}", item.memory_usage()/1000000)),
-                Cell::from(item.run_time_hh_mm_ss()),
+                Cell::from(format!("{}",    byte_to_mb(item.memory_usage()))),
                 Cell::from(item.status()),
-                Cell::from(item.path()),
+                Cell::from(item.run_time_dd_hh_mm_ss()),
+                //Cell::from(item.path()),
             ];
             Row::new(cells).style(style)
         })
@@ -327,13 +497,12 @@ where
     let widths =
     vec![
         Constraint::Length(2),  // arrow
-        Constraint::Length(10), // pid
-        Constraint::Length(50), // name
-        Constraint::Length(15), // cpu usage
-        Constraint::Length(15), // memory usage
-        Constraint::Length(20), // run time
-        Constraint::Length(15), // status
-        Constraint::Min(0),     // path
+        Constraint::Percentage(10), // pid
+        Constraint::Percentage(30), // name
+        Constraint::Percentage(15), // cpu usage
+        Constraint::Percentage(15), // memory usage
+        Constraint::Percentage(15), // status
+        Constraint::Percentage(15), // run time
     ];
 
     // setting block information
@@ -352,14 +521,14 @@ where
 
 // helper function for building header labels
 fn header_with_sort(
-    current: &Option<ProcessItemSortOrder>,
+    current: &ProcessItemSortOrder,
     inc: &ProcessItemSortOrder,
     dec: &ProcessItemSortOrder,
     base: &str,
 ) -> String {
     match current {
-        Some(s) if s == inc => format!("{base} ▲"),
-        Some(s) if s == dec => format!("{base} ▼"),
+        s if s == inc => format!("{base} ▲"),
+        s if s == dec => format!("{base} ▼"),
         _ => base.to_string(),
     }
 }
@@ -368,12 +537,16 @@ fn header_with_sort(
 fn compute_row_style(focus: bool, selected: bool, theme: &ThemeConfig) -> Style {
     match (focus, selected) {
         (true, true) => theme.style_item_selected,
-        (true, _,) => theme.style_item_focused,
+        (true, false) => theme.style_item_focused,
         (false, true) => theme.style_item_selected_not_focused,
         _ => theme.style_item_not_focused,
     }
 }
 
+
+
+
+// TEST MODULE
 #[cfg(test)]
 mod test {
     use super::*;
@@ -402,7 +575,8 @@ mod test {
             test_data(self.idx)
         }
     }
-    
+
+
 
     #[test]
     fn test_constructor_with_data() {
@@ -417,7 +591,7 @@ mod test {
         // check that ui_selection is Some(0) since there is data
         assert_eq!(component.ui_selection.selection, Some(0));
         // check that sort and filter are None
-        assert!(component.sort.is_none());
+        //assert!(component.sort.is_none());
         assert!(component.vec_state.filter().is_none());
         // check focus
         assert_eq!(component.focus, Focus::List);
@@ -436,7 +610,7 @@ mod test {
         // check that ui_selection is Some(0) since there is data
         assert_eq!(component.ui_selection.selection, None);
         // check that sort and filter are None
-        assert!(component.sort.is_none());
+        //assert!(component.sort.is_none());
         assert!(component.vec_state.filter().is_none());
         // check focus
         assert_eq!(component.focus, Focus::List);
@@ -493,6 +667,8 @@ mod test {
         assert_eq!(component.ui_selection.selection, Some(0));
         assert!(component.vec_state.selection().is_some());
     }
+    
+    //TODO: add tests for mouse_event() and key_event()
 
     fn test_data(idx: usize) -> Vec<ProcessItem> {
         match idx {

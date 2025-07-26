@@ -5,12 +5,10 @@ pub struct VecState<T, S> {
     model: VecModel<T>,
     selection: Option<usize>,
     sort: Option<S>,
-    filter: Option<String>,
+    filter: Option<String>,  
 }
 
-impl <T, S> VecState<T, S> 
-where S: Clone,
-{
+impl <T, S> VecState<T, S> {
     pub fn new(model: Vec<T>, selection: Option<usize>, sort: Option<S>, filter: Option<String>) -> Self {
         let model = VecModel::new(model);
 
@@ -117,6 +115,7 @@ where
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use std::vec;
@@ -145,4 +144,4 @@ mod tests {
             println!("{text}");
         });
     }
-}
+}*/

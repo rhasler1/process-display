@@ -11,6 +11,7 @@ pub mod command;
 pub mod cpu;
 pub mod memory;
 pub mod temp;
+pub mod network;
 
 pub trait DrawableComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()>;

@@ -1,5 +1,5 @@
 pub mod items;
-pub mod bounded_queue;
+pub mod bounded_queue_model;
 pub mod vec_model;
 
 pub trait Filterable {
