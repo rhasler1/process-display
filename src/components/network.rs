@@ -1,23 +1,28 @@
+
 use std::cmp::{max, min};
+
 use anyhow::{Ok, Result};
 use ratatui::{Frame, prelude::*, widgets::*};
-use crate::{components::Refreshable, input::*, services::ItemProvider, states::bounded_queue_state::BoundedQueueState};
-use crate::components::DrawableComponent;
-use crate::models::items::memory_item::MemoryItem;
+
+use crate::components::Refreshable;
+use crate::input::MouseKind;
+use crate::services::ItemProvider;
+use crate::states::bounded_queue_state::BoundedQueueState;
+use crate::models::items::network_item::NetworkItem;
+use crate::models::items::*;
 use crate::config::Config;
-use super::Component;
-use super::EventState;
+use crate::components::*;
 use crate::config::*;
 
-pub struct MemoryComponent {
+pub struct NetworkComponent {
     config: Config,
-    queue_state: BoundedQueueState<MemoryItem>,
+    queue_state: BoundedQueueState<NetworkItem>,
     data_window_time_scale: u64,
 }
 
-impl MemoryComponent {
-    pub fn new<S>(config: Config, service: &S) -> Self 
-    where S: ItemProvider<MemoryItem>
+impl NetworkComponent {
+    pub fn new<S>(config: Config, service: &S) -> Self
+    where S: ItemProvider<NetworkItem>
     {
         let capacity = ( config.max_time_scale() / config.refresh_rate() ) as usize;
         let selection = None;
@@ -25,9 +30,9 @@ impl MemoryComponent {
         let data_window_time_scale = config.min_time_scale();
 
         let mut queue_state = BoundedQueueState::new(capacity, selection, refresh_bool);
-        let memory = service.fetch_item();
-        // adding first item
-        queue_state.add_item(memory);
+        let network = service.fetch_item();
+
+        queue_state.add_item(network);
 
         Self {
             config,
@@ -37,17 +42,17 @@ impl MemoryComponent {
     }
 }
 
-impl<S> Refreshable<S> for MemoryComponent
+impl<S> Refreshable<S> for NetworkComponent
 where
-    S: ItemProvider<MemoryItem>
+    S: ItemProvider<NetworkItem>
 {
     fn refresh(&mut self, service: &S) {
-        let memory_item: MemoryItem = service.fetch_item();
-        self.queue_state.add_item(memory_item);
+        let network_item: NetworkItem = service.fetch_item();
+        self.queue_state.add_item(network_item);
     }
 }
 
-impl Component for MemoryComponent {
+impl Component for NetworkComponent {
     fn key_event(&mut self, key: Key) -> Result<EventState> {
         let key_config = &self.config.key_config;
         if key == key_config.move_down {
@@ -79,7 +84,7 @@ impl Component for MemoryComponent {
     }
 }
 
-impl DrawableComponent for MemoryComponent {
+impl DrawableComponent for NetworkComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()> {
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -87,52 +92,61 @@ impl DrawableComponent for MemoryComponent {
                 Constraint::Length(2),
                 Constraint::Min(0),
             ]).split(area);
-
+        
         let refresh_rate = self.config.refresh_rate();              // default = 2,000 ms
         let time_scale = self.data_window_time_scale;               // default = 60,000 ms
         let data_window = (time_scale / refresh_rate) as usize;     // default = 30
         let max_idx = data_window.saturating_sub(1);                //
+        let y_max_scale_factor = 1.5;                               // used to scale y-upper bound
 
+        let tx_data: Vec<(f64, f64)> = self.queue_state
+                .iter()
+                .rev()
+                .take(data_window)
+                .enumerate()
+                .map(|(idx, network_item)| {
+                    (
+                        max_idx.saturating_sub(idx) as f64,
+                        byte_to_kb(network_item.tx()) as f64,
+                    )
+                })
+                .collect();
 
-        // building data sets
-        let ram_percent_usage_data: Vec<(f64, f64)> = self.queue_state
+        let rx_data: Vec<(f64, f64)> = self.queue_state
+                .iter()
+                .rev()
+                .take(data_window)
+                .enumerate()
+                .map(|(idx, network_item)| {
+                    (
+                        max_idx.saturating_sub(idx) as f64,
+                        byte_to_kb(network_item.rx()) as f64,
+                    )
+                })
+                .collect();
+
+        // getting upper bound on y
+        let max_y = tx_data
             .iter()
-            .rev()
-            .take(data_window)
-            .enumerate()
-            .map(|(idx, memory_item)| {
-                (
-                    max_idx.saturating_sub(idx) as f64, 
-                    memory_item.percent_memory_usage(),
-                )
-            })
-            .collect();
+            .chain(rx_data.iter())
+            .map(|tuple| tuple.1)
+            .fold(0.0, f64::max);
 
-        let swap_percent_usage_data: Vec<(f64, f64)> = self.queue_state
-            .iter()
-            .rev()
-            .take(data_window)
-            .enumerate()
-            .map(|(idx, memory_item)| {
-                (
-                    max_idx.saturating_sub(idx) as f64, 
-                    memory_item.percent_swap_usage(),
-                )
-            })
-            .collect();
-
+        // scaling
+        let max_y = max_y * y_max_scale_factor;
+        
         let datasets = vec![
             Dataset::default()
-                .data(&ram_percent_usage_data)
+                .data(&tx_data)
                 .graph_type(GraphType::Line)
-                .marker(symbols::Marker::Braille)
-                .style(Style::new().light_red()),
+                .marker(Marker::Braille)
+                .style(Style::new().light_blue()),
             
             Dataset::default()
-                .data(&swap_percent_usage_data)
+                .data(&rx_data)
                 .graph_type(GraphType::Line)
-                .marker(symbols::Marker::Braille)
-                .style(Style::new().light_magenta()),
+                .marker(Marker::Braille)
+                .style(Style::new().light_yellow())
         ];
 
         // set block style
@@ -150,15 +164,14 @@ impl DrawableComponent for MemoryComponent {
             .labels_alignment(Alignment::Right);
 
         let y_axis = Axis::default()
-            .bounds([0.0, 100.0])
+            .bounds([0.0, max_y])
             .labels(vec![
-                Span::raw("0%"),
-                Span::raw("50"),
-                Span::raw("100"),
+                Span::raw("0KB"),
+                Span::raw(format!("{}", max_y)),
             ])
             .labels_alignment(Alignment::Right);
-        
-        let chart_title = format!(" Memory ");
+
+        let chart_title = " Network ";
         let chart = Chart::new(datasets)
             .block(Block::default()
                 .borders(Borders::LEFT|Borders::BOTTOM|Borders::RIGHT)
@@ -169,30 +182,23 @@ impl DrawableComponent for MemoryComponent {
 
         f.render_widget(chart, vertical_chunks[1]);
 
-
-        // building legend
-        let memory_item = if let Some(item) = self.queue_state.back() {
+        let network_item = if let Some(item) = self.queue_state.back() {
             item
         }
         else {
-            &MemoryItem::default()
+            &NetworkItem::default()
         };
-        let ram_legend = format!(" RAM :: {:.0}/{:.0}GB :: {:.0}%",
-            memory_item.used_memory_gb(),
-            memory_item.total_memory_gb(),
-            memory_item.percent_memory_usage(),
-        );
-        let swap_legend = format!(" SWAP :: {:.0}/{:.0}GB :: {:.0}%",
-            memory_item.used_swap_gb(),
-            memory_item.total_swap_gb(),
-            memory_item.percent_swap_usage(),
-        );
+        
+        let tx_per_s = network_item.tx() / ms_to_s(refresh_rate);
+        let rx_per_s = network_item.rx() / ms_to_s(refresh_rate);
+        let tx_legend = format!("TX/s {}KB :: TOTAL TX {}MB", byte_to_kb(tx_per_s), byte_to_mb(network_item.total_tx()));
+        let rx_legend = format!("RX/s {}KB :: TOTAL RX {}MB", byte_to_kb(rx_per_s), byte_to_mb(network_item.total_rx()));
 
         let legend = Paragraph::new(
             Line::from(vec![
-                Span::styled(ram_legend, Style::default().fg(Color::LightRed)),
+                Span::styled(tx_legend, Style::default().fg(Color::LightBlue)),
                 Span::raw("  "),
-                Span::styled(swap_legend, Style::default().fg(Color::LightMagenta)),
+                Span::styled(rx_legend, Style::default().fg(Color::LightYellow)),
             ])
             .right_aligned())
             .block(Block::new()

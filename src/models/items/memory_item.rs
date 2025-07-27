@@ -39,6 +39,16 @@ impl MemoryItem {
         self.used_memory as f64 / 1000000000_f64 
     }
 
+    pub fn percent_memory_usage(&self) -> f64 {
+        let percent = (self.used_memory_gb() / self.total_memory_gb()) * 100_f64;
+        if percent.is_nan() {
+            return 0_f64
+        }
+        else {
+            return percent
+        }
+    }
+
     pub fn total_swap(&self) -> u64 {
         self.total_swap
     }
@@ -53,6 +63,16 @@ impl MemoryItem {
 
     pub fn used_swap_gb(&self) -> f64 {
         self.used_swap as f64 / 1000000000_f64 
+    }
+
+    pub fn percent_swap_usage(&self) -> f64 {
+        let percent = (self.used_swap_gb() / self.total_swap_gb()) * 100_f64;
+        if percent.is_nan() {
+            return 0_f64
+        }
+        else {
+            return percent
+        }
     }
 }
 

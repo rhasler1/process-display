@@ -17,5 +17,4 @@ ratatui = { version = "0.26.0", features = ["serde", "macros"] }
 serde = { version = "1.0.188", features = ["derive"] }
 anyhow = "1.0.97"
 itertools = "0.10.0"
-dynamic-list = {path = "./dynamic-list", version = "0.1.0"}
 clippy = "0.0.302"

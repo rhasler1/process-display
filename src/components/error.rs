@@ -1,5 +1,5 @@
-use anyhow::Result;
-use crossterm::event::KeyEvent;
+use anyhow::{Ok, Result};
+use crate::input::*;
 use ratatui::{
     Frame,
     prelude::*,
@@ -43,9 +43,9 @@ impl ErrorComponent {
 }
 
 impl Component for ErrorComponent {
-    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
+    fn key_event(&mut self, key: Key) -> Result<EventState> {
         if self.visible {
-            if key.code == self.config.key_config.exit {
+            if key == self.config.key_config.exit {
                 self.error = String::new();
                 self.hide()?;
                 return Ok(EventState::Consumed);
@@ -53,6 +53,10 @@ impl Component for ErrorComponent {
             return Ok(EventState::NotConsumed);
         }
         return Ok(EventState::NotConsumed)
+    }
+
+    fn mouse_event(&mut self, _mouse: Mouse) -> Result<EventState> {
+        Ok(EventState::NotConsumed)
     }
 }
 

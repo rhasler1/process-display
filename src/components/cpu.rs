@@ -1,48 +1,59 @@
+use std::cmp::{max, min};
 use std::collections::BTreeMap;
+use ratatui::Frame;
+use ratatui::layout::Position;
 use ratatui::prelude::*;
 use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, ListState};
 use std::str::FromStr;
-use anyhow::Ok;
-use crate::components::sysinfo_wrapper::SysInfoWrapper;
-use crate::models::b_queue::bounded_queue::BoundedQueue;
+use anyhow::{Ok, Result};
+use crate::input::*;
+use super::EventState;
+use crate::components::common_nav;
+use crate::services::sysinfo_service::SysInfoService;
+use crate::components::utils::selection::UISelection;
+use crate::components::*;
+use crate::models::bounded_queue_model::BoundedQueueModel;
 use crate::models::items::cpu_item::CpuItem;
 use crate::config::Config;
-use super::{Component, DrawableComponent};
+use crate::config::*;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ColorWheel {
-    Red,
+    LightRed,
     Blue,
     Cyan,
     Green,
     LightGreen,
-    Magenta,
+    LightYellow,
+    LightMagenta,
 }
 
 impl Default for ColorWheel {
     fn default() -> Self {
-        ColorWheel::Red
+        ColorWheel::LightRed
     }
 }
 
 impl ColorWheel {
-    const ALL: [ColorWheel; 6] = [
-        ColorWheel::Red,
+    const ALL: [ColorWheel; 7] = [
+        ColorWheel::LightRed,
         ColorWheel::Blue,
         ColorWheel::Cyan,
         ColorWheel::Green,
         ColorWheel::LightGreen,
-        ColorWheel::Magenta,
+        ColorWheel::LightYellow,
+        ColorWheel::LightMagenta,
     ];
 
     pub fn as_str(&self) -> &'static str {
         match self {
-            ColorWheel::Red => "red",
+            ColorWheel::LightRed => "lightred",
             ColorWheel::Blue => "blue",
             ColorWheel::Cyan => "cyan",
             ColorWheel::Green => "green",
             ColorWheel::LightGreen => "lightgreen",
-            ColorWheel::Magenta => "magenta",
+            ColorWheel::LightYellow => "lightyellow",
+            ColorWheel::LightMagenta => "lightmagenta",
         }
     }
 
@@ -62,87 +73,214 @@ impl ColorWheel {
     }
 }
 
-#[derive(Default)]
+pub enum Focus {
+    Chart,
+    CPUList,
+}
+
 pub struct CPUComponent {
-    cpus: BTreeMap<usize, BoundedQueue<CpuItem>>,
-    ui_selection: usize,
+    cpus: BTreeMap<usize, BoundedQueueModel<CpuItem>>,
+    selection_state: UISelection,
+    selection_offset: usize,
+    data_window_time_scale: u64,
+    chart_area: Option<Rect>,
+    list_area: Option<Rect>,
+    focus: Focus,
     config: Config,
 }
 
 impl CPUComponent {
-    pub fn new(config: Config, sysinfo: &SysInfoWrapper) -> Self {
-        let mut cpus: BTreeMap<usize, BoundedQueue<CpuItem>> = BTreeMap::new();
-        let ui_selection: usize = 0;
+    pub fn new(config: Config, sysinfo: &SysInfoService) -> Self {
+        let mut cpus: BTreeMap<usize, BoundedQueueModel<CpuItem>> = BTreeMap::new();
+        
+        let focus: Focus = Focus::CPUList;
+        let data_window_time_scale = config.min_time_scale();
+        let capacity = ( config.max_time_scale() / config.refresh_rate() ) as usize;
 
         for cpu in sysinfo.get_cpus() {
             let id = cpu.id();
 
             let perf_q = cpus.entry(id).or_insert_with(|| {
-                BoundedQueue::new(config.events_per_min() as usize)
+                BoundedQueueModel::new(capacity)
             });
 
             // passes ownership
             perf_q.add_item(cpu);
         }
 
+        let selection_state = if cpus.len() > 0 { UISelection::new(Some(0)) } else { UISelection::new(None) };
+        // this is the offset between the SelectionState Selection (ui selection) & cpu_selection (backend)
+        // this offset is present because an option to display ALL cpus is present in the ui list that is
+        // not present in the CPU list
+        let selection_offset = 1;
+
+        let chart_area = None;
+        let list_area = None;
+
         Self {
             cpus,
-            ui_selection,
+            selection_state,
+            selection_offset,
+            data_window_time_scale,
+            chart_area,
+            list_area,
+            focus,
             config,
-        }        
+        }       
+    }
+
+    fn handle_mouse_click_on_chart(&mut self, click_x: u16, click_y: u16) -> bool {
+        if self.chart_area.is_none() { return false; }
+        let chart_area = self.chart_area.unwrap();
+
+        if chart_area.contains(Position {x: click_x, y: click_y}) {
+            self.focus = Focus::Chart;
+            return true
+        }
+
+        false
+    }
+
+    fn handle_mouse_click_on_list(&mut self, click_x: u16, click_y: u16) -> bool {
+        if self.list_area.is_none() { return false; }
+        let list_area = self.list_area.unwrap();
+
+        if list_area.contains(Position { x: click_x, y: click_y }) {
+            self.focus = Focus::CPUList;
+            return true
+        }
+        
+        return false
     }
 
     // has ownership
-    pub fn update(&mut self, sysinfo: &SysInfoWrapper) {
+    pub fn update(&mut self, sysinfo: &SysInfoService) {
+        let capacity = ( self.config.max_time_scale() / self.config.refresh_rate() ) as usize;
+
         for cpu in sysinfo.get_cpus() {
             let id = cpu.id();
 
             let perf_q = self.cpus.entry(id).or_insert_with(|| {
-                BoundedQueue::new(self.config.events_per_min() as usize)
+                BoundedQueueModel::new(capacity)
             });
 
             // passes ownership
             perf_q.add_item(cpu);
         }
     }
+
+    fn handle_move_selection(&mut self, dir: MoveSelection) {
+        let len = self.cpus.len();
+        let offset = self.selection_offset;
+        self.selection_state.move_selection(dir, len + offset);
+    } 
 }
 
 impl Component for CPUComponent {
-    fn event(&mut self, key: crossterm::event::KeyEvent) -> anyhow::Result<super::EventState> {
-        if key.code == self.config.key_config.move_down {
-            if self.ui_selection < self.cpus.len() { // this works b/c we prepend ALL to the drawn list
-                self.ui_selection = self.ui_selection.saturating_add(1);
+    fn key_event(&mut self, key: Key) -> Result<EventState> {
+        let key_config = &self.config.key_config;
+
+        // key event to change selection / data window
+        match self.focus {
+            Focus::CPUList => {
+                if let Some(dir) = common_nav(key, key_config) {
+                    self.handle_move_selection(dir);
+                    return Ok(EventState::Consumed)
+                }
             }
-            return Ok(super::EventState::Consumed);
+            Focus::Chart => {
+                if key == key_config.move_down {
+                    self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_inc()), self.config.max_time_scale());
+                    return Ok(EventState::Consumed)
+                }
+                if key == key_config.move_up {
+                    self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_inc()), self.config.min_time_scale());
+                    return Ok(EventState::Consumed)
+                }
+            }
         }
-        if key.code == self.config.key_config.move_up {
-            self.ui_selection = self.ui_selection.saturating_sub(1);
-            return Ok(super::EventState::Consumed);
+
+        // key event to move focus
+        if key == key_config.filter {
+            match self.focus {
+                Focus::CPUList => { self.focus = Focus::Chart }
+                Focus::Chart => { self.focus = Focus::CPUList }
+            }
+            return Ok(EventState::Consumed)
         }
-        
+
         Ok(super::EventState::NotConsumed)
+    }
+
+    fn mouse_event(&mut self, mouse: Mouse) -> Result<EventState> {
+        // mouse events to change selection / data window
+        match self.focus {
+            Focus::CPUList => {
+                match mouse.kind {
+                    MouseKind::ScrollDown => { self.handle_move_selection(MoveSelection::Down); }
+                    MouseKind::ScrollUp => { self.handle_move_selection(MoveSelection::Up); }
+                    //TODO: LeftClick
+                    _ => {}
+                }    
+            }
+            Focus::Chart => {
+                match mouse.kind {
+                    MouseKind::ScrollDown => {
+                        self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_inc()), self.config.max_time_scale());
+                        return Ok(EventState::Consumed)
+                    }
+                    MouseKind::ScrollUp => { 
+                        self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_inc()), self.config.min_time_scale());
+                        return Ok(EventState::Consumed)
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // move focus
+        if matches!(mouse.kind, MouseKind::LeftClick) {
+            if self.handle_mouse_click_on_chart(mouse.column, mouse.row) {
+                return Ok(EventState::Consumed)
+            }
+            if self.handle_mouse_click_on_list(mouse.column, mouse.row) {
+                return Ok(EventState::Consumed)
+            }
+        }
+
+        Ok(EventState::NotConsumed)
     }
 }
 
 impl DrawableComponent for CPUComponent {
-    fn draw(&mut self, f: &mut ratatui::Frame, area: ratatui::prelude::Rect, focused: bool) -> anyhow::Result<()> {
-        // split screen
+    // draw function has some magic numbers relating to render position: TODO-research a fix/better approach
+    fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()> {
         let horizontal_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Fill(1),                    // chart
-                Constraint::Length(16),                 // list
+                Constraint::Length(20),                 // list
             ]).split(area);
+        
+        // saving chart and list area for mouse clicks
+        self.chart_area = Some(horizontal_chunks[0]);
+        self.list_area = Some(horizontal_chunks[1]);
+
+        let refresh_rate = self.config.refresh_rate();              // default = 2,000 ms
+        let time_scale = self.data_window_time_scale;               // default = 60,000 ms
+        let data_window = (time_scale / refresh_rate) as usize;     // default = 30
+        let max_idx = data_window.saturating_sub(1);                //
+        let cpu_focus = &self.focus;
 
         // containers
         let mut all_data: Vec<(u32, Vec<(f64, f64)>)> = Vec::new(); // collect all data ensuring references live long enough to be drawn by `datasets`
         let mut datasets: Vec<Dataset> = Vec::new();                // holds references to data to be drawn
 
         // get max index of a queue (they are all the same)
-        let perf_q_max_idx = self.cpus
+        /*let perf_q_max_idx = self.cpus
             .get(&0)
             .map(|q| q.capacity().saturating_sub(1))
-            .unwrap_or(0); 
+            .unwrap_or(0); */
 
         // The UICPUList will look like:
         // All              ui_selection=0      cpu_selection=None
@@ -153,42 +291,45 @@ impl DrawableComponent for CPUComponent {
         // This means len(UICPUList) = 1 + len(cpus)
 
         // set cpu selection
-        let cpu_selection = if self.ui_selection == 0 {
-            None
+        let cpu_selection = if let Some(selection) = self.selection_state.selection {
+            if selection == 0 { None }
+            else {Some(selection.saturating_sub(self.selection_offset))}
+  
         }
-        else {
-            Some(self.ui_selection.saturating_sub(1))
-        };
-
+        else { None };
 
         // iterate over cpus
-        if self.ui_selection == 0 {
-            // display all
-            for (id, queue) in self.cpus
-                .iter()
-                {
+        if let Some(selection) = self.selection_state.selection {
+            if selection == 0 {
+                // display all
+                for (id, queue) in self.cpus
+                    .iter()
+                    {
+                        let data: Vec<(f64, f64)> = queue
+                            .iter()
+                            .rev()
+                            .take(data_window)
+                            .enumerate()
+                            .map(|(idx, cpu_item)| ((max_idx - idx) as f64, cpu_item.usage() as f64))
+                            .collect();
+                        
+                        all_data.push((*id as u32, data));
+                    }
+            }
+            else {
+                let id = cpu_selection.unwrap();            // unwrap should be safe here
+
+                if let Some(queue) = self.cpus.get(&id) {
                     let data: Vec<(f64, f64)> = queue
                         .iter()
                         .rev()
+                        .take(data_window)
                         .enumerate()
-                        .map(|(i, item)| ((perf_q_max_idx - i) as f64, item.usage() as f64))
+                        .map(|(idx, cpu_item)| ((max_idx - idx) as f64, cpu_item.usage() as f64))
                         .collect();
-                    
-                    all_data.push((*id as u32, data));
+
+                    all_data.push((id as u32, data));
                 }
-        }
-        else {
-            let id = cpu_selection.unwrap();            // unwrap should be safe here
-
-            if let Some(queue) = self.cpus.get(&id) {
-                let data: Vec<(f64, f64)> = queue
-                    .iter()
-                    .rev()
-                    .enumerate()
-                    .map(|(i, item)| ((perf_q_max_idx - i) as f64, item.usage() as f64))
-                    .collect();
-
-                all_data.push((id as u32, data));
             }
         }
 
@@ -204,7 +345,7 @@ impl DrawableComponent for CPUComponent {
         }
 
         // populate names for UIList to draw cpu list
-        let mut names: Vec<ListItem> = self.cpus
+        let mut names: Vec<(usize, String)> = self.cpus
             .iter()
             .map(|(key, queue)| {
                 let usage = queue.back().unwrap().usage();
@@ -216,40 +357,57 @@ impl DrawableComponent for CPUComponent {
                     format!("CPU {}", key.saturating_sub(1))
                 };
 
-                let title = format!("{:<7} {:.2}", label, usage);
-
-                ListItem::new(title).style(Color::from_str(ColorWheel::from_index(*key).as_str()).unwrap())
+                (*key, format!("{:<7} {:.2}", label, usage))
+                //ListItem::new(title).style(Color::from_str(ColorWheel::from_index(*key).as_str()).unwrap())
             })
             .collect();
-
         // insert All option into UI list
-        let title = format!("{:<7} {}", String::from("All"), String::from("%"));
-        names.insert(0, ListItem::new(title));
+        let all_option = format!("{:<7} {}", String::from("All"), String::from("%"));
+        // assigning random key to all for coloring, colorwheel::7783 => magenta
+        names.insert(0, (7783, all_option));
+
+        // map Vec<String> to Vec<ListItem>
+        let names: Vec<ListItem> = names
+            .iter()
+            .enumerate()
+            .map(|(i, (key, name))| {
+                if Some(i) == self.selection_state.selection {
+                    ListItem::new(format!("-> {}", name)).style(Color::from_str(ColorWheel::from_index(*key).as_str()).unwrap())
+                }
+                else {
+                    ListItem::new(format!("   {}", name)).style(Color::from_str(ColorWheel::from_index(*key).as_str()).unwrap())
+                }
+            }).collect();
 
         // render chart
         let chart = Chart::new(datasets)
             .block(
                 {
-                    if !focused {
-                        Block::default().borders(Borders::ALL).title(" CPU % ").style(self.config.theme_config.style_border_not_focused)
+                    if focused && matches!(cpu_focus, Focus::Chart) {
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title(" CPU ")
+                            .style(self.config.theme_config.style_border_focused)
                     }
                     else {
-                        Block::default().borders(Borders::ALL).title(" CPU % ").style(self.config.theme_config.style_border_focused)
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title(" CPU ")
+                            .style(self.config.theme_config.style_border_not_focused)
                     }
                 }
             )
-
             .x_axis(
                 Axis::default()
-                    .bounds([0.0, self.config.events_per_min().saturating_sub(1) as f64])
-                    .labels(vec![Span::raw(format!("-{}s", self.config.min_as_s())), Span::raw("now")])
+                    .bounds([0.0,  max_idx as f64])
+                    .labels(vec![Span::raw(format!("{}s", ms_to_s(time_scale))), Span::raw("now")])
                     .labels_alignment(Alignment::Right),
             )
             .y_axis(
                 Axis::default()
                     .bounds([0.0, 100.0])
                     .labels(vec![
-                        Span::raw("0"),
+                        Span::raw("0%"),
                         Span::raw("50"),
                         Span::raw("100"),
                     ])
@@ -260,25 +418,16 @@ impl DrawableComponent for CPUComponent {
 
         // render cpu list
         let mut list_state = ListState::default();
-        
-        list_state.select(Some(self.ui_selection));
+        list_state.select(self.selection_state.selection);
         
         let cpu_list = List::new(names)
             .scroll_padding(horizontal_chunks[1].height as usize / 2)
             .block(
-                if !focused {
-                    Block::default().borders(Borders::ALL).style(self.config.theme_config.style_border_not_focused)
-                }
-                else {
+                if focused && matches!(cpu_focus, Focus::CPUList) {
                     Block::default().borders(Borders::ALL).style(self.config.theme_config.style_border_focused)
                 }
-            )
-            .highlight_style(
-                if !focused {
-                    self.config.theme_config.style_item_selected_not_focused
-                }
                 else {
-                    self.config.theme_config.style_item_selected
+                    Block::default().borders(Borders::ALL).style(self.config.theme_config.style_border_not_focused)
                 }
             );
 

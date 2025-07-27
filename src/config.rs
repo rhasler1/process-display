@@ -1,26 +1,36 @@
-use crossterm::event::KeyCode;
+use std::ops::Div;
 use serde::{Deserialize,Serialize};
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone)]
 pub struct Config {
     pub key_config: KeyConfig,
+    pub mouse_config: MouseConfig,
     pub theme_config: ThemeConfig,
     refresh_rate: u64,
-    min_as_s: u64,
-    events_per_min: u64,
+    max_time_scale: u64,
+    min_time_scale: u64,
+    time_inc: u64,
     tick_rate: u64,
 }
 
-//times are in ms
 impl Default for Config {
     fn default() -> Self {
+        let refresh_rate = 2000;            // ms (2 seconds)      
+        let max_time_scale = 300000;        // ms (5 minutes)
+        let min_time_scale = 60000;            // ms (60 seconds)
+        let time_inc = 30000;               // ms (30 seconds)
+        let tick_rate = 250;                // ms
+
+
         Self {
             key_config: KeyConfig::default(),
+            mouse_config: MouseConfig::default(),
             theme_config: ThemeConfig::default(),
-            refresh_rate: 2000,
-            min_as_s: 60000/ 1000,
-            events_per_min: 60000 / 2000,
-            tick_rate: 250,
+            refresh_rate,
+            max_time_scale,
+            min_time_scale,
+            time_inc,
+            tick_rate,
         }
     }
 }
@@ -30,80 +40,92 @@ impl Config {
         self.refresh_rate
     }
 
+    pub fn max_time_scale(&self) -> u64 {
+        self.max_time_scale
+    }
+
+    pub fn min_time_scale(&self) -> u64 {
+        self.min_time_scale
+    }
+
+    pub fn time_inc(&self) -> u64 {
+        self.time_inc
+    }
+
     pub fn tick_rate(&self) -> u64 {
         self.tick_rate
-    }
-
-    pub fn min_as_s(&self) -> u64 {
-        self.min_as_s
-    }
- 
-    pub fn events_per_min(&self) -> u64 {
-        self.events_per_min
-    }
+    } 
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+pub fn ms_to_s(data_ms: u64) -> u64 {
+    data_ms.div(1000)
+}
+
+#[derive(Clone)]
 pub struct KeyConfig {
-    pub move_up: KeyCode,
-    pub move_top: KeyCode,
-    pub move_down: KeyCode,
-    pub move_bottom: KeyCode,
-    pub enter: KeyCode,
-    pub tab: KeyCode,
-    pub filter: KeyCode,
-    pub terminate: KeyCode,
-    pub tab_right: KeyCode,
-    pub tab_left: KeyCode,
-    pub open_help: KeyCode,
-    pub exit: KeyCode,
-    pub sort_name_inc: KeyCode,
-    pub sort_name_dec: KeyCode,
-    pub sort_pid_inc: KeyCode,
-    pub sort_pid_dec: KeyCode,
-    pub sort_cpu_usage_inc: KeyCode,
-    pub sort_cpu_usage_dec: KeyCode,
-    pub sort_memory_usage_inc: KeyCode,
-    pub sort_memory_usage_dec: KeyCode,
-    pub follow_selection: KeyCode,
-    pub toggle_themes: KeyCode,
-    pub process_info: KeyCode,
-    pub expand: KeyCode,
+    pub move_up: Key,
+    pub move_top: Key,
+    pub move_down: Key,
+    pub move_bottom: Key,
+    pub enter: Key,
+    pub tab: Key,
+    pub filter: Key,
+    pub terminate: Key,
+    pub help: Key,
+    pub exit: Key,
+    pub sort_name_toggle: Key,
+    pub sort_pid_toggle: Key,
+    pub sort_cpu_toggle: Key,
+    pub sort_memory_toggle: Key,
+    pub follow_selection: Key,
+    pub expand: Key,
 }
 
 impl Default for KeyConfig {
     fn default() -> Self {
         Self {
-            move_up: KeyCode::Up,
-            move_top: KeyCode::Char('W'),
-            move_down: KeyCode::Down,
-            move_bottom: KeyCode::Char('S'),
-            enter: KeyCode::Enter,
-            tab: KeyCode::Tab,
-            filter: KeyCode::Char('/'),
-            terminate: KeyCode::Char('T'),
-            tab_right: KeyCode::Right,
-            tab_left: KeyCode::Left,
-            open_help: KeyCode::Char('?'),
-            exit: KeyCode::Esc,
-            sort_name_inc: KeyCode::Char('n'),
-            sort_name_dec: KeyCode::Char('N'),
-            sort_pid_inc: KeyCode::Char('p'),
-            sort_pid_dec: KeyCode::Char('P'),
-            sort_cpu_usage_inc: KeyCode::Char('c'),
-            sort_cpu_usage_dec: KeyCode::Char('C'),
-            sort_memory_usage_inc: KeyCode::Char('m'),
-            sort_memory_usage_dec: KeyCode::Char('M'),
-            follow_selection: KeyCode::Char('f'),
-            toggle_themes: KeyCode::Char('t'),
-            process_info: KeyCode::Enter,
-            expand: KeyCode::Char('e'),
+            move_up: Key::Up,
+            move_top: Key::Char('W'),
+            move_down: Key::Down,
+            move_bottom: Key::Char('S'),
+            enter: Key::Enter,
+            tab: Key::Tab,
+            filter: Key::Char('/'),
+            terminate: Key::Char('T'),
+            help: Key::Char('?'),
+            exit: Key::Esc,
+            sort_name_toggle: Key::Char('n'),
+            sort_pid_toggle: Key::Char('p'),
+            sort_cpu_toggle: Key::Char('c'),
+            sort_memory_toggle: Key::Char('m'),
+            follow_selection: Key::Char('f'),
+            expand: Key::Char('e'),
         }
     }
 }
 
+#[derive(Clone)]
+pub struct MouseConfig {
+    pub left_click: MouseKind,
+    pub middle_click: MouseKind,
+    pub scroll_up: MouseKind,
+    pub scroll_down: MouseKind,
+}
 
-use ratatui::prelude::{Color, Modifier, Style};
+impl Default for MouseConfig {
+    fn default() -> Self {
+        Self {
+            left_click: MouseKind::LeftClick,
+            middle_click: MouseKind::MiddleClick,
+            scroll_up: MouseKind::ScrollUp,
+            scroll_down: MouseKind::ScrollDown,
+        }
+    }
+}
+
+use ratatui::prelude::{Color, Style};
+use crate::input::{Key, MouseKind};
+
 #[derive(Clone,PartialEq,Serialize,Deserialize)]
 pub struct ThemeConfig {
     pub style_border_focused: Style,
@@ -112,8 +134,6 @@ pub struct ThemeConfig {
     pub style_item_not_focused: Style,
     pub style_item_selected: Style,
     pub style_item_selected_not_focused: Style,
-    pub style_item_selected_followed: Style,
-    pub style_item_selected_followed_not_focused: Style,
 }
 
 impl Default for ThemeConfig {
@@ -121,12 +141,12 @@ impl Default for ThemeConfig {
         Self {
             style_border_focused: Style::default().fg(Color::LightGreen),
             style_border_not_focused: Style::default().fg(Color::DarkGray),
+
             style_item_focused: Style::default().fg(Color::White),
-            style_item_not_focused: Style::default().fg(Color::DarkGray),
-            style_item_selected: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD),
-            style_item_selected_not_focused: Style::default().bg(Color::Gray).add_modifier(Modifier::BOLD),
-            style_item_selected_followed: Style::default().bg(Color::Blue).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED),
-            style_item_selected_followed_not_focused: Style::default().bg(Color::Gray).add_modifier(Modifier::BOLD).add_modifier(Modifier::UNDERLINED),
+            style_item_not_focused: Style::default().fg(Color::Gray),
+
+            style_item_selected: Style::default().fg(Color::LightBlue),
+            style_item_selected_not_focused: Style::default().fg(Color::White),
         }
     }
 }

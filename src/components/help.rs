@@ -1,6 +1,7 @@
+use anyhow::Ok;
 use anyhow::Result;
 use itertools::Itertools;
-use crossterm::event::KeyEvent;
+use crate::input::*;
 use ratatui::{
     Frame,
     prelude::*,
@@ -99,28 +100,35 @@ impl HelpComponent {
         Ok(())
     }
 
+    pub fn is_visible(&self) -> bool {
+        self.visible
+    }
 }
 
 impl Component for HelpComponent {
-    fn event(&mut self, key: KeyEvent) -> Result<EventState> {
+    fn key_event(&mut self, key: Key) -> Result<EventState> {
         if self.visible {
-            if key.code == self.config.key_config.exit {
+            if key == self.config.key_config.help {
                 self.hide();
                 return Ok(EventState::Consumed);
             }
-            else if key.code == self.config.key_config.move_down {
+            else if key == self.config.key_config.move_down {
                 self.scroll_selection(true);
                 return Ok(EventState::Consumed);
             }
-            else if key.code == self.config.key_config.move_up {
+            else if key == self.config.key_config.move_up {
                 self.scroll_selection(false);
                 return Ok(EventState::Consumed);
             }
         }
-        else if key.code == self.config.key_config.open_help {
+        else if key == self.config.key_config.help {
             self.show()?;
             return Ok(EventState::Consumed);
         }
+        Ok(EventState::NotConsumed)
+    }
+
+    fn mouse_event(&mut self, _mouse: Mouse) -> Result<EventState> {
         Ok(EventState::NotConsumed)
     }
 }
