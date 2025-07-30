@@ -10,6 +10,20 @@ pub fn byte_to_kb(data: u64) -> u64 {
     data.div(1024)
 }
 
-pub fn byte_to_mb(data: u64) -> u64 {
-    data.div(1048576)
+pub trait ByteToMB {
+    fn byte_to_mb(self) -> Self;
 }
+
+macro_rules! impl_byte_to_mb {
+    ($($t:ty),*) => {
+        $(
+            impl ByteToMB for $t {
+                #[inline]
+                fn byte_to_mb(self) -> Self {
+                    self / 1048576
+                }
+            }
+        )*
+    };
+}
+impl_byte_to_mb!(u32, u64, usize);

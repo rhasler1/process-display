@@ -76,8 +76,8 @@ impl DrawableComponent for FilterComponent {
 
         let widget: Paragraph =
             Paragraph::new(filter_text)
-            .style(style)
-            .block(Block::default().borders(Borders::ALL)
+            .style(Style::new().light_blue())
+            .block(Block::default().borders(Borders::ALL).style(style)
             .title(title));
 
         f.render_widget(widget, area);

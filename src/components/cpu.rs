@@ -1,4 +1,3 @@
-use std::cmp::{max, min};
 use std::collections::BTreeMap;
 use ratatui::Frame;
 use ratatui::layout::Position;
@@ -6,6 +5,7 @@ use ratatui::prelude::*;
 use ratatui::widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem, ListState};
 use std::str::FromStr;
 use anyhow::{Ok, Result};
+use crate::components::utils::data_window::DataWindow;
 use crate::input::*;
 use super::EventState;
 use crate::components::common_nav;
@@ -15,7 +15,6 @@ use crate::components::*;
 use crate::models::bounded_queue_model::BoundedQueueModel;
 use crate::models::items::cpu_item::CpuItem;
 use crate::config::Config;
-use crate::config::*;
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ColorWheel {
@@ -82,7 +81,8 @@ pub struct CPUComponent {
     cpus: BTreeMap<usize, BoundedQueueModel<CpuItem>>,
     selection_state: UISelection,
     selection_offset: usize,
-    data_window_time_scale: u64,
+    //data_window_time_scale: u64,
+    data_window: DataWindow,
     chart_area: Option<Rect>,
     list_area: Option<Rect>,
     focus: Focus,
@@ -92,16 +92,21 @@ pub struct CPUComponent {
 impl CPUComponent {
     pub fn new(config: Config, sysinfo: &SysInfoService) -> Self {
         let mut cpus: BTreeMap<usize, BoundedQueueModel<CpuItem>> = BTreeMap::new();
+
+        let data_window_capacity = ( config.max_time_span() / config.refresh_rate() ) as usize;
+        let data_window_length = ( config.default_time_span() / config.refresh_rate() ) as usize;
+        let data_window_offset = 0;
+        let data_window = DataWindow::new(data_window_offset, data_window_length, data_window_capacity).unwrap();
         
         let focus: Focus = Focus::CPUList;
-        let data_window_time_scale = config.min_time_scale();
-        let capacity = ( config.max_time_scale() / config.refresh_rate() ) as usize;
+        //let data_window_time_scale = config.default_time_span();
+        //let capacity = ( config.max_time_span() / config.refresh_rate() ) as usize;
 
         for cpu in sysinfo.get_cpus() {
             let id = cpu.id();
 
             let perf_q = cpus.entry(id).or_insert_with(|| {
-                BoundedQueueModel::new(capacity)
+                BoundedQueueModel::new(data_window_capacity)
             });
 
             // passes ownership
@@ -121,7 +126,7 @@ impl CPUComponent {
             cpus,
             selection_state,
             selection_offset,
-            data_window_time_scale,
+            data_window,
             chart_area,
             list_area,
             focus,
@@ -155,7 +160,7 @@ impl CPUComponent {
 
     // has ownership
     pub fn update(&mut self, sysinfo: &SysInfoService) {
-        let capacity = ( self.config.max_time_scale() / self.config.refresh_rate() ) as usize;
+        let capacity = ( self.config.max_time_span() / self.config.refresh_rate() ) as usize;
 
         for cpu in sysinfo.get_cpus() {
             let id = cpu.id();
@@ -179,6 +184,9 @@ impl CPUComponent {
 impl Component for CPUComponent {
     fn key_event(&mut self, key: Key) -> Result<EventState> {
         let key_config = &self.config.key_config;
+        let time_step = self.config.time_step();
+        let refresh_rate = self.config.refresh_rate();
+        let idx_step  = time_step / refresh_rate;
 
         // key event to change selection / data window
         match self.focus {
@@ -190,13 +198,24 @@ impl Component for CPUComponent {
             }
             Focus::Chart => {
                 if key == key_config.move_down {
-                    self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_inc()), self.config.max_time_scale());
+                    self.data_window.zoom_out(idx_step as usize);
+                    //self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_step()), self.config.max_time_span());
                     return Ok(EventState::Consumed)
                 }
                 if key == key_config.move_up {
-                    self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_inc()), self.config.min_time_scale());
+                    self.data_window.zoom_in(idx_step as usize);
+                    //self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_step()), self.config.max_time_span());
                     return Ok(EventState::Consumed)
                 }
+                if key == key_config.move_left {
+                    self.data_window.pan_positive(idx_step as usize);
+                    return Ok(EventState::Consumed)
+                }
+                if key == key_config.move_right {
+                    self.data_window.pan_negative(idx_step as usize);
+                    return Ok(EventState::Consumed)
+                }
+
             }
         }
 
@@ -213,7 +232,10 @@ impl Component for CPUComponent {
     }
 
     fn mouse_event(&mut self, mouse: Mouse) -> Result<EventState> {
-        // mouse events to change selection / data window
+        let time_step = self.config.time_step();
+        let refresh_rate = self.config.refresh_rate();
+        let idx_step  = time_step / refresh_rate;
+
         match self.focus {
             Focus::CPUList => {
                 match mouse.kind {
@@ -226,11 +248,13 @@ impl Component for CPUComponent {
             Focus::Chart => {
                 match mouse.kind {
                     MouseKind::ScrollDown => {
-                        self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_inc()), self.config.max_time_scale());
+                        self.data_window.zoom_out(idx_step as usize);
+                        //self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_step()), self.config.max_time_span());
                         return Ok(EventState::Consumed)
                     }
                     MouseKind::ScrollUp => { 
-                        self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_inc()), self.config.min_time_scale());
+                        self.data_window.zoom_in(idx_step as usize);
+                        //self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_step()), self.config.max_time_span());
                         return Ok(EventState::Consumed)
                     }
                     _ => {}
@@ -266,11 +290,8 @@ impl DrawableComponent for CPUComponent {
         self.chart_area = Some(horizontal_chunks[0]);
         self.list_area = Some(horizontal_chunks[1]);
 
-        let refresh_rate = self.config.refresh_rate();              // default = 2,000 ms
-        let time_scale = self.data_window_time_scale;               // default = 60,000 ms
-        let data_window = (time_scale / refresh_rate) as usize;     // default = 30
-        let max_idx = data_window.saturating_sub(1);                //
-        let cpu_focus = &self.focus;
+        let data_window_length = self.data_window.window_length();
+        let data_window_offset = self.data_window.window_offset();
 
         // containers
         let mut all_data: Vec<(u32, Vec<(f64, f64)>)> = Vec::new(); // collect all data ensuring references live long enough to be drawn by `datasets`
@@ -308,9 +329,14 @@ impl DrawableComponent for CPUComponent {
                         let data: Vec<(f64, f64)> = queue
                             .iter()
                             .rev()
-                            .take(data_window)
+                            .skip(data_window_offset)
+                            .take(data_window_length)
                             .enumerate()
-                            .map(|(idx, cpu_item)| ((max_idx - idx) as f64, cpu_item.usage() as f64))
+                            .map(|(i, cpu_item)| (
+                                (data_window_length
+                                    .saturating_sub(i+1)) as f64,
+                                cpu_item.usage() as f64)
+                            )
                             .collect();
                         
                         all_data.push((*id as u32, data));
@@ -323,9 +349,13 @@ impl DrawableComponent for CPUComponent {
                     let data: Vec<(f64, f64)> = queue
                         .iter()
                         .rev()
-                        .take(data_window)
+                        .skip(data_window_offset)
+                        .take(data_window_length)
                         .enumerate()
-                        .map(|(idx, cpu_item)| ((max_idx - idx) as f64, cpu_item.usage() as f64))
+                        .map(|(i, cpu_item)| (
+                            (data_window_length
+                                .saturating_sub(i+1)) as f64,
+                            cpu_item.usage() as f64))
                         .collect();
 
                     all_data.push((id as u32, data));
@@ -383,7 +413,7 @@ impl DrawableComponent for CPUComponent {
         let chart = Chart::new(datasets)
             .block(
                 {
-                    if focused && matches!(cpu_focus, Focus::Chart) {
+                    if focused && matches!(self.focus, Focus::Chart) {
                         Block::default()
                             .borders(Borders::ALL)
                             .title(" CPU ")
@@ -399,8 +429,8 @@ impl DrawableComponent for CPUComponent {
             )
             .x_axis(
                 Axis::default()
-                    .bounds([0.0,  max_idx as f64])
-                    .labels(vec![Span::raw(format!("{}s", ms_to_s(time_scale))), Span::raw("now")])
+                    .bounds([0.0,  data_window_length.saturating_sub(1) as f64])
+                    .labels(vec![Span::raw(format!("{}s", data_window_length.saturating_sub(1))), Span::raw("now")])
                     .labels_alignment(Alignment::Right),
             )
             .y_axis(
@@ -423,7 +453,7 @@ impl DrawableComponent for CPUComponent {
         let cpu_list = List::new(names)
             .scroll_padding(horizontal_chunks[1].height as usize / 2)
             .block(
-                if focused && matches!(cpu_focus, Focus::CPUList) {
+                if focused && matches!(self.focus, Focus::CPUList) {
                     Block::default().borders(Borders::ALL).style(self.config.theme_config.style_border_focused)
                 }
                 else {

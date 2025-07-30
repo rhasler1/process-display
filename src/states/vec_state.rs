@@ -1,6 +1,10 @@
 use crate::models::vec_model::VecModel;
 use crate::models::{Filterable, Sortable};
 
+// move selection and sort out of vec_state
+// VecState will have functions that provider iterators for specific views
+// VecState will have functions for getting the item of the item selected by UI.
+// 
 pub struct VecState<T, S> {
     model: VecModel<T>,
     selection: Option<usize>,

@@ -9,6 +9,8 @@ pub enum Key {
     Backspace,
     Up,
     Down,
+    Left,
+    Right,
     Tab,
     Unkown,
 }
@@ -23,6 +25,8 @@ impl From<KeyEvent> for Key {
             KeyCode::Backspace  => Key::Backspace,
             KeyCode::Up         => Key::Up,
             KeyCode::Down       => Key::Down,
+            KeyCode::Left       => Key::Left,
+            KeyCode::Right      => Key::Right,
             KeyCode::Tab        => Key::Tab,
             _                   => Key::Unkown,
         }
@@ -35,6 +39,7 @@ pub enum MouseKind {
     MiddleClick,
     ScrollUp,
     ScrollDown,
+    Drag,
     Unkown,
 }
 
@@ -53,6 +58,7 @@ impl From<MouseEvent> for Mouse {
             MouseEventKind::Down(MouseButton::Middle)   => MouseKind::MiddleClick,
             MouseEventKind::ScrollUp                    => MouseKind::ScrollUp,
             MouseEventKind::ScrollDown                  => MouseKind::ScrollDown,
+            MouseEventKind::Drag(MouseButton::Left)     => MouseKind::Drag,
             _                                           => MouseKind::Unkown,
         };
 
@@ -63,3 +69,36 @@ impl From<MouseEvent> for Mouse {
         }
     }
 }
+
+/*
+
+fn process_drag_event(drag_util: DragUtility, end_pos: u16) {
+    // start position is the previous position=TODO: update start position at end
+    let start_pos = if let Some(start_pos) = drag_util.start_pos {
+        start_pos
+    } else {
+        end_pos
+    };
+
+    if start_pos < end_pos {
+        // send move data window left signal
+    }
+
+    if start_pos > end_pos {
+        // send move data right signal
+    }
+
+
+
+    drag_util.start_pos = end_pos;
+
+
+}
+
+struct DragUtility {
+    start_pos: Option<u16>,
+}
+
+fn handle_drag_event() {
+
+}*/

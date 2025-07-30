@@ -1,6 +1,7 @@
 use anyhow::{Ok, Result};
-use ratatui::{Frame, prelude::*, widgets::*};
+use itertools::max;
 use ratatui::layout::Position;
+use ratatui::{Frame, prelude::*, widgets::*};
 use crate::config::*;
 use crate::input::{Key, Mouse, MouseKind};
 use crate::services::VecProvider;
@@ -182,27 +183,28 @@ impl ProcessComponent {
        and vec state selection is updated.
        returns true if click_y is contained in the process list, else false
     */
-    fn handle_mouse_click_on_list(&mut self, click_y: u16) -> bool {
+    fn handle_mouse_click_on_list(&mut self, click_x: u16, click_y: u16) -> bool {
         if self.table_area.is_none() { return false; }
         let table_area = self.table_area.unwrap();
+        // checking if click is within list rect constraints
+        if !table_area.contains(Position { x: click_x, y: click_y }) { return false }
+        self.focus = Focus::List;
+
         let table_top = table_area.top();                           // y-coordinate to top of table area
         let table_height = table_area.height;                       // height of table area
         let header_height = self.header_height;                     // height of table header
         let border_height = self.border_height;                     // height of a single border
 
-        let visible_list_height = table_height.saturating_sub(header_height).saturating_sub(border_height).saturating_sub(border_height);
-        // checking if click is NOT within list component constraints
-        if click_y < table_top.saturating_add(border_height).saturating_add(header_height) ||
-           click_y >= table_top.saturating_add(border_height).saturating_add(header_height).saturating_add(visible_list_height) {
-            return false;
-        }
-        self.focus = Focus::List;
-
+        let visible_list_height = table_height
+            .saturating_sub(header_height)
+            .saturating_sub(border_height)
+            .saturating_sub(border_height);
 
         // determining the maximum number of visible items
-        let scroll_offset = self.scroll.get_top();
-        let list_len = self.scroll.get_count();
-        let max_visible_items = (list_len.saturating_sub(scroll_offset)) as u16;
+        let scroll_offset = self.scroll.get_top();                                  // offset from top of list
+        let list_len = self.scroll.get_count();                                     // this is the total number of items in the iterator (after filter/sorting)
+        let max_visible_items = (list_len.saturating_sub(scroll_offset)) as u16;    // this is the number of items from the offset to the bottom of the list
+
         let visible_list_height = if max_visible_items < visible_list_height {
             max_visible_items
         }
@@ -229,15 +231,11 @@ impl ProcessComponent {
         true
     }
 
-    fn handle_mouse_click_on_filter(&mut self, click_y: u16) -> bool {
+    fn handle_mouse_click_on_filter(&mut self, click_x: u16, click_y: u16) -> bool {
         if self.filter_area.is_none() { return false; }
         let filter_area = self.filter_area.unwrap();
-        let filter_top = filter_area.top();
-        let filter_height = filter_area.height;
-        let border_height = self.border_height;
 
-        if click_y < filter_top.saturating_add(border_height) ||
-           click_y >= filter_top.saturating_add(border_height).saturating_add(filter_height) {
+        if !filter_area.contains(Position {x: click_x, y: click_y}) {
             return false;
         }
 
@@ -319,10 +317,10 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed);
             }
             MouseKind::LeftClick => {
-                if self.handle_mouse_click_on_list(mouse.row) {
+                if self.handle_mouse_click_on_list(mouse.column, mouse.row) {
                     return Ok(EventState::Consumed);
                 }
-                if self.handle_mouse_click_on_filter(mouse.row) {
+                if self.handle_mouse_click_on_filter(mouse.column, mouse.row) {
                     return Ok(EventState::Consumed);
                 }
                 /*if self.handle_mouse_click_on_header(mouse.column, mouse.row) {
@@ -334,28 +332,6 @@ impl Component for ProcessComponent {
 
         Ok(EventState::NotConsumed)
     }
-}
-
-// helper function to match key to sort variant
-fn handle_sort(key: Key, key_config: &KeyConfig, sort: &ProcessItemSortOrder) -> Option<ProcessItemSortOrder> {
-    if key == key_config.sort_pid_toggle {
-        if matches!(sort, ProcessItemSortOrder::PidDec) { return Some(ProcessItemSortOrder::PidInc)};
-        return Some(ProcessItemSortOrder::PidDec);
-    }
-    if key == key_config.sort_cpu_toggle {
-        if matches!(sort, ProcessItemSortOrder::PidDec) { return Some(ProcessItemSortOrder::PidInc)};
-        return Some(ProcessItemSortOrder::PidDec);
-    }
-
-
-
-    if key == key_config.sort_cpu_toggle        { return Some(ProcessItemSortOrder::CpuUsageDec) }
-    if key == key_config.sort_memory_toggle     { return Some(ProcessItemSortOrder::MemoryUsageInc) }
-    if key == key_config.sort_memory_toggle     { return Some(ProcessItemSortOrder::MemoryUsageDec) }
-    if key == key_config.sort_name_toggle             { return Some(ProcessItemSortOrder::NameInc) }
-    if key == key_config.sort_name_toggle            { return Some(ProcessItemSortOrder::NameDec) }
-
-    return None
 }
 
 impl DrawableComponent for ProcessComponent {
@@ -380,7 +356,7 @@ impl DrawableComponent for ProcessComponent {
         // set table area
         self.table_area = Some(horizontal_chunks[0]);
         // set filter area
-        self.filter_area = Some(horizontal_chunks[1]);
+        //self.filter_area = Some(horizontal_chunks[1]);
 
         // update vertical scroll
         let indices = self.vec_state.view_indices();
@@ -423,10 +399,21 @@ impl DrawableComponent for ProcessComponent {
                 false
             },
         )?;
-                
+
+        
+        let bottom_horizontal_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(95),
+                Constraint::Length(5),
+            ])
+            .split(horizontal_chunks[1]);
+
+        self.filter_area = Some(bottom_horizontal_chunks[0]);
+
         self.filter_component.draw(
             f, 
-            horizontal_chunks[1],
+            bottom_horizontal_chunks[0],
             if focused {
                 matches!(self.focus, Focus::Filter)
             } 
@@ -473,18 +460,19 @@ where
     let rows = visible_items
         .map(|(_idx, item, selected)| {
             let style = compute_row_style(focus, selected, &theme_config);
-            let indicator = if style == theme_config.style_item_selected {
+            let indicator = if style == theme_config.style_item_selected || style == theme_config.style_item_selected_not_focused{
                 "->"
             } else {
                 ""
             };
 
+
             let cells = vec![
                 Cell::from(indicator),
-                Cell::from(item.pid().to_string()),
-                Cell::from(format!("{:.40}", item.name())),
-                Cell::from(format!("{:.2}", item.cpu_usage())),
-                Cell::from(format!("{}",    byte_to_mb(item.memory_usage()))),
+                Cell::from(format!( "{}",           item.pid())),
+                Cell::from(format!( "{:.40}",       item.name())),
+                Cell::from(format!( "{:.2}",        item.cpu_usage())),
+                Cell::from(format!( "{}",           item.memory_usage().byte_to_mb())),
                 Cell::from(item.status()),
                 Cell::from(item.run_time_dd_hh_mm_ss()),
                 //Cell::from(item.path()),
@@ -538,12 +526,22 @@ fn compute_row_style(focus: bool, selected: bool, theme: &ThemeConfig) -> Style 
     match (focus, selected) {
         (true, true) => theme.style_item_selected,
         (true, false) => theme.style_item_focused,
+        (false, true) => theme.style_item_selected,
+        _ => theme.style_item_focused,
+    }
+}
+
+/*
+// helper function for determining row style
+fn compute_row_style(focus: bool, selected: bool, theme: &ThemeConfig) -> Style {
+    match (focus, selected) {
+        (true, true) => theme.style_item_selected,
+        (true, false) => theme.style_item_focused,
         (false, true) => theme.style_item_selected_not_focused,
         _ => theme.style_item_not_focused,
     }
 }
-
-
+*/
 
 
 // TEST MODULE

@@ -19,12 +19,11 @@ impl MemoryComponent {
     pub fn new<S>(config: Config, service: &S) -> Self 
     where S: ItemProvider<MemoryItem>
     {
-        let capacity = ( config.max_time_scale() / config.refresh_rate() ) as usize;
+        let capacity = ( config.max_time_span() / config.refresh_rate() ) as usize;
         let selection = None;
-        let refresh_bool = true;
-        let data_window_time_scale = config.min_time_scale();
+        let data_window_time_scale = config.default_time_span();
 
-        let mut queue_state = BoundedQueueState::new(capacity, selection, refresh_bool);
+        let mut queue_state = BoundedQueueState::new(capacity, selection);
         let memory = service.fetch_item();
         // adding first item
         queue_state.add_item(memory);
@@ -51,11 +50,11 @@ impl Component for MemoryComponent {
     fn key_event(&mut self, key: Key) -> Result<EventState> {
         let key_config = &self.config.key_config;
         if key == key_config.move_down {
-            self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_inc()), self.config.max_time_scale());
+            self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_step()), self.config.max_time_span());
             return Ok(EventState::Consumed)
         }
         if key == key_config.move_up {
-            self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_inc()), self.config.min_time_scale());
+            self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_step()), self.config.max_time_span());
             return Ok(EventState::Consumed)
         }
 
@@ -65,11 +64,11 @@ impl Component for MemoryComponent {
     fn mouse_event(&mut self, mouse: Mouse) -> Result<EventState> {
         match mouse.kind {
             MouseKind::ScrollDown => {
-                self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_inc()), self.config.max_time_scale());
+                self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_step()), self.config.max_time_span());
                 return Ok(EventState::Consumed)
             }
             MouseKind::ScrollUp => { 
-                self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_inc()), self.config.min_time_scale());
+                self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_step()), self.config.max_time_span());
                 return Ok(EventState::Consumed)
             }
             _ => {}

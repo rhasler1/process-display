@@ -25,6 +25,7 @@ enum MainFocus {
     Process,
     Memory,
     Network,
+    Help,
 }
 
 pub struct App {
@@ -38,6 +39,7 @@ pub struct App {
     network: NetworkComponent,
     //temp: TempComponent,
     help: HelpComponent,
+    freeze_flag: bool,
     pub error: ErrorComponent,
     pub config: Config,
 }
@@ -59,6 +61,7 @@ impl App {
         
         let focus = MainFocus::Process;
         let focus_rects = HashMap::new();
+        let freeze_flag = false;
 
         Self {
             focus,
@@ -71,18 +74,27 @@ impl App {
             network,
             //temp,
             help,
+            freeze_flag,
             error: ErrorComponent::new(config.clone()),
             config: config.clone(),
         }
     }
 
-    pub fn refresh_event(&mut self) -> Result<EventState> {
-        self.service.refresh_all();
+    pub fn toggle_freeze(&mut self) {
+        self.freeze_flag = !self.freeze_flag;
+    }
 
+    pub fn refresh_event(&mut self) -> Result<EventState> {
+        if self.freeze_flag {
+            return Ok(EventState::Consumed)
+        }
+
+        self.service.refresh_all();
         self.process.refresh(&self.service);
         self.memory.refresh(&self.service);
         self.cpu.update(&self.service);
         self.network.refresh(&self.service);
+        //TODO: self.clock.refresh();
 
         Ok(EventState::Consumed)
     }
@@ -107,6 +119,10 @@ impl App {
             self.toggle_expand();
             return Ok(EventState::Consumed);
         }
+        if key == self.config.key_config.freeze {
+            self.toggle_freeze();
+            return Ok(EventState::Consumed);
+        }
 
         Ok(EventState::NotConsumed)
     }
@@ -115,10 +131,9 @@ impl App {
         if self.error.key_event(key)?.is_consumed() {
             return Ok(EventState::Consumed)
         }
-        if self.help.key_event(key)?.is_consumed() {
-            return Ok(EventState::Consumed)
-        }
-
+        //if self.help.key_event(key)?.is_consumed() {
+        //    return Ok(EventState::Consumed)
+        //}
         match self.focus {
             MainFocus::CPU => {
                 if self.cpu.key_event(key)?.is_consumed() {
@@ -145,6 +160,11 @@ impl App {
                     return Ok(EventState::Consumed)
                 }
             }
+            MainFocus::Help => {
+                if self.help.key_event(key)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
         }
 
         Ok(EventState::NotConsumed)
@@ -165,6 +185,7 @@ impl App {
                 MainFocus::Process => {
                     self.focus = MainFocus::CPU
                 }
+                _ => {}
             }
             return Ok(EventState::Consumed)
         }
@@ -206,7 +227,12 @@ impl App {
                 if self.network.mouse_event(mouse)?.is_consumed() {
                     return Ok(EventState::Consumed)
                 }
-           }
+            }
+            MainFocus::Help => {
+                if self.help.mouse_event(mouse)?.is_consumed() {
+                    return Ok(EventState::Consumed)
+                }
+            }
         }
 
         if move_focus_res {
@@ -220,6 +246,14 @@ impl App {
         if matches!(mouse.kind, MouseKind::LeftClick) {
             let col = mouse.column;
             let row = mouse.row;
+
+            //special case for help: (help rectangle intersects process rectangle)
+            //this is a small intersection where help should take priority
+            if let Some(rect) = self.focus_rects.get(&MainFocus::Help) {
+                if rect.contains(col, row) {
+                    return Ok(EventState::Consumed)
+                }
+            }
 
             for (focus, rect) in &self.focus_rects {
                 if rect.contains(col, row) {
@@ -310,12 +344,35 @@ impl App {
                 horizontal_chunks.push(horizontal_chunk);
             }
 
+            let process_horizontal_chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Fill(1),        //table(process list)
+                    Constraint::Length(3),      //filter
+                ]).split(vertical_chunks[2]);
+
+            // splitting filter for help
+            let bottom_horizontal_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Percentage(95), // filter
+                    Constraint::Percentage(5),  // help
+                ])
+                .split(process_horizontal_chunks[1]);
+
             self.process.draw(
                 f,
                 vertical_chunks[2],
                 matches!(self.focus, MainFocus::Process)
             )?;
             self.focus_rects.insert(MainFocus::Process, vertical_chunks[2]);
+
+            self.help.draw(
+                f,
+                bottom_horizontal_chunks[1],
+                self.help.is_visible(),
+            )?;
+            self.focus_rects.insert(MainFocus::Help, bottom_horizontal_chunks[1]);
 
             self.cpu.draw(
                 f,

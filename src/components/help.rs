@@ -134,7 +134,11 @@ impl Component for HelpComponent {
 }
 
 impl DrawableComponent for HelpComponent {
-    fn draw(&mut self, f: &mut Frame, _area: Rect, _focused: bool) -> Result<()> {
+    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
+        if !self.visible {
+            let paragraph = Paragraph::new("?").block(Block::default().borders(Borders::ALL)).alignment(Alignment::Center);
+            f.render_widget(paragraph, area);
+        }
         if self.visible {
             const SIZE: (u16, u16) = (65, 24);
             let scroll_threshold = SIZE.1 / 3;

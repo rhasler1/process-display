@@ -7,19 +7,19 @@ pub struct Config {
     pub mouse_config: MouseConfig,
     pub theme_config: ThemeConfig,
     refresh_rate: u64,
-    max_time_scale: u64,
-    min_time_scale: u64,
-    time_inc: u64,
+    max_time_span: u64,
+    default_time_span: u64,
+    time_step: u64,
     tick_rate: u64,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        let refresh_rate = 2000;            // ms (2 seconds)      
-        let max_time_scale = 300000;        // ms (5 minutes)
-        let min_time_scale = 60000;            // ms (60 seconds)
-        let time_inc = 30000;               // ms (30 seconds)
-        let tick_rate = 250;                // ms
+        let refresh_rate = 2000;                    // ms (2 seconds)      
+        let max_time_span = 60000;                 // ms (10 minutes)
+        let default_time_span = 16000;              // ms (60 seconds)
+        let time_step = 2000;                      // ms (15 seconds)
+        let tick_rate = 250;                        // ms
 
 
         Self {
@@ -27,9 +27,9 @@ impl Default for Config {
             mouse_config: MouseConfig::default(),
             theme_config: ThemeConfig::default(),
             refresh_rate,
-            max_time_scale,
-            min_time_scale,
-            time_inc,
+            max_time_span,
+            default_time_span,
+            time_step,
             tick_rate,
         }
     }
@@ -40,16 +40,16 @@ impl Config {
         self.refresh_rate
     }
 
-    pub fn max_time_scale(&self) -> u64 {
-        self.max_time_scale
+    pub fn max_time_span(&self) -> u64 {
+        self.max_time_span
     }
 
-    pub fn min_time_scale(&self) -> u64 {
-        self.min_time_scale
+    pub fn default_time_span(&self) -> u64 {
+        self.default_time_span
     }
 
-    pub fn time_inc(&self) -> u64 {
-        self.time_inc
+    pub fn time_step(&self) -> u64 {
+        self.time_step
     }
 
     pub fn tick_rate(&self) -> u64 {
@@ -67,6 +67,8 @@ pub struct KeyConfig {
     pub move_top: Key,
     pub move_down: Key,
     pub move_bottom: Key,
+    pub move_left: Key,
+    pub move_right: Key,
     pub enter: Key,
     pub tab: Key,
     pub filter: Key,
@@ -79,6 +81,7 @@ pub struct KeyConfig {
     pub sort_memory_toggle: Key,
     pub follow_selection: Key,
     pub expand: Key,
+    pub freeze: Key,
 }
 
 impl Default for KeyConfig {
@@ -88,6 +91,8 @@ impl Default for KeyConfig {
             move_top: Key::Char('W'),
             move_down: Key::Down,
             move_bottom: Key::Char('S'),
+            move_left: Key::Left,
+            move_right: Key::Right,
             enter: Key::Enter,
             tab: Key::Tab,
             filter: Key::Char('/'),
@@ -100,6 +105,7 @@ impl Default for KeyConfig {
             sort_memory_toggle: Key::Char('m'),
             follow_selection: Key::Char('f'),
             expand: Key::Char('e'),
+            freeze: Key::Char('f'),
         }
     }
 }
@@ -123,7 +129,7 @@ impl Default for MouseConfig {
     }
 }
 
-use ratatui::prelude::{Color, Style};
+use ratatui::{prelude::{Color, Style}, style::Modifier};
 use crate::input::{Key, MouseKind};
 
 #[derive(Clone,PartialEq,Serialize,Deserialize)]
@@ -143,10 +149,10 @@ impl Default for ThemeConfig {
             style_border_not_focused: Style::default().fg(Color::DarkGray),
 
             style_item_focused: Style::default().fg(Color::White),
-            style_item_not_focused: Style::default().fg(Color::Gray),
+            style_item_not_focused: Style::default().fg(Color::DarkGray),
 
             style_item_selected: Style::default().fg(Color::LightBlue),
-            style_item_selected_not_focused: Style::default().fg(Color::White),
+            style_item_selected_not_focused: Style::default().fg(Color::Gray),
         }
     }
 }

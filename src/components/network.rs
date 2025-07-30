@@ -1,9 +1,6 @@
-
-use std::cmp::{max, min};
-
 use anyhow::{Ok, Result};
 use ratatui::{Frame, prelude::*, widgets::*};
-
+use crate::components::utils::data_window::DataWindow;
 use crate::components::Refreshable;
 use crate::input::MouseKind;
 use crate::services::ItemProvider;
@@ -14,30 +11,33 @@ use crate::config::Config;
 use crate::components::*;
 use crate::config::*;
 
+const Y_UPPER_BOUND_SCALE_FACTOR: f64 = 1.5;
+
 pub struct NetworkComponent {
     config: Config,
     queue_state: BoundedQueueState<NetworkItem>,
-    data_window_time_scale: u64,
+    data_window: DataWindow,
 }
 
 impl NetworkComponent {
     pub fn new<S>(config: Config, service: &S) -> Self
     where S: ItemProvider<NetworkItem>
     {
-        let capacity = ( config.max_time_scale() / config.refresh_rate() ) as usize;
+        let data_window_capacity = ( config.max_time_span() / config.refresh_rate() ) as usize;
+        let data_window_length = ( config.default_time_span() / config.refresh_rate() ) as usize;
+        let data_window_offset = 0;
+        let data_window = DataWindow::new(data_window_offset, data_window_length, data_window_capacity).unwrap();
+
         let selection = None;
-        let refresh_bool = true;
-        let data_window_time_scale = config.min_time_scale();
+        let mut queue_state = BoundedQueueState::new(data_window_capacity, selection);
 
-        let mut queue_state = BoundedQueueState::new(capacity, selection, refresh_bool);
         let network = service.fetch_item();
-
         queue_state.add_item(network);
 
         Self {
             config,
             queue_state,
-            data_window_time_scale,
+            data_window,
         }
     }
 }
@@ -55,12 +55,28 @@ where
 impl Component for NetworkComponent {
     fn key_event(&mut self, key: Key) -> Result<EventState> {
         let key_config = &self.config.key_config;
+        let time_step = self.config.time_step();
+        let refresh_rate = self.config.refresh_rate();
+        let idx_step  = time_step / refresh_rate;
+
         if key == key_config.move_down {
-            self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_inc()), self.config.max_time_scale());
+            self.data_window.zoom_out(idx_step as usize);
+
             return Ok(EventState::Consumed)
         }
         if key == key_config.move_up {
-            self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_inc()), self.config.min_time_scale());
+            self.data_window.zoom_in(idx_step as usize);
+
+            return Ok(EventState::Consumed)
+        }
+        if key == key_config.move_left {
+            self.data_window.pan_positive(idx_step as usize);
+
+            return Ok(EventState::Consumed)
+        }
+        if key == key_config.move_right {
+            self.data_window.pan_negative(idx_step as usize);
+
             return Ok(EventState::Consumed)
         }
 
@@ -68,13 +84,17 @@ impl Component for NetworkComponent {
     }
 
     fn mouse_event(&mut self, mouse: Mouse) -> Result<EventState> {
+        let time_step = self.config.time_step();
+        let refresh_rate = self.config.refresh_rate();
+        let idx_step  = time_step / refresh_rate;
+
         match mouse.kind {
             MouseKind::ScrollDown => {
-                self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_inc()), self.config.max_time_scale());
+                self.data_window.zoom_out(idx_step as usize);
                 return Ok(EventState::Consumed)
             }
             MouseKind::ScrollUp => { 
-                self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_inc()), self.config.min_time_scale());
+                self.data_window.zoom_in(idx_step as usize);
                 return Ok(EventState::Consumed)
             }
             _ => {}
@@ -86,6 +106,7 @@ impl Component for NetworkComponent {
 
 impl DrawableComponent for NetworkComponent {
     fn draw(&mut self, f: &mut Frame, area: Rect, focused: bool) -> Result<()> {
+
         let vertical_chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -93,57 +114,91 @@ impl DrawableComponent for NetworkComponent {
                 Constraint::Min(0),
             ]).split(area);
         
-        let refresh_rate = self.config.refresh_rate();              // default = 2,000 ms
-        let time_scale = self.data_window_time_scale;               // default = 60,000 ms
-        let data_window = (time_scale / refresh_rate) as usize;     // default = 30
-        let max_idx = data_window.saturating_sub(1);                //
-        let y_max_scale_factor = 1.5;                               // used to scale y-upper bound
+        let refresh_rate = self.config.refresh_rate();
+        let data_window_length = self.data_window.window_length();
+        let data_window_offset = self.data_window.window_offset();
+        let y_upper_bound_scale_factor = Y_UPPER_BOUND_SCALE_FACTOR;
 
-        let tx_data: Vec<(f64, f64)> = self.queue_state
+        let visible_buffer_length = self.queue_state
+            .iter()
+            .rev()
+            .skip(data_window_offset)
+            .take(data_window_length)
+            .count();
+
+        // mapping the visible data buffer to x,y-coordinates
+        let tx_visible_data: Vec<(f64, f64)> = self.queue_state
                 .iter()
                 .rev()
-                .take(data_window)
+                .skip(data_window_offset)
+                .take(visible_buffer_length)
                 .enumerate()
-                .map(|(idx, network_item)| {
+                .map(|(i, network_item)| {
                     (
-                        max_idx.saturating_sub(idx) as f64,
+                        (data_window_length         
+                            .saturating_sub(i+1)) as f64,
+                            
                         byte_to_kb(network_item.tx()) as f64,
                     )
                 })
                 .collect();
 
-        let rx_data: Vec<(f64, f64)> = self.queue_state
+        let rx_visible_data: Vec<(f64, f64)> = self.queue_state
                 .iter()
                 .rev()
-                .take(data_window)
+                .skip(data_window_offset)
+                .take(visible_buffer_length)
                 .enumerate()
-                .map(|(idx, network_item)| {
+                .map(|(i, network_item)| {
                     (
-                        max_idx.saturating_sub(idx) as f64,
+                        (data_window_length     
+                            .saturating_sub(i+1)) as f64,
+
                         byte_to_kb(network_item.rx()) as f64,
                     )
                 })
                 .collect();
 
-        // getting upper bound on y
-        let max_y = tx_data
+        // setting lower and upper y bounds
+        let y_lower_bound = 0.0;
+        let y_upper_bound = tx_visible_data
             .iter()
-            .chain(rx_data.iter())
+            .chain(rx_visible_data.iter())
             .map(|tuple| tuple.1)
             .fold(0.0, f64::max);
+        let y_upper_bound = y_upper_bound * y_upper_bound_scale_factor;
+    
+        // setting lower and upper x bounds
+        let x_lower_bound = 0.0;
+        let x_upper_bound = data_window_length.saturating_sub(1) as f64;
 
-        // scaling
-        let max_y = max_y * y_max_scale_factor;
-        
+        // setting x-axis
+        let x_axis = Axis::default()
+            .bounds([x_lower_bound, x_upper_bound])
+            .labels(vec![
+                Span::raw(format!("{}idx", x_upper_bound)),
+                Span::raw(format!("{}idx", x_lower_bound)),
+                ])
+            .labels_alignment(Alignment::Right);
+
+        // setting y-axis
+        let y_axis = Axis::default()
+            .bounds([y_lower_bound, y_upper_bound])
+            .labels(vec![
+                Span::raw(format!("{}", y_lower_bound)),
+                Span::raw(format!("{}", y_upper_bound)),
+            ])
+            .labels_alignment(Alignment::Right);
+
+        // setting datasets
         let datasets = vec![
             Dataset::default()
-                .data(&tx_data)
+                .data(&tx_visible_data)
                 .graph_type(GraphType::Line)
                 .marker(Marker::Braille)
                 .style(Style::new().light_blue()),
-            
             Dataset::default()
-                .data(&rx_data)
+                .data(&rx_visible_data)
                 .graph_type(GraphType::Line)
                 .marker(Marker::Braille)
                 .style(Style::new().light_yellow())
@@ -157,20 +212,7 @@ impl DrawableComponent for NetworkComponent {
             self.config.theme_config.style_border_not_focused
         };
 
-        // building chart
-        let x_axis = Axis::default()
-            .bounds([0.0, max_idx as f64])
-            .labels(vec![Span::raw(format!("{}s", ms_to_s(time_scale))), Span::raw("now")])
-            .labels_alignment(Alignment::Right);
-
-        let y_axis = Axis::default()
-            .bounds([0.0, max_y])
-            .labels(vec![
-                Span::raw("0KB"),
-                Span::raw(format!("{}", max_y)),
-            ])
-            .labels_alignment(Alignment::Right);
-
+        // set chart
         let chart_title = " Network ";
         let chart = Chart::new(datasets)
             .block(Block::default()
@@ -180,6 +222,7 @@ impl DrawableComponent for NetworkComponent {
         .x_axis(x_axis)
         .y_axis(y_axis);
 
+        // render chart
         f.render_widget(chart, vertical_chunks[1]);
 
         let network_item = if let Some(item) = self.queue_state.back() {
@@ -189,10 +232,11 @@ impl DrawableComponent for NetworkComponent {
             &NetworkItem::default()
         };
         
+        // legend
         let tx_per_s = network_item.tx() / ms_to_s(refresh_rate);
         let rx_per_s = network_item.rx() / ms_to_s(refresh_rate);
-        let tx_legend = format!("TX/s {}KB :: TOTAL TX {}MB", byte_to_kb(tx_per_s), byte_to_mb(network_item.total_tx()));
-        let rx_legend = format!("RX/s {}KB :: TOTAL RX {}MB", byte_to_kb(rx_per_s), byte_to_mb(network_item.total_rx()));
+        let tx_legend = format!("TX/s {}KB :: TOTAL TX {}MB", byte_to_kb(tx_per_s), network_item.total_tx().byte_to_mb());
+        let rx_legend = format!("RX/s {}KB :: TOTAL RX {}MB", byte_to_kb(rx_per_s), network_item.total_rx().byte_to_mb());
 
         let legend = Paragraph::new(
             Line::from(vec![

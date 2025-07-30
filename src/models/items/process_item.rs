@@ -110,14 +110,14 @@ impl ProcessItem {
     }
 
     pub fn run_time_dd_hh_mm_ss(&self) -> String {
-        let time_in_s = self.run_time;
+        let t = self.run_time;
 
-        let ss =  time_in_s % 60;
-        let mm = (time_in_s / 60) % 60;
-        let hh = (time_in_s / 3600) % 24;
-        let dd = hh / 86400;
+        let dd = (t / 86400).min(99); // capping
+        let hh = (t / 3600) % 24;
+        let mm = (t / 60) % 60;
+        let ss = t % 60;
 
-        format!("{:0>2}D {:0>2}H {:0>2}M {:0>2}S", dd, hh, mm, ss)
+        format!("{:02}D {:02}H {:02}M {:02}S", dd, hh, mm, ss)
     }
 
     pub fn accumulated_cpu_time(&self) -> u64 {
