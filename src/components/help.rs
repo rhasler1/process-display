@@ -1,6 +1,7 @@
 use anyhow::Ok;
 use anyhow::Result;
 use itertools::Itertools;
+use crate::components::MoveSelection;
 use crate::input::*;
 use ratatui::{
     Frame,
@@ -50,6 +51,13 @@ impl HelpComponent {
         
         self.selection = new_selection.min(self.cmds.len().saturating_sub(1) as u16);
 
+    }
+
+    fn get_text_t(&self, width: usize) -> Vec<Line> {
+        let mut text: Vec<Line> = Vec::new();
+
+
+        text
     }
 
     fn get_text(&self, width: usize) -> Vec<Line> {
@@ -125,20 +133,28 @@ impl Component for HelpComponent {
             self.show()?;
             return Ok(EventState::Consumed);
         }
+        
         Ok(EventState::NotConsumed)
     }
 
-    fn mouse_event(&mut self, _mouse: Mouse) -> Result<EventState> {
+    fn mouse_event(&mut self, mouse: Mouse) -> Result<EventState> {
+        if self.visible {
+            if mouse.kind == MouseKind::ScrollDown {
+                self.scroll_selection(true);
+                return Ok(EventState::Consumed);
+            }
+            if mouse.kind == MouseKind::ScrollUp {
+                self.scroll_selection(false);
+                return Ok(EventState::Consumed)
+            }
+        }
+
         Ok(EventState::NotConsumed)
     }
 }
 
 impl DrawableComponent for HelpComponent {
-    fn draw(&mut self, f: &mut Frame, area: Rect, _focused: bool) -> Result<()> {
-        if !self.visible {
-            let paragraph = Paragraph::new("?").block(Block::default().borders(Borders::ALL)).alignment(Alignment::Center);
-            f.render_widget(paragraph, area);
-        }
+    fn draw(&mut self, f: &mut Frame, _area: Rect, _focused: bool) -> Result<()> {
         if self.visible {
             const SIZE: (u16, u16) = (65, 24);
             let scroll_threshold = SIZE.1 / 3;
@@ -155,9 +171,10 @@ impl DrawableComponent for HelpComponent {
 
             f.render_widget(
                 Block::default()
-                    .title("Help")
+                    .title(" Help ")
                     .borders(Borders::ALL)
                     .border_type(BorderType::Thick),
+                    //.style(self.config.theme_config.style_border_focused),
                 area,
             );
 

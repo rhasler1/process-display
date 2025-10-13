@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use anyhow::{Ok, Result};
+use ratatui::layout::Position;
 use ratatui::prelude::*;
-use crate::components::help::HelpComponent;
+use ratatui::widgets::Paragraph;
+use crate::components::utils::mouse;
 use crate::input::{Key, Mouse, MouseKind};
 use crate::components::{command, Refreshable};
 use crate::config::{Config, KeyConfig, MouseConfig};
@@ -14,7 +16,7 @@ use crate::components::{
     EventState,
     Component,
     DrawableComponent,
-    //help::HelpComponent,
+    help::HelpComponent,
 };
 use crate::components::command::CommandInfo;
 use crate::services::sysinfo_service::SysInfoService;
@@ -25,7 +27,6 @@ enum MainFocus {
     Process,
     Memory,
     Network,
-    Help,
 }
 
 pub struct App {
@@ -104,11 +105,6 @@ impl App {
     }
 
     pub fn key_event(&mut self, key: Key) -> Result<EventState> {
-        if self.help.is_visible() {
-            let _ = self.help.key_event(key)?.is_consumed();
-            return Ok(EventState::Consumed)
-        }
-
         if self.key_component_event(key)?.is_consumed() {
             return Ok(EventState::Consumed);
         }
@@ -131,9 +127,10 @@ impl App {
         if self.error.key_event(key)?.is_consumed() {
             return Ok(EventState::Consumed)
         }
-        //if self.help.key_event(key)?.is_consumed() {
-        //    return Ok(EventState::Consumed)
-        //}
+        if self.help.key_event(key)?.is_consumed() {
+            return Ok(EventState::Consumed)
+        }
+
         match self.focus {
             MainFocus::CPU => {
                 if self.cpu.key_event(key)?.is_consumed() {
@@ -160,11 +157,6 @@ impl App {
                     return Ok(EventState::Consumed)
                 }
             }
-            MainFocus::Help => {
-                if self.help.key_event(key)?.is_consumed() {
-                    return Ok(EventState::Consumed)
-                }
-            }
         }
 
         Ok(EventState::NotConsumed)
@@ -185,7 +177,6 @@ impl App {
                 MainFocus::Process => {
                     self.focus = MainFocus::CPU
                 }
-                _ => {}
             }
             return Ok(EventState::Consumed)
         }
@@ -228,11 +219,6 @@ impl App {
                     return Ok(EventState::Consumed)
                 }
             }
-            MainFocus::Help => {
-                if self.help.mouse_event(mouse)?.is_consumed() {
-                    return Ok(EventState::Consumed)
-                }
-            }
         }
 
         if move_focus_res {
@@ -247,16 +233,8 @@ impl App {
             let col = mouse.column;
             let row = mouse.row;
 
-            //special case for help: (help rectangle intersects process rectangle)
-            //this is a small intersection where help should take priority
-            if let Some(rect) = self.focus_rects.get(&MainFocus::Help) {
-                if rect.contains(col, row) {
-                    return Ok(EventState::Consumed)
-                }
-            }
-
             for (focus, rect) in &self.focus_rects {
-                if rect.contains(col, row) {
+                if rect.contains(Position { x: col, y: row }) {
                     self.focus = *focus;
                     return Ok(EventState::Consumed)
                 }
@@ -344,35 +322,12 @@ impl App {
                 horizontal_chunks.push(horizontal_chunk);
             }
 
-            let process_horizontal_chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([
-                    Constraint::Fill(1),        //table(process list)
-                    Constraint::Length(3),      //filter
-                ]).split(vertical_chunks[2]);
-
-            // splitting filter for help
-            let bottom_horizontal_chunks = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Percentage(95), // filter
-                    Constraint::Percentage(5),  // help
-                ])
-                .split(process_horizontal_chunks[1]);
-
             self.process.draw(
                 f,
                 vertical_chunks[2],
                 matches!(self.focus, MainFocus::Process)
             )?;
             self.focus_rects.insert(MainFocus::Process, vertical_chunks[2]);
-
-            self.help.draw(
-                f,
-                bottom_horizontal_chunks[1],
-                self.help.is_visible(),
-            )?;
-            self.focus_rects.insert(MainFocus::Help, bottom_horizontal_chunks[1]);
 
             self.cpu.draw(
                 f,
@@ -396,6 +351,12 @@ impl App {
             self.focus_rects.insert(MainFocus::Network, horizontal_chunks[1][1]);
         }
 
+        if self.freeze_flag {
+            let span = Span::styled(" FROZEN ", Style::new().blue());
+            let paragraph = Paragraph::new(span).alignment(Alignment::Center);
+            f.render_widget(paragraph, chunks[0]);
+        }
+
         return Ok(())
     }
 }
@@ -403,29 +364,39 @@ impl App {
 fn commands(key_config: &KeyConfig, mouse_config: &MouseConfig) -> Vec<CommandInfo> {
     let res = vec![
         CommandInfo::new(command::help(key_config)),
-        CommandInfo::new(command::exit_popup(key_config)),
-        //CommandInfo::new(command::change_tab(&self.config.key_config)),
-        CommandInfo::new(command::move_selection(key_config)),
-        CommandInfo::new(command::selection_to_top_bottom(key_config)),
+        CommandInfo::new(command::exit_app_by_key(key_config)),
+
+        CommandInfo::new(command::select_component_mouse(mouse_config)),
+        CommandInfo::new(command::select_component_key(key_config)),
+
+        CommandInfo::new(command::move_selection_by_key(key_config)),
+        CommandInfo::new(command::move_selection_by_mouse(mouse_config)),
+
+        CommandInfo::new(command::move_selection_by_key_top_bottom(key_config)),
+
+        CommandInfo::new(command::select_row(mouse_config)),
         CommandInfo::new(command::sort_list_by_name(key_config, mouse_config)),
         CommandInfo::new(command::sort_list_by_pid(key_config, mouse_config)),
         CommandInfo::new(command::sort_list_by_cpu_usage(key_config, mouse_config)),
         CommandInfo::new(command::sort_list_by_memory_usage(key_config, mouse_config)),
-        CommandInfo::new(command::filter_submit(key_config)),
-        CommandInfo::new(command::terminate_process(key_config)),
+        CommandInfo::new(command::sort_list_by_status(key_config, mouse_config)),
+        CommandInfo::new(command::sort_list_by_runtime(key_config, mouse_config)),
+        CommandInfo::new(command::enter_filter_state_by_key(key_config)),
+        CommandInfo::new(command::exit_filter_state_by_key(key_config)),
+
+        CommandInfo::new(command::zoom_chart_by_key(key_config)),
+        CommandInfo::new(command::zoom_chart_by_mouse(mouse_config)),
+        CommandInfo::new(command::pan_chart_by_key(key_config)),
     ];
 
     res
 }
 
-trait Contains {
-    fn contains(&self, col: u16, row: u16) -> bool;
-}
-impl Contains for Rect {
-    fn contains(&self, col: u16, row: u16) -> bool {
-        col >= self.x
-            && col < self.x + self.width
-            && row >= self.y
-            && row < self.y + self.height
-    }
-}
+/*
+TODO:
+1. Add system clock & time to charts
+2. Add ability to send signals to processes -> build a new component for this?
+3. Rewrite the help component
+5. Add more filtering options, e.g., and, or
+
+*/

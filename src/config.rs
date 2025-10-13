@@ -79,6 +79,8 @@ pub struct KeyConfig {
     pub sort_pid_toggle: Key,
     pub sort_cpu_toggle: Key,
     pub sort_memory_toggle: Key,
+    pub sort_status_toggle: Key,
+    pub sort_runtime_toggle: Key,
     pub follow_selection: Key,
     pub expand: Key,
     pub freeze: Key,
@@ -103,6 +105,8 @@ impl Default for KeyConfig {
             sort_pid_toggle: Key::Char('p'),
             sort_cpu_toggle: Key::Char('c'),
             sort_memory_toggle: Key::Char('m'),
+            sort_runtime_toggle: Key::Char('r'),
+            sort_status_toggle: Key::Char('s'),
             follow_selection: Key::Char('f'),
             expand: Key::Char('e'),
             freeze: Key::Char('f'),
@@ -129,7 +133,7 @@ impl Default for MouseConfig {
     }
 }
 
-use ratatui::{prelude::{Color, Style}, style::Modifier};
+use ratatui::{prelude::{Color, Style}};
 use crate::input::{Key, MouseKind};
 
 #[derive(Clone,PartialEq,Serialize,Deserialize)]
@@ -151,7 +155,7 @@ impl Default for ThemeConfig {
             style_item_focused: Style::default().fg(Color::White),
             style_item_not_focused: Style::default().fg(Color::DarkGray),
 
-            style_item_selected: Style::default().fg(Color::LightBlue),
+            style_item_selected: Style::default().fg(Color::LightBlue),//.bg(Color::Blue),
             style_item_selected_not_focused: Style::default().fg(Color::Gray),
         }
     }

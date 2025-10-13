@@ -77,11 +77,11 @@ pub enum Focus {
     CPUList,
 }
 
+const SELECTION_OFFSET: usize = 1;
+
 pub struct CPUComponent {
     cpus: BTreeMap<usize, BoundedQueueModel<CpuItem>>,
     selection_state: UISelection,
-    selection_offset: usize,
-    //data_window_time_scale: u64,
     data_window: DataWindow,
     chart_area: Option<Rect>,
     list_area: Option<Rect>,
@@ -98,9 +98,7 @@ impl CPUComponent {
         let data_window_offset = 0;
         let data_window = DataWindow::new(data_window_offset, data_window_length, data_window_capacity).unwrap();
         
-        let focus: Focus = Focus::CPUList;
-        //let data_window_time_scale = config.default_time_span();
-        //let capacity = ( config.max_time_span() / config.refresh_rate() ) as usize;
+        let focus: Focus = Focus::Chart;
 
         for cpu in sysinfo.get_cpus() {
             let id = cpu.id();
@@ -117,7 +115,6 @@ impl CPUComponent {
         // this is the offset between the SelectionState Selection (ui selection) & cpu_selection (backend)
         // this offset is present because an option to display ALL cpus is present in the ui list that is
         // not present in the CPU list
-        let selection_offset = 1;
 
         let chart_area = None;
         let list_area = None;
@@ -125,7 +122,6 @@ impl CPUComponent {
         Self {
             cpus,
             selection_state,
-            selection_offset,
             data_window,
             chart_area,
             list_area,
@@ -176,8 +172,7 @@ impl CPUComponent {
 
     fn handle_move_selection(&mut self, dir: MoveSelection) {
         let len = self.cpus.len();
-        let offset = self.selection_offset;
-        self.selection_state.move_selection(dir, len + offset);
+        self.selection_state.move_selection(dir, len + SELECTION_OFFSET);
     } 
 }
 
@@ -199,12 +194,10 @@ impl Component for CPUComponent {
             Focus::Chart => {
                 if key == key_config.move_down {
                     self.data_window.zoom_out(idx_step as usize);
-                    //self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_step()), self.config.max_time_span());
                     return Ok(EventState::Consumed)
                 }
                 if key == key_config.move_up {
                     self.data_window.zoom_in(idx_step as usize);
-                    //self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_step()), self.config.max_time_span());
                     return Ok(EventState::Consumed)
                 }
                 if key == key_config.move_left {
@@ -249,12 +242,10 @@ impl Component for CPUComponent {
                 match mouse.kind {
                     MouseKind::ScrollDown => {
                         self.data_window.zoom_out(idx_step as usize);
-                        //self.data_window_time_scale = min(self.data_window_time_scale.saturating_add(self.config.time_step()), self.config.max_time_span());
                         return Ok(EventState::Consumed)
                     }
                     MouseKind::ScrollUp => { 
                         self.data_window.zoom_in(idx_step as usize);
-                        //self.data_window_time_scale = max(self.data_window_time_scale.saturating_sub(self.config.time_step()), self.config.max_time_span());
                         return Ok(EventState::Consumed)
                     }
                     _ => {}
@@ -314,7 +305,7 @@ impl DrawableComponent for CPUComponent {
         // set cpu selection
         let cpu_selection = if let Some(selection) = self.selection_state.selection {
             if selection == 0 { None }
-            else {Some(selection.saturating_sub(self.selection_offset))}
+            else {Some(selection.saturating_sub(SELECTION_OFFSET))}
   
         }
         else { None };

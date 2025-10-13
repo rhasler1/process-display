@@ -1,5 +1,4 @@
 use anyhow::{Ok, Result};
-use itertools::max;
 use ratatui::layout::Position;
 use ratatui::{Frame, prelude::*, widgets::*};
 use crate::config::*;
@@ -18,16 +17,15 @@ pub enum Focus {
     List,
 }
 
+const BORDER_HEIGHT: u16 = 1;
+const HEADER_HEIGHT: u16 = 1;
+
 pub struct ProcessComponent {
     vec_state: VecState<ProcessItem, ProcessItemSortOrder>,             // underlying the "processlist" is a VecState: see states/vec_state.rs for details
-    // ui stuff
     ui_selection: UISelection,                                          // manages ui selection state and movement
     table_area: Option<Rect>,                                           // table area is dynamic, updated by draw, init to None
     filter_area: Option<Rect>,                                          // filter area is dynamic, updated by draw, init to None
-    header_height: u16,                                                 // header height is static, initialize in constructor to 1
-    border_height: u16,                                                 // border height is static, initialize in constructor to 1, e.g., If Border::BOTTOM | Border::TOP, then total height = 2
     scroll: VerticalScroll,
-    //
     sort: ProcessItemSortOrder,
     filter_component: FilterComponent,
     focus: Focus,
@@ -43,8 +41,6 @@ impl ProcessComponent {
         let ui_selection: UISelection = if processes.is_empty() { UISelection::new(None) } else { UISelection::new(Some(0)) };
         let table_area: Option<Rect> = None;
         let filter_area: Option<Rect> = None;
-        let header_height = 1 as u16;
-        let border_height = 1 as u16;
         let state_selection: Option<usize> = ui_selection.selection;
         let filter: Option<String> = None;
         let sort: ProcessItemSortOrder = ProcessItemSortOrder::CpuUsageDec;
@@ -58,8 +54,6 @@ impl ProcessComponent {
             ui_selection,
             table_area,
             filter_area,
-            header_height,
-            border_height,
             sort,
             scroll,
             filter_component,
@@ -169,6 +163,28 @@ impl ProcessComponent {
             self.vec_state.set_sort(Some(self.sort.clone()));
             return true;
         }
+        else if key == key_config.sort_status_toggle {
+            if matches!(sort, ProcessItemSortOrder::StatusDec) {
+                self.sort = ProcessItemSortOrder::StatusInc;
+            }
+            else {
+                self.sort = ProcessItemSortOrder::StatusDec
+            }
+            self.vec_state.set_sort(Some(self.sort.clone()));
+            return true;
+        }
+        else if key == key_config.sort_runtime_toggle {
+            if matches!(sort, ProcessItemSortOrder::RuntimeDec) {
+                self.sort = ProcessItemSortOrder::RuntimeInc;
+            }
+            else {
+                self.sort = ProcessItemSortOrder::RuntimeDec
+            }
+            self.vec_state.set_sort(Some(self.sort.clone()));
+            return true;
+
+        }
+
 
         false
 
@@ -183,44 +199,55 @@ impl ProcessComponent {
        and vec state selection is updated.
        returns true if click_y is contained in the process list, else false
     */
-    fn handle_mouse_click_on_list(&mut self, click_x: u16, click_y: u16) -> bool {
+    fn handle_mouse_click_on_table(&mut self, click_x: u16, click_y: u16) -> bool {
         if self.table_area.is_none() { return false; }
         let table_area = self.table_area.unwrap();
+
         // checking if click is within list rect constraints
         if !table_area.contains(Position { x: click_x, y: click_y }) { return false }
         self.focus = Focus::List;
 
         let table_top = table_area.top();                           // y-coordinate to top of table area
         let table_height = table_area.height;                       // height of table area
-        let header_height = self.header_height;                     // height of table header
-        let border_height = self.border_height;                     // height of a single border
 
-        let visible_list_height = table_height
-            .saturating_sub(header_height)
-            .saturating_sub(border_height)
-            .saturating_sub(border_height);
+        let visible_row_capacity = table_height
+            .saturating_sub(HEADER_HEIGHT)
+            .saturating_sub(BORDER_HEIGHT)
+            .saturating_sub(BORDER_HEIGHT);
 
         // determining the maximum number of visible items
-        let scroll_offset = self.scroll.get_top();                                  // offset from top of list
-        let list_len = self.scroll.get_count();                                     // this is the total number of items in the iterator (after filter/sorting)
-        let max_visible_items = (list_len.saturating_sub(scroll_offset)) as u16;    // this is the number of items from the offset to the bottom of the list
+        let scroll_offset = self.scroll.get_top();                                          // offset from top of list
+        let rows_total = self.scroll.get_count();                                           // this is the total number of items in the iterator (after filter/sorting)
+        let rows_remaining = (rows_total.saturating_sub(scroll_offset)) as u16;             // this is the number of items from the offset to the bottom of the list
 
-        let visible_list_height = if max_visible_items < visible_list_height {
-            max_visible_items
+        let visible_row_count = if rows_remaining < visible_row_capacity {
+            rows_remaining
         }
         else {
-            visible_list_height
+            visible_row_capacity
         };
 
+        let rows_upper_bound = table_top
+            .saturating_add(BORDER_HEIGHT)
+            .saturating_add(HEADER_HEIGHT);
+
+        let rows_lower_bound = table_top
+            .saturating_add(BORDER_HEIGHT)
+            .saturating_add(HEADER_HEIGHT)
+            .saturating_add(visible_row_count);
+
         // checking if click is within list items constraints
-        if click_y < table_top.saturating_add(border_height).saturating_add(header_height) ||
-           click_y >= table_top.saturating_add(border_height).saturating_add(header_height).saturating_add(visible_list_height) {
+        if click_y < rows_upper_bound || click_y >= rows_lower_bound {
             // return true here, click is considered consumed when focus is changed after the first check
             return true;
         }
 
         // calculating row index and corresponding item index
-        let row_idx = (click_y.saturating_sub(table_top).saturating_sub(header_height).saturating_sub(border_height)) as usize;
+        let row_idx = (click_y
+            .saturating_sub(table_top)
+            .saturating_sub(HEADER_HEIGHT)
+            .saturating_sub(BORDER_HEIGHT)) as usize;
+
         let item_idx = scroll_offset.saturating_add(row_idx);
 
         // setting selection and vec state
@@ -317,15 +344,12 @@ impl Component for ProcessComponent {
                 return Ok(EventState::Consumed);
             }
             MouseKind::LeftClick => {
-                if self.handle_mouse_click_on_list(mouse.column, mouse.row) {
+                if self.handle_mouse_click_on_table(mouse.column, mouse.row) {
                     return Ok(EventState::Consumed);
                 }
                 if self.handle_mouse_click_on_filter(mouse.column, mouse.row) {
                     return Ok(EventState::Consumed);
                 }
-                /*if self.handle_mouse_click_on_header(mouse.column, mouse.row) {
-                    return Ok(EventState::Consumed)
-                }*/
             }
             _ => {}
         }
@@ -343,20 +367,18 @@ impl DrawableComponent for ProcessComponent {
                 Constraint::Length(3),      //filter
             ]).split(area);
 
-        // set heights
-        let header_height = self.header_height;
-        let border_height = self.border_height;
+        // set visible list height
         let visible_list_height = horizontal_chunks[0]
             .height
-            .saturating_sub(border_height)
-            .saturating_sub(border_height)
-            .saturating_sub(header_height) as usize;
+            .saturating_sub(BORDER_HEIGHT)
+            .saturating_sub(BORDER_HEIGHT)
+            .saturating_sub(HEADER_HEIGHT) as usize;
 
         // saving table and filter area to process mouse clicks
         // set table area
         self.table_area = Some(horizontal_chunks[0]);
         // set filter area
-        //self.filter_area = Some(horizontal_chunks[1]);
+        self.filter_area = Some(horizontal_chunks[1]);
 
         // update vertical scroll
         let indices = self.vec_state.view_indices();
@@ -400,20 +422,9 @@ impl DrawableComponent for ProcessComponent {
             },
         )?;
 
-        
-        let bottom_horizontal_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(95),
-                Constraint::Length(5),
-            ])
-            .split(horizontal_chunks[1]);
-
-        self.filter_area = Some(bottom_horizontal_chunks[0]);
-
         self.filter_component.draw(
             f, 
-            bottom_horizontal_chunks[0],
+            horizontal_chunks[1],
             if focused {
                 matches!(self.focus, Focus::Filter)
             } 
@@ -444,8 +455,8 @@ where
         &header_with_sort(&sort_order, &ProcessItemSortOrder::NameInc, &ProcessItemSortOrder::NameDec, "NAME(n)"),
         &header_with_sort(&sort_order, &ProcessItemSortOrder::CpuUsageInc, &ProcessItemSortOrder::CpuUsageDec, "CPU(c)(%)"),
         &header_with_sort(&sort_order, &ProcessItemSortOrder::MemoryUsageInc, &ProcessItemSortOrder::MemoryUsageDec, "MEM(m)(MB)"),
-        "STATUS",
-        "RUNTIME",
+        &header_with_sort(&sort_order, &ProcessItemSortOrder::StatusInc, &ProcessItemSortOrder::StatusDec, "Status(s)"),
+        &header_with_sort(&sort_order, &ProcessItemSortOrder::RuntimeInc, &ProcessItemSortOrder::RuntimeDec, "Runtime(s)"),
         //"PATH",
     ];
 
@@ -460,12 +471,11 @@ where
     let rows = visible_items
         .map(|(_idx, item, selected)| {
             let style = compute_row_style(focus, selected, &theme_config);
-            let indicator = if style == theme_config.style_item_selected || style == theme_config.style_item_selected_not_focused{
+            let indicator = if style == theme_config.style_item_selected || style == theme_config.style_item_selected_not_focused {
                 "->"
             } else {
                 ""
             };
-
 
             let cells = vec![
                 Cell::from(indicator),
@@ -475,7 +485,6 @@ where
                 Cell::from(format!( "{}",           item.memory_usage().byte_to_mb())),
                 Cell::from(item.status()),
                 Cell::from(item.run_time_dd_hh_mm_ss()),
-                //Cell::from(item.path()),
             ];
             Row::new(cells).style(style)
         })
@@ -484,7 +493,7 @@ where
     // setting width constraints
     let widths =
     vec![
-        Constraint::Length(2),  // arrow
+        Constraint::Length(2),      // arrow
         Constraint::Percentage(10), // pid
         Constraint::Percentage(30), // name
         Constraint::Percentage(15), // cpu usage
@@ -500,8 +509,8 @@ where
     // setting the table
     let table = Table::new(rows, widths)
         .header(header)
-        .block(Block::default().borders(Borders::ALL).title(block_title))
-        .style(block_style);
+        .block(Block::default().borders(Borders::ALL).title(block_title).style(block_style));
+        //.style(block_style);
 
     // render
     f.render_widget(table, area);
@@ -530,19 +539,6 @@ fn compute_row_style(focus: bool, selected: bool, theme: &ThemeConfig) -> Style 
         _ => theme.style_item_focused,
     }
 }
-
-/*
-// helper function for determining row style
-fn compute_row_style(focus: bool, selected: bool, theme: &ThemeConfig) -> Style {
-    match (focus, selected) {
-        (true, true) => theme.style_item_selected,
-        (true, false) => theme.style_item_focused,
-        (false, true) => theme.style_item_selected_not_focused,
-        _ => theme.style_item_not_focused,
-    }
-}
-*/
-
 
 // TEST MODULE
 #[cfg(test)]
